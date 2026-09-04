@@ -9,9 +9,16 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { getCatalogProduct } from '../catalog/product-catalog';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import { CreateKlarnaPaymentIntentDto } from './dto/create-klarna-payment-intent.dto';
 
 export interface CreatePaymentIntentResult {
   provider: 'stripe';
+  clientSecret: string;
+  paymentIntentId: string;
+}
+
+export interface CreateKlarnaPaymentIntentResult {
+  provider: 'klarna';
   clientSecret: string;
   paymentIntentId: string;
 }
@@ -140,6 +147,104 @@ export class StripeService {
       }
 
       throw new InternalServerErrorException('Failed to create Stripe PaymentIntent.');
+    }
+  }
+
+  /**
+   * Klarna via Stripe PaymentIntent (official Stripe Klarna payment method).
+   * Trusted catalog pricing — same product catalog as card payments.
+   */
+  async createKlarnaPaymentIntent(
+    dto: CreateKlarnaPaymentIntentDto,
+  ): Promise<CreateKlarnaPaymentIntentResult> {
+    if (!this.stripe) {
+      throw new ServiceUnavailableException(
+        'Stripe is not configured. Set STRIPE_SECRET_KEY=sk_test_... in server/.env',
+      );
+    }
+
+    const catalogProduct = getCatalogProduct(dto.productId);
+    if (!catalogProduct) {
+      throw new BadRequestException(
+        `Unknown productId "${dto.productId}". Use a catalog product (e.g. premium-plan).`,
+      );
+    }
+
+    if (dto.currency.toUpperCase() !== catalogProduct.currency) {
+      throw new BadRequestException(
+        `Currency mismatch: catalog product uses ${catalogProduct.currency}, got ${dto.currency}.`,
+      );
+    }
+
+    const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
+    if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
+      throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');
+    }
+
+    const totalAmount = unitAmountCents * dto.quantity;
+    if (totalAmount > 99_999_999) {
+      throw new BadRequestException('Total charge amount is too large.');
+    }
+
+    const description =
+      dto.description?.trim() || catalogProduct.name || `Easy Payments Klarna: ${dto.productId}`;
+
+    const safeMetadata: Record<string, string> = {
+      productId: dto.productId,
+      quantity: String(dto.quantity),
+      source: 'easy-payments-demo',
+      paymentMethod: 'klarna',
+      trustedUnitAmount: String(catalogProduct.unitAmount),
+    };
+
+    if (dto.metadata) {
+      for (const [key, value] of Object.entries(dto.metadata)) {
+        if (typeof value === 'string' && value.length <= 500 && key.length <= 40) {
+          safeMetadata[key] = value;
+        }
+      }
+    }
+
+    try {
+      const intent = await this.stripe.paymentIntents.create({
+        amount: totalAmount,
+        currency: catalogProduct.currency.toLowerCase(),
+        description,
+        metadata: safeMetadata,
+        // Klarna-only PaymentIntent — keeps Card/Google Pay flows isolated.
+        payment_method_types: ['klarna'],
+      });
+
+      if (!intent.client_secret) {
+        throw new InternalServerErrorException('Stripe did not return a client_secret.');
+      }
+
+      return {
+        provider: 'klarna',
+        clientSecret: intent.client_secret,
+        paymentIntentId: intent.id,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      const stripeMessage =
+        error instanceof Stripe.errors.StripeError
+          ? error.message
+          : 'Failed to create Klarna PaymentIntent.';
+
+      this.logger.error(`Klarna PaymentIntent creation failed: ${stripeMessage}`);
+
+      if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+        throw new BadRequestException(stripeMessage);
+      }
+
+      throw new InternalServerErrorException('Failed to create Klarna PaymentIntent.');
     }
   }
 }

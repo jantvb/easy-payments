@@ -13,7 +13,7 @@ describe('EasyPaymentsConfigValidator', () => {
             paypal: { clientId: 'paypal-client' },
             googlePay: { merchantId: 'merchant-123' },
             applePay: { merchantId: '   ' },
-            klarna: { clientId: '' },
+            klarna: {},
           },
         }),
       ],
@@ -26,7 +26,7 @@ describe('EasyPaymentsConfigValidator', () => {
     expect(summary).toContain('PayPal: configured (demo mode)');
     expect(summary).toContain('Google Pay: configured (demo mode)');
     expect(summary).toContain('Apple Pay: merchantId missing (demo mode)');
-    expect(summary).toContain('Klarna: clientId missing (demo mode)');
+    expect(summary).toContain('Klarna: configured (demo mode)');
     expect(summary).toContain('Affirm: publicKey missing (demo mode)');
     expect(summary.join(' ')).not.toContain('pk_test_secret_value');
   });

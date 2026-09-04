@@ -42,6 +42,34 @@ export function toPayPalCreateOrderRequest(input: {
 }
 
 /**
+ * Minimal wire contract for Klarna-via-Stripe create PaymentIntent.
+ * Never includes browser-controlled amount or arbitrary metadata.
+ */
+export interface KlarnaCreatePaymentRequest {
+  provider: 'klarna';
+  productId: string;
+  quantity: number;
+  currency: string;
+}
+
+/**
+ * Maps product identity fields into the Klarna create-payment HTTP body.
+ * Strips amount, metadata, and any other internal fields.
+ */
+export function toKlarnaCreatePaymentRequest(input: {
+  productId: string;
+  quantity: number;
+  currency: string;
+}): KlarnaCreatePaymentRequest {
+  return {
+    provider: 'klarna',
+    productId: input.productId.trim(),
+    quantity: input.quantity,
+    currency: input.currency.trim().toUpperCase(),
+  };
+}
+
+/**
  * Response expected from the merchant backend after creating a Stripe PaymentIntent.
  * The backend alone decides the trusted amount and uses the Stripe secret key.
  */
@@ -71,4 +99,18 @@ export interface CapturePayPalOrderResponse {
   status?: string;
 }
 
-export type CreatePaymentResponse = CreateStripePaymentResponse | CreatePayPalOrderResponse;
+/**
+ * Response from POST klarna create (Klarna-only Stripe PaymentIntent).
+ * The backend alone decides the trusted amount and uses the Stripe secret key.
+ */
+export interface CreateKlarnaPaymentResponse {
+  provider: 'klarna';
+  clientSecret: string;
+  paymentIntentId?: string;
+  sessionId?: string;
+}
+
+export type CreatePaymentResponse =
+  | CreateStripePaymentResponse
+  | CreatePayPalOrderResponse
+  | CreateKlarnaPaymentResponse;

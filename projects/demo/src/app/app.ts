@@ -13,8 +13,14 @@ import {
   PaymentResult,
   PaymentTheme,
   PAYMENT_METHOD_LABELS,
+  isKlarnaReturnAttempt,
 } from 'easy-payments';
 import { environment } from '../environments/environment';
+import {
+  persistDemoMode,
+  readPersistedDemoMode,
+  type PersistedDemoMode,
+} from './demo-mode-persistence';
 
 interface MethodRow {
   method: PaymentMethod;
@@ -22,7 +28,7 @@ interface MethodRow {
 }
 
 /** Demo = all mocks. Real = every configured TEST/Sandbox provider becomes live. */
-type DemoMode = 'demo' | 'real';
+type DemoMode = PersistedDemoMode;
 
 /** Mirrors NestJS CatalogProduct — display must match charged amount in Real mode. */
 interface TrustedCatalogProduct {
@@ -77,6 +83,12 @@ export class App {
   readonly mode = signal<DemoMode>('demo');
   readonly modeMessage = signal<string | null>(null);
   readonly switchingMode = signal(false);
+  /**
+   * False until persisted/forced mode + provider config are applied.
+   * Prevents mounting <easy-payments> in Demo Mode while recovering a real Klarna return.
+   */
+  readonly checkoutReady = signal(false);
+  readonly bootstrapping = signal(true);
   /** When set, Real mode displays/charges from this trusted catalog entry. */
   readonly trustedCatalogProduct = signal<TrustedCatalogProduct | null>(null);
 
@@ -132,9 +144,14 @@ export class App {
 
   readonly productFieldsLocked = computed(() => this.mode() === 'real');
 
+  readonly returningFromKlarna = computed(
+    () => typeof window !== 'undefined' && isKlarnaReturnAttempt(),
+  );
+
   constructor() {
     this.mockController.setDelay(350);
     this.applyThemeFromQuery();
+    void this.bootstrapPlaygroundMode();
   }
 
   private applyThemeFromQuery(): void {
@@ -144,6 +161,51 @@ export class App {
     const value = new URLSearchParams(window.location.search).get('theme');
     if (value === 'light' || value === 'dark' || value === 'system') {
       this.theme.set(value);
+    }
+  }
+
+  /**
+   * Restore Demo vs Real before mounting <easy-payments>.
+   * A Klarna/Stripe return URL forces Real even if sessionStorage is empty.
+   */
+  private async bootstrapPlaygroundMode(): Promise<void> {
+    this.bootstrapping.set(true);
+    this.checkoutReady.set(false);
+
+    try {
+      const forceReal = typeof window !== 'undefined' && isKlarnaReturnAttempt();
+      const persisted = readPersistedDemoMode();
+      const target: DemoMode = forceReal ? 'real' : (persisted ?? 'demo');
+
+      if (target === 'real') {
+        if (!this.realProvidersReady()) {
+          this.modeMessage.set(
+            forceReal
+              ? 'Returned from Klarna, but Real / Test Providers are not configured. Add Stripe pk_test_... and NestJS URLs.'
+              : 'Real / Test Providers mode requires Stripe (pk_test_...) and/or PayPal Sandbox Client ID plus NestJS backend URLs.',
+          );
+          await this.applyDemoModeConfig();
+          persistDemoMode('demo');
+        } else {
+          await this.applyRealModeConfig();
+          persistDemoMode('real');
+        }
+      } else {
+        await this.applyDemoModeConfig();
+        persistDemoMode('demo');
+      }
+    } catch (error) {
+      this.trustedCatalogProduct.set(null);
+      this.mode.set('demo');
+      this.modeMessage.set(
+        error instanceof Error
+          ? error.message
+          : 'Failed to restore payment mode. Is the NestJS catalog endpoint running?',
+      );
+      await this.applyDemoModeConfig();
+    } finally {
+      this.bootstrapping.set(false);
+      this.checkoutReady.set(true);
     }
   }
 
@@ -172,8 +234,76 @@ export class App {
     return firstValueFrom(this.http.get<TrustedCatalogProduct>(`${base}/${encodeURIComponent(productId)}`));
   }
 
+  private async applyDemoModeConfig(): Promise<void> {
+    this.trustedCatalogProduct.set(null);
+    this.configService.replace({
+      enableMockMode: true,
+      providers: {},
+    });
+    this.mockController.reset();
+    this.mockController.setDelay(350);
+    this.mode.set('demo');
+    await this.orchestrator.reinitialize();
+    await this.orchestrator.refreshAvailability(this.methods(), this.product());
+  }
+
+  private async applyRealModeConfig(): Promise<void> {
+    const trusted = await this.loadTrustedCatalogProduct('premium-plan');
+    this.trustedCatalogProduct.set(trusted);
+    this.productName.set(trusted.name);
+    this.productDescription.set(trusted.description);
+    this.productAmount.set(String(trusted.unitAmount));
+    this.productCurrency.set(trusted.currency);
+
+    this.configService.replace({
+      enableMockMode: false,
+      providers: {
+        ...(this.stripeConfigReady()
+          ? {
+              stripe: {
+                publishableKey: environment.stripePublishableKey.trim(),
+              },
+              googlePay: {
+                environment: 'TEST' as const,
+                merchantName: 'Easy Payments Demo',
+                countryCode: 'US',
+              },
+              klarna: {
+                purchaseCountry: 'US',
+                locale: 'en-US',
+              },
+            }
+          : {}),
+        ...(this.paypalConfigReady()
+          ? {
+              paypal: {
+                clientId: environment.paypalClientId.trim(),
+                currency: trusted.currency,
+                intent: 'capture' as const,
+              },
+            }
+          : {}),
+      },
+      backend: {
+        createPaymentUrl: environment.createPaymentUrl.trim(),
+        paypalCreateOrderUrl: environment.paypalCreateOrderUrl.trim(),
+        paypalCaptureOrderUrl: environment.paypalCaptureOrderUrl.trim(),
+        klarnaCreatePaymentUrl: environment.klarnaCreatePaymentUrl.trim(),
+      },
+    });
+
+    this.mode.set('real');
+    await this.orchestrator.reinitialize();
+    await this.orchestrator.refreshAvailability(this.methods(), this.product());
+  }
+
   async setMode(mode: DemoMode): Promise<void> {
-    if (mode === this.mode() || this.switchingMode()) {
+    if (this.switchingMode()) {
+      return;
+    }
+
+    if (mode === this.mode()) {
+      persistDemoMode(mode);
       return;
     }
 
@@ -189,59 +319,11 @@ export class App {
 
     try {
       if (mode === 'demo') {
-        this.trustedCatalogProduct.set(null);
-        this.configService.replace({
-          enableMockMode: true,
-          providers: {},
-        });
-        this.mockController.reset();
-        this.mockController.setDelay(350);
+        await this.applyDemoModeConfig();
       } else {
-        const trusted = await this.loadTrustedCatalogProduct('premium-plan');
-        this.trustedCatalogProduct.set(trusted);
-        // Keep playground fields in sync with catalog for visibility when locked.
-        this.productName.set(trusted.name);
-        this.productDescription.set(trusted.description);
-        this.productAmount.set(String(trusted.unitAmount));
-        this.productCurrency.set(trusted.currency);
-
-        this.configService.replace({
-          enableMockMode: false,
-          providers: {
-            ...(this.stripeConfigReady()
-              ? {
-                  stripe: {
-                    publishableKey: environment.stripePublishableKey.trim(),
-                  },
-                  // Google Pay TEST reuses Stripe as PAYMENT_GATEWAY processor.
-                  googlePay: {
-                    environment: 'TEST' as const,
-                    merchantName: 'Easy Payments Demo',
-                    countryCode: 'US',
-                  },
-                }
-              : {}),
-            ...(this.paypalConfigReady()
-              ? {
-                  paypal: {
-                    clientId: environment.paypalClientId.trim(),
-                    currency: trusted.currency,
-                    intent: 'capture' as const,
-                  },
-                }
-              : {}),
-          },
-          backend: {
-            createPaymentUrl: environment.createPaymentUrl.trim(),
-            paypalCreateOrderUrl: environment.paypalCreateOrderUrl.trim(),
-            paypalCaptureOrderUrl: environment.paypalCaptureOrderUrl.trim(),
-          },
-        });
+        await this.applyRealModeConfig();
       }
-
-      this.mode.set(mode);
-      await this.orchestrator.reinitialize();
-      await this.orchestrator.refreshAvailability(this.methods(), this.product());
+      persistDemoMode(mode);
     } catch (error) {
       this.trustedCatalogProduct.set(null);
       this.modeMessage.set(
@@ -284,7 +366,7 @@ export class App {
   }
 
   onSuccessContinue(result: PaymentResult): void {
-    // Library already resets the checkout view; keep playground config intact.
+    // Library already resets the checkout view; keep playground config + Real mode intact.
     this.lastEvent.set(
       `Continue after success (${result.method}) — checkout reset for another test payment.`,
     );

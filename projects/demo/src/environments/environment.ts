@@ -21,7 +21,7 @@ export const environment = {
    * PayPal Sandbox Client ID only.
    * Never put PAYPAL_CLIENT_SECRET in Angular.
    */
-  paypalClientId: 'YOUR_PAYPAL_SANDBOX_CLIENT_ID',
+  paypalClientId: 'YOUR_PAYPAL_SANDBOX_CLIENT_ID_HERE',
   /**
    * NestJS demo endpoint that creates a Stripe PaymentIntent.
    */
@@ -31,6 +31,10 @@ export const environment = {
    */
   paypalCreateOrderUrl: 'http://localhost:3000/api/payments/paypal/create',
   paypalCaptureOrderUrl: 'http://localhost:3000/api/payments/paypal/capture',
+  /**
+   * NestJS demo endpoint that creates a Klarna-only Stripe PaymentIntent.
+   */
+  klarnaCreatePaymentUrl: 'http://localhost:3000/api/payments/klarna/create',
   /**
    * Trusted catalog used by Real / Test Providers so displayed price matches charge.
    */

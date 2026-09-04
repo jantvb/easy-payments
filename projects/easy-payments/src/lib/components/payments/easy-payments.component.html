@@ -100,6 +100,27 @@
       }
     }
 
+    @if (showKlarnaPanel()) {
+      @for (key of [providerMountKey()]; track key) {
+        <div
+          class="ep-checkout__panel"
+          [class.ep-checkout__panel--inactive]="!klarnaPanelActive()"
+          [attr.aria-hidden]="!klarnaPanelActive()"
+        >
+          <easy-klarna-payment
+            [product]="product()"
+            [checkout]="checkout()"
+            [resolvedTheme]="resolvedTheme()"
+            (success)="onKlarnaSuccess($event)"
+            (cancel)="onKlarnaCancel($event)"
+            (error)="onKlarnaError($event)"
+            (busyChange)="onProviderBusy($event)"
+            (returning)="onKlarnaReturning($event)"
+          />
+        </div>
+      }
+    }
+
     @if (showMockPanel()) {
       @if (selectedEntry(); as entry) {
         <div class="ep-checkout__panel">

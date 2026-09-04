@@ -24,6 +24,7 @@ describe('BackendService', () => {
             createPaymentUrl: '/api/payments/create',
             paypalCreateOrderUrl: '/api/payments/paypal/create',
             paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+            klarnaCreatePaymentUrl: '/api/payments/klarna/create',
           },
         }),
       ],
@@ -144,6 +145,38 @@ describe('BackendService', () => {
 
     await expectAsync(promise).toBeResolvedTo(
       jasmine.objectContaining({ captureId: 'CAPTURE-1' }),
+    );
+  });
+
+  it('creates a Klarna payment via backend with a minimal wire payload', async () => {
+    const promise = backend.createKlarnaPayment({
+      provider: 'klarna',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      ...( {
+        amount: 1,
+        metadata: { productName: 'Premium Plan' },
+      } as object),
+    } as never);
+
+    const req = http.expectOne('/api/payments/klarna/create');
+    expect(req.request.body).toEqual({
+      provider: 'klarna',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    expect(req.request.body.amount).toBeUndefined();
+    expect(req.request.body.metadata).toBeUndefined();
+    req.flush({
+      provider: 'klarna',
+      clientSecret: 'pi_klarna_secret',
+      paymentIntentId: 'pi_klarna_1',
+    });
+
+    await expectAsync(promise).toBeResolvedTo(
+      jasmine.objectContaining({ clientSecret: 'pi_klarna_secret' }),
     );
   });
 });

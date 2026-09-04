@@ -6,17 +6,18 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 
 ## Current status
 
-**Phase 4 — Real Google Pay TEST (via Stripe gateway) + PayPal Sandbox + Stripe card TEST.**
+**Phase 5 — Real Klarna (via Stripe Payment Element) + Google Pay TEST + PayPal Sandbox + Stripe card TEST.**
 
 - Library foundation remains intact (ordering, themes, mocks, validation, events).
 - **Real Stripe card** — Payment Element + PaymentIntent.
 - **Real PayPal** — official Buttons + Orders v2 create/capture.
 - **Real Google Pay TEST** — official `pay.js` + `PaymentsClient` + `createButton`, tokenized through Stripe `PAYMENT_GATEWAY`.
-- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay charges.
+- **Real Klarna** — Stripe Payment Element + Klarna-only PaymentIntent (`payment_method_types: ['klarna']`). No direct Klarna SDK.
+- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay/Klarna charges.
 - **Mock mode still does not process real payments.**
-- Real Apple Pay, Klarna, and Affirm are **not** implemented yet.
+- Real Apple Pay and Affirm are **not** implemented yet.
 
-Angular never accepts Stripe secret keys or PayPal Client Secrets.
+Angular never accepts Stripe secret keys, PayPal Client Secrets, or Klarna API secrets.
 
 ## Installation
 
@@ -143,12 +144,39 @@ methods: PaymentMethod[] = ['google-pay', 'card', 'paypal'];
 
 Easy Payments loads Google `pay.js`, checks `isReadyToPay`, and renders the official Google Pay button. Stripe is the gateway/processor behind the scenes.
 
+## Quick start (real Klarna via Stripe)
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: {
+      publishableKey: environment.stripePublishableKey,
+    },
+    klarna: {
+      purchaseCountry: 'US',
+      locale: 'en-US',
+    },
+  },
+  backend: {
+    klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['klarna', 'card'];
+```
+
+Enable Klarna in the Stripe Dashboard (TEST). Angular uses the same `pk_test_...`; Nest uses `sk_test_...`. No Klarna API secrets in the browser.
+
 ## Backend contract (provider-aware)
 
 | Provider | Create | Capture / confirm |
 | --- | --- | --- |
 | Stripe | `POST /api/payments/create` | Payment Element confirms client-side |
 | PayPal | `POST /api/payments/paypal/create` | `POST /api/payments/paypal/capture` |
+| Klarna (via Stripe) | `POST /api/payments/klarna/create` | Payment Element confirms client-side |
 
 This scales cleanly to future providers without forcing unrelated frontend conventions. Shared trusted pricing lives in `server/src/catalog/product-catalog.ts`.
 
@@ -561,6 +589,79 @@ Closing the Google Pay sheet emits `(cancel)` with `status: 'cancelled'` — not
 
 Do **not** ship PRODUCTION Google Pay until those steps are complete.
 
+## Klarna integration (via Stripe)
+
+Easy Payments does **not** load Klarna.js or use Klarna API credentials in Angular.
+Klarna is enabled as a Stripe payment method and rendered through the same Stripe.js **Payment Element** used for cards.
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Stripe.js Payment Element (`payment_method_types: ['klarna']` on the PaymentIntent) |
+| Backend | Stripe PaymentIntents API with secret key (`sk_test_...` / `sk_live_...`) |
+| Pricing | Trusted NestJS catalog (`productId` + `quantity` only) |
+
+### Prerequisites
+
+1. A Stripe account with **Klarna** enabled under Payment methods (Dashboard → Settings → Payment methods). Use TEST mode first.
+2. The same Stripe TEST keys you already use for card:
+   - `pk_test_...` in Angular (`providers.stripe.publishableKey`)
+   - `sk_test_...` in NestJS (`server/.env` → `STRIPE_SECRET_KEY`) only
+3. NestJS running with `POST /api/payments/klarna/create`
+
+No Klarna Client ID / secret belongs in the Angular app.
+
+### Configure Angular
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: {
+      publishableKey: environment.stripePublishableKey, // pk_test_...
+    },
+    klarna: {
+      purchaseCountry: 'US',
+      locale: 'en-US',
+    },
+  },
+  backend: {
+    createPaymentUrl: '/api/payments/create',
+    klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['klarna', 'card'];
+```
+
+Presence of `providers.klarna` (even `{}`) opts Klarna in. Runtime also requires Stripe `publishableKey` + `klarnaCreatePaymentUrl`.
+
+### Flow
+
+1. Customer selects the **Klarna** tile
+2. Easy Payments creates a Klarna-only PaymentIntent via Nest (`productId` + `quantity` + `currency`)
+3. Stripe Payment Element mounts (wallets disabled)
+4. Customer completes Klarna within the Element / redirect (`redirect: 'if_required'`)
+5. Normalized `PaymentResult` emits with `method: 'klarna'`, `provider: 'klarna'`, and `metadata.gateway: 'stripe'`
+
+### Manual TEST checkout
+
+1. Enable Klarna in the Stripe Dashboard (TEST).
+2. Start NestJS with `STRIPE_SECRET_KEY=sk_test_...`.
+3. Set `pk_test_...` and `klarnaCreatePaymentUrl` in the demo environment.
+4. Switch the demo to **Real / Test Providers**.
+5. Select **Klarna** → complete with Stripe’s documented Klarna test customer data (e.g. `customer@email.us` and other values from [Stripe Klarna testing](https://docs.stripe.com/payments/klarna/accept-a-payment#test-klarna)).
+6. Confirm the PaymentIntent succeeds in the Stripe Dashboard.
+
+### Production notes (Klarna)
+
+- Activate Klarna for live charges in the Stripe Dashboard (and complete any Stripe/Klarna onboarding).
+- Use `pk_live_...` / `sk_live_...` only after go-live checklist.
+- Keep amounts server-trusted; never trust a browser-sent amount.
+- Prefer HTTPS return URLs for redirects.
+- Follow Klarna brand guidelines for marks / wording.
+
 ## Security
 
 - Never put `sk_...` in Angular / `provideEasyPayments`
@@ -678,8 +779,8 @@ See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 1. ~~Stripe card~~ (Phase 2)
 2. ~~PayPal~~ (Phase 3)
 3. ~~Google Pay~~ (Phase 4 — TEST via Stripe gateway)
-4. Apple Pay
-5. Klarna
+4. ~~Klarna~~ (Phase 5 — via Stripe Payment Element)
+5. Apple Pay
 6. Affirm
 7. Samsung Pay — under consideration for a future release
 

@@ -3,12 +3,16 @@ import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { EasyPaymentsConfigService } from '../config/easy-payments-config.service';
 import { PaymentError } from '../errors/payment-error';
+import { PaymentMethod, PaymentProviderName } from '../models';
 import {
   CapturePayPalOrderResponse,
+  CreateKlarnaPaymentResponse,
   CreatePaymentRequest,
   CreatePayPalOrderResponse,
   CreateStripePaymentResponse,
+  KlarnaCreatePaymentRequest,
   PayPalCreateOrderRequest,
+  toKlarnaCreatePaymentRequest,
   toPayPalCreateOrderRequest,
 } from '../models/create-payment.model';
 
@@ -27,6 +31,10 @@ export class BackendService {
 
   get paypalCaptureOrderUrl(): string | undefined {
     return this.configService.getSnapshot().backend?.paypalCaptureOrderUrl?.trim() || undefined;
+  }
+
+  get klarnaCreatePaymentUrl(): string | undefined {
+    return this.configService.getSnapshot().backend?.klarnaCreatePaymentUrl?.trim() || undefined;
   }
 
   /** @deprecated Prefer createPaymentUrl. Kept optional for future provider flows. */
@@ -153,11 +161,50 @@ export class BackendService {
     );
   }
 
+  /**
+   * Posts the minimal Klarna create-payment wire contract.
+   * Never forwards amount / metadata even if callers pass extra fields.
+   */
+  async createKlarnaPayment(
+    payload: KlarnaCreatePaymentRequest | { productId: string; quantity: number; currency: string },
+  ): Promise<CreateKlarnaPaymentResponse> {
+    const url = this.klarnaCreatePaymentUrl;
+    if (!url) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend klarnaCreatePaymentUrl is not configured.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    const body = toKlarnaCreatePaymentRequest(payload);
+
+    return this.postJson<CreateKlarnaPaymentResponse>(url, body, 'klarna', 'klarna', {
+      successMessage: 'Failed to create Klarna payment on backend.',
+      networkMessage: 'A network error occurred while creating the Klarna payment session.',
+      validate: (response) => {
+        if (
+          response?.provider !== 'klarna' ||
+          typeof response.clientSecret !== 'string' ||
+          !response.clientSecret.trim()
+        ) {
+          throw new PaymentError({
+            code: 'BACKEND_ERROR',
+            message: 'Invalid Klarna create-payment response from backend.',
+            method: 'klarna',
+            provider: 'klarna',
+          });
+        }
+      },
+    });
+  }
+
   private async postJson<T>(
     url: string,
     payload: unknown,
-    method: 'card' | 'paypal',
-    provider: 'stripe' | 'paypal',
+    method: PaymentMethod,
+    provider: PaymentProviderName,
     options: {
       successMessage: string;
       networkMessage: string;

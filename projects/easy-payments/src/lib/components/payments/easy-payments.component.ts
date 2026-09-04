@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -23,6 +24,7 @@ import { ThemeService } from '../../themes/theme.service';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
 import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
+import { KlarnaPaymentComponent } from '../payment-methods/klarna-payment.component';
 import { CheckoutProductSummaryComponent } from '../checkout/checkout-product-summary.component';
 import { PaymentMethodSelectorComponent } from '../checkout/payment-method-selector.component';
 import { MockMethodPanelComponent } from '../checkout/mock-method-panel.component';
@@ -32,6 +34,8 @@ import {
   DEFAULT_CHECKOUT_MAX_WIDTH,
   resolveCheckoutMaxWidth,
 } from '../../layout/checkout-layout';
+import { isKlarnaReturnAttempt } from '../../adapters/klarna/klarna-return';
+import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
 
 @Component({
   selector: 'easy-payments',
@@ -43,6 +47,7 @@ import {
     StripeCardPaymentComponent,
     PayPalPaymentComponent,
     GooglePayPaymentComponent,
+    KlarnaPaymentComponent,
     CheckoutOutcomeComponent,
   ],
   templateUrl: './easy-payments.component.html',
@@ -61,6 +66,9 @@ import {
 export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
   private readonly themeService = inject(ThemeService);
+  private readonly klarnaAdapter = inject(KlarnaAdapter);
+  private readonly destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   readonly product = input.required<PaymentProduct>();
   readonly methods = input<PaymentMethod[]>(['apple-pay', 'google-pay', 'paypal', 'card']);
@@ -102,6 +110,10 @@ export class EasyPaymentsComponent {
   readonly lastError = signal<PaymentError | null>(null);
   /** Bumped on reset so real provider panels remount with a fresh session. */
   readonly providerMountKey = signal(0);
+
+  /** Prevents duplicate Klarna return recovery / success emits on one page load. */
+  private klarnaReturnRecoveryStarted = false;
+  private terminalSuccessEmitted = false;
 
   /** Terminal/mock-processing screens that replace the checkout form. */
   readonly showOutcome = computed(() => {
@@ -156,6 +168,10 @@ export class EasyPaymentsComponent {
     this.visibleMethods().some((entry) => entry.method === 'google-pay' && !entry.isMock),
   );
 
+  readonly hasRealKlarnaMethod = computed(() =>
+    this.visibleMethods().some((entry) => entry.method === 'klarna' && !entry.isMock),
+  );
+
   readonly showMockPanel = computed(() => {
     if (!this.showCheckoutForm()) {
       return false;
@@ -173,12 +189,16 @@ export class EasyPaymentsComponent {
     if (entry.method === 'google-pay' && !entry.isMock) {
       return false;
     }
+    if (entry.method === 'klarna' && !entry.isMock) {
+      return false;
+    }
     return true;
   });
 
   readonly showStripePanel = computed(() => this.hasRealCardMethod());
   readonly showPayPalPanel = computed(() => this.hasRealPayPalMethod());
   readonly showGooglePayPanel = computed(() => this.hasRealGooglePayMethod());
+  readonly showKlarnaPanel = computed(() => this.hasRealKlarnaMethod());
 
   /**
    * Keep the active real-provider panel interactive while its own UI is needed
@@ -206,7 +226,30 @@ export class EasyPaymentsComponent {
       this.hasRealGooglePayMethod(),
   );
 
+  readonly klarnaPanelActive = computed(
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'klarna' &&
+      this.hasRealKlarnaMethod(),
+  );
+
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+
+    // Avoid flashing fresh checkout when Stripe redirects back from Klarna.
+    // Recovery itself is owned here (not only by the Klarna panel), so Processing
+    // always resolves even if the panel has not mounted yet.
+    if (typeof window !== 'undefined' && isKlarnaReturnAttempt()) {
+      this.viewState.set('processing');
+      this.selectedMethod.set('klarna');
+      this.providerBusy.set(true);
+      queueMicrotask(() => {
+        void this.recoverKlarnaReturn();
+      });
+    }
+
     effect(() => {
       this.themeService.setTheme(this.theme());
     });
@@ -227,6 +270,12 @@ export class EasyPaymentsComponent {
     effect(() => {
       const visible = this.visibleMethods();
       const current = untracked(() => this.selectedMethod());
+      const state = untracked(() => this.viewState());
+
+      // Do not steal method selection during Klarna return recovery / outcomes.
+      if (state !== 'checkout') {
+        return;
+      }
 
       if (visible.length === 0) {
         if (current !== null) {
@@ -239,6 +288,73 @@ export class EasyPaymentsComponent {
         this.selectedMethod.set(visible[0].method);
       }
     });
+  }
+
+  /**
+   * Library-owned Klarna redirect recovery. Always leaves processing for a
+   * terminal state (success / error / cancelled). Idempotent per page load.
+   */
+  private async recoverKlarnaReturn(): Promise<void> {
+    if (this.klarnaReturnRecoveryStarted) {
+      return;
+    }
+    this.klarnaReturnRecoveryStarted = true;
+
+    this.viewState.set('processing');
+    this.selectedMethod.set('klarna');
+    this.providerBusy.set(true);
+
+    try {
+      const result = await this.klarnaAdapter.consumeStripeReturn();
+      if (this.destroyed) {
+        return;
+      }
+      if (!result) {
+        this.handlePaymentError(
+          new PaymentError({
+            code: 'PAYMENT_FAILED',
+            message: 'Klarna return could not be verified.',
+            method: 'klarna',
+            provider: 'klarna',
+          }),
+        );
+        return;
+      }
+
+      if (result.status === 'success') {
+        this.handleSuccess(result);
+      } else if (result.status === 'cancelled') {
+        this.handleCancelled(result);
+      } else {
+        this.handlePaymentError(
+          new PaymentError({
+            code: 'PAYMENT_FAILED',
+            message: result.message ?? 'Klarna payment failed.',
+            method: 'klarna',
+            provider: 'klarna',
+          }),
+        );
+      }
+    } catch (err) {
+      if (this.destroyed) {
+        return;
+      }
+      const paymentError = normalizeError(err, { method: 'klarna', provider: 'klarna' });
+      if (paymentError.code === 'PAYMENT_CANCELLED') {
+        this.handleCancelled({
+          status: 'cancelled',
+          method: 'klarna',
+          provider: 'klarna',
+          message: paymentError.message,
+        });
+      } else {
+        this.handlePaymentError(paymentError);
+      }
+    } finally {
+      if (!this.destroyed) {
+        this.providerBusy.set(false);
+      }
+    }
   }
 
   selectMethod(method: PaymentMethod): void {
@@ -290,6 +406,38 @@ export class EasyPaymentsComponent {
 
   onGooglePayError(error: PaymentError): void {
     this.handlePaymentError(error);
+  }
+
+  onKlarnaSuccess(result: PaymentResult): void {
+    // Parent owns redirect recovery; ignore duplicate panel success for the same load.
+    if (this.klarnaAdapter.wasReturnConsumed() && this.terminalSuccessEmitted) {
+      return;
+    }
+    this.handleSuccess(result);
+  }
+
+  onKlarnaCancel(result: PaymentResult): void {
+    this.handleCancelled(result);
+  }
+
+  onKlarnaError(error: PaymentError): void {
+    this.handlePaymentError(error);
+  }
+
+  /**
+   * Klarna panel busy/returning signals (in-page confirm). Redirect recovery is
+   * owned by recoverKlarnaReturn() so Processing cannot hang without a panel.
+   */
+  onKlarnaReturning(active: boolean): void {
+    if (active) {
+      this.selectedMethod.set('klarna');
+      if (this.viewState() === 'checkout') {
+        this.viewState.set('processing');
+      }
+      this.providerBusy.set(true);
+      return;
+    }
+    this.providerBusy.set(false);
   }
 
   async onPay(method: PaymentMethod): Promise<void> {
@@ -360,10 +508,18 @@ export class EasyPaymentsComponent {
     this.lastError.set(null);
     this.processingMethod.set(null);
     this.providerBusy.set(false);
+    this.terminalSuccessEmitted = false;
     this.providerMountKey.update((value) => value + 1);
   }
 
   private handleSuccess(result: PaymentResult): void {
+    if (this.terminalSuccessEmitted && result.method === 'klarna') {
+      return;
+    }
+    if (result.method === 'klarna') {
+      this.terminalSuccessEmitted = true;
+    }
+
     this.success.emit(result);
     this.lastResult.set(result);
     this.lastError.set(null);

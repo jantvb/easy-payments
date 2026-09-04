@@ -1,90 +1,596 @@
 import { inject, Injectable } from '@angular/core';
-import { KlarnaProviderConfig } from '../../config/easy-payments.config';
-import { EASY_PAYMENTS_CONFIG } from '../../config/provide-easy-payments';
-import { PaymentContext, PaymentRequest, PaymentResult } from '../../models';
+import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
+import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import {
+  CheckoutOptions,
+  PaymentContext,
+  PaymentProduct,
+  PaymentRequest,
+  PaymentResult,
+  ResolvedPaymentTheme,
+  normalizePaymentResult,
+} from '../../models';
+import { CreateKlarnaPaymentResponse } from '../../models/create-payment.model';
 import { PaymentError } from '../../errors/payment-error';
-import { SdkLoaderService } from '../../loaders/sdk-loader.service';
+import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
-import { BaseMockAdapter, BaseProviderAdapter, realPaymentsNotImplemented } from '../base.adapter';
-
-declare global {
-  interface Window {
-    Klarna?: {
-      Payments: {
-        init(options: { client_token: string }): void;
-        load(
-          options: { container: string | HTMLElement; payment_method_category?: string },
-          data: Record<string, unknown>,
-          callback?: (res: { show_form: boolean; error?: unknown }) => void,
-        ): void;
-        authorize(
-          options: { payment_method_category?: string },
-          data: Record<string, unknown>,
-          callback: (res: { approved: boolean; authorization_token?: string; error?: unknown }) => void,
-        ): void;
-      };
-    };
-  }
-}
+import { BaseMockAdapter, BaseProviderAdapter } from '../base.adapter';
+import { mapResolvedThemeToStripeAppearance } from '../stripe/stripe-appearance';
+import { mapStripeError } from '../stripe/stripe-error.mapper';
+import { StripeSdkLoader } from '../stripe/stripe-sdk.loader';
+import {
+  buildKlarnaReturnUrl,
+  clearKlarnaPendingReturn,
+  clearStripeReturnParamsFromUrl,
+  isKlarnaReturnAttempt,
+  KLARNA_PROCESSING_DELAY_MS,
+  KLARNA_PROCESSING_MAX_ATTEMPTS,
+  readStripeReturnParams,
+} from './klarna-return';
+import {
+  KLARNA_PAYMENT_ELEMENT_OPTIONS,
+  KlarnaSessionResult,
+} from './klarna.types';
 
 const KLARNA_SUPPORTED_CURRENCIES = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK']);
+
+function looksLikeSecretKey(value: string): boolean {
+  return /^sk_(test|live)_/i.test(value.trim());
+}
+
+function looksLikePublishableKey(value: string): boolean {
+  return /^pk_(test|live)_/i.test(value.trim());
+}
+
+function mapKlarnaStripeError(error: unknown): PaymentError {
+  const mapped = mapStripeError(error);
+  return new PaymentError({
+    code: mapped.code,
+    message: mapped.message,
+    method: 'klarna',
+    provider: 'klarna',
+    originalError: mapped.originalError ?? error,
+  });
+}
 
 @Injectable({ providedIn: 'root' })
 export class KlarnaAdapter extends BaseProviderAdapter {
   readonly provider = 'klarna' as const;
 
-  private readonly config = inject(EASY_PAYMENTS_CONFIG);
-  private readonly sdkLoader = inject(SdkLoaderService);
+  private readonly configService = inject(EasyPaymentsConfigService);
+  private readonly backend = inject(BackendService);
   private readonly browser = inject(BrowserGuard);
+  private readonly sdkLoader = inject(StripeSdkLoader);
 
-  private klarnaConfig: KlarnaProviderConfig | null = null;
+  private stripe: Stripe | null = null;
+  private elements: StripeElements | null = null;
+  private paymentElement: StripePaymentElement | null = null;
+  private clientSecret: string | null = null;
+  private sessionId: string | undefined;
+  private paymentIntentId: string | undefined;
+  private loadPromise: Promise<Stripe> | null = null;
+  private confirming = false;
+  private configReady = false;
+  /** Shared in-flight Klarna redirect recovery (parent + panel must not double-run). */
+  private returnConsumePromise: Promise<PaymentResult | null> | null = null;
+  private returnConsumed = false;
 
+  /**
+   * Validates Klarna + Stripe gateway config only. Does not load Stripe.js until needed.
+   */
   async initialize(): Promise<void> {
-    this.klarnaConfig = this.config?.providers?.klarna ?? null;
-    if (!this.klarnaConfig?.clientId) {
+    const snapshot = this.configService.getSnapshot();
+    const klarna = snapshot.providers?.klarna;
+    const stripeKey = snapshot.providers?.stripe?.publishableKey?.trim() ?? '';
+
+    if (!klarna || typeof klarna !== 'object') {
+      this.configReady = false;
+      this.initialized = false;
       return;
     }
 
-    const env = this.klarnaConfig.environment ?? 'playground';
-    const baseUrl =
-      env === 'production' ? 'https://js.klarna.com/web/v1' : 'https://js.playground.klarna.com/web/v1';
-
-    await this.sdkLoader.loadScript({
-      id: 'klarna-sdk',
-      src: `${baseUrl}/klarna.js`,
-      attributes: { 'data-client-id': this.klarnaConfig.clientId },
-    });
-
-    if (!this.browser.getWindow()?.Klarna) {
-      throw new PaymentError({
-        code: 'SDK_LOAD_FAILED',
-        message: 'Klarna SDK failed to load.',
-        provider: 'klarna',
-      });
+    if (!stripeKey || looksLikeSecretKey(stripeKey) || !looksLikePublishableKey(stripeKey)) {
+      this.configReady = false;
+      this.initialized = false;
+      return;
     }
 
+    this.configReady = true;
     this.initialized = true;
   }
 
   async isAvailable(context: PaymentContext): Promise<boolean> {
-    if (!this.klarnaConfig?.clientId || !this.initialized) {
+    const snapshot = this.configService.getSnapshot();
+    const key = snapshot.providers?.stripe?.publishableKey?.trim() ?? '';
+    if (!snapshot.providers?.klarna || !this.configReady) {
       return false;
     }
-
+    if (!key || looksLikeSecretKey(key) || !looksLikePublishableKey(key)) {
+      return false;
+    }
+    if (!snapshot.backend?.klarnaCreatePaymentUrl?.trim()) {
+      return false;
+    }
     if (!KLARNA_SUPPORTED_CURRENCIES.has(context.product.currency)) {
       return false;
     }
-
     if (context.product.amount <= 0) {
       return false;
     }
-
-    return !!this.browser.getWindow()?.Klarna;
+    return true;
   }
 
+  /**
+   * Interactive Klarna Payment Element flow is handled by KlarnaPaymentComponent.
+   * Calling createPayment directly is not supported for real Klarna payments.
+   */
   async createPayment(_request: PaymentRequest): Promise<PaymentResult> {
-    throw realPaymentsNotImplemented('klarna', 'klarna');
+    throw new PaymentError({
+      code: 'PROVIDER_UNAVAILABLE',
+      message:
+        'Klarna payments require the secure Payment Element UI. Use the klarna method inside <easy-payments>.',
+      method: 'klarna',
+      provider: 'klarna',
+    });
   }
+
+  async ensureStripeLoaded(): Promise<Stripe> {
+    if (this.stripe) {
+      return this.stripe;
+    }
+
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    const key = this.configService.getSnapshot().providers?.stripe?.publishableKey?.trim() ?? '';
+    if (!key) {
+      throw new PaymentError({
+        code: 'CONFIG_MISSING',
+        message: 'Stripe publishableKey is missing (required for Klarna via Stripe).',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    if (looksLikeSecretKey(key)) {
+      throw new PaymentError({
+        code: 'CONFIG_INVALID',
+        message:
+          'Stripe secret keys must never be used in Angular. Provide a publishable key (pk_...) only.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    if (!looksLikePublishableKey(key)) {
+      throw new PaymentError({
+        code: 'CONFIG_INVALID',
+        message: 'Stripe publishableKey appears invalid. Expected a pk_test_... or pk_live_... value.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    if (!this.browser.isBrowser) {
+      throw new PaymentError({
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'Stripe.js can only load in the browser.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    this.loadPromise = (async () => {
+      try {
+        const stripe = await this.sdkLoader.load(key);
+        if (!stripe) {
+          throw new PaymentError({
+            code: 'SDK_LOAD_FAILED',
+            message: 'Stripe.js failed to initialize.',
+            method: 'klarna',
+            provider: 'klarna',
+          });
+        }
+        this.stripe = stripe;
+        return stripe;
+      } catch (error) {
+        this.loadPromise = null;
+        if (error instanceof PaymentError) {
+          throw error;
+        }
+        throw new PaymentError({
+          code: 'SDK_LOAD_FAILED',
+          message: 'Stripe.js failed to load.',
+          method: 'klarna',
+          provider: 'klarna',
+          originalError: error,
+        });
+      }
+    })();
+
+    return this.loadPromise;
+  }
+
+  async createPaymentSession(
+    product: PaymentProduct,
+    _checkout?: CheckoutOptions,
+  ): Promise<KlarnaSessionResult> {
+    if (!this.configService.getSnapshot().backend?.klarnaCreatePaymentUrl?.trim()) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend klarnaCreatePaymentUrl is not configured.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    const response = await this.backend.createKlarnaPayment({
+      productId: product.id,
+      quantity: product.quantity ?? 1,
+      currency: product.currency,
+    });
+    this.assertValidKlarnaResponse(response);
+
+    this.clientSecret = response.clientSecret;
+    this.sessionId = response.sessionId;
+    this.paymentIntentId = response.paymentIntentId;
+
+    return {
+      clientSecret: response.clientSecret,
+      sessionId: response.sessionId,
+      paymentIntentId: response.paymentIntentId,
+    };
+  }
+
+  async mountPaymentElement(
+    container: HTMLElement,
+    clientSecret: string,
+    theme: ResolvedPaymentTheme,
+  ): Promise<void> {
+    const stripe = await this.ensureStripeLoaded();
+
+    this.unmountPaymentElement();
+
+    try {
+      this.clientSecret = clientSecret;
+      this.elements = stripe.elements({
+        clientSecret,
+        appearance: mapResolvedThemeToStripeAppearance(theme),
+      });
+
+      this.paymentElement = this.elements.create('payment', KLARNA_PAYMENT_ELEMENT_OPTIONS);
+      this.paymentElement.mount(container);
+    } catch (error) {
+      throw new PaymentError({
+        code: 'SDK_LOAD_FAILED',
+        message: 'Klarna Payment Element failed to initialize.',
+        method: 'klarna',
+        provider: 'klarna',
+        originalError: error,
+      });
+    }
+  }
+
+  async updateAppearance(theme: ResolvedPaymentTheme): Promise<void> {
+    if (!this.elements) {
+      return;
+    }
+    this.elements.update({
+      appearance: mapResolvedThemeToStripeAppearance(theme),
+    });
+  }
+
+  async confirmPayment(returnUrl?: string): Promise<PaymentResult> {
+    if (this.confirming) {
+      throw new PaymentError({
+        code: 'PAYMENT_FAILED',
+        message: 'A Klarna payment confirmation is already in progress.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    this.confirming = true;
+
+    try {
+      const stripe = await this.ensureStripeLoaded();
+      if (!this.elements) {
+        throw new PaymentError({
+          code: 'PROVIDER_UNAVAILABLE',
+          message: 'Klarna Payment Element is not ready.',
+          method: 'klarna',
+          provider: 'klarna',
+        });
+      }
+
+      const { error: submitError } = await this.elements.submit();
+      if (submitError) {
+        throw mapKlarnaStripeError(submitError);
+      }
+
+      // Klarna is redirect-based. Stamp ep_method=klarna on return_url so the
+      // remounted app can resume as Klarna (Stripe preserves custom query params).
+      const resolvedReturnUrl = this.browser.isBrowser
+        ? buildKlarnaReturnUrl(returnUrl)
+        : returnUrl;
+
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements: this.elements,
+        confirmParams: resolvedReturnUrl
+          ? {
+              return_url: resolvedReturnUrl,
+            }
+          : undefined,
+        redirect: 'if_required',
+      });
+
+      if (error) {
+        throw mapKlarnaStripeError(error);
+      }
+
+      // When Klarna redirects, confirmPayment does not resolve in this page —
+      // the return path uses retrieveReturningPayment instead.
+      return this.normalizeIntent(paymentIntent);
+    } finally {
+      this.confirming = false;
+    }
+  }
+
+  /**
+   * After Stripe redirects back to return_url, recover the PaymentIntent status
+   * via the official client-secret query param (do not create a new intent).
+   * Polls a finite number of times when status is still `processing`.
+   */
+  async retrieveReturningPayment(clientSecret: string): Promise<PaymentResult> {
+    if (!clientSecret?.trim()) {
+      throw new PaymentError({
+        code: 'PAYMENT_FAILED',
+        message: 'Missing payment_intent_client_secret after Klarna return.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    const stripe = await this.ensureStripeLoaded();
+    const secret = clientSecret.trim();
+    let lastIntent: PaymentIntentLike | undefined;
+
+    for (let attempt = 0; attempt < KLARNA_PROCESSING_MAX_ATTEMPTS; attempt++) {
+      const { paymentIntent, error } = await stripe.retrievePaymentIntent(secret);
+
+      if (error) {
+        throw mapKlarnaStripeError(error);
+      }
+
+      lastIntent = paymentIntent ?? undefined;
+      if (paymentIntent?.id) {
+        this.paymentIntentId = paymentIntent.id;
+      }
+
+      const status = paymentIntent?.status;
+
+      if (status === 'succeeded' || status === 'requires_capture' || status === 'canceled') {
+        return this.normalizeIntent(paymentIntent);
+      }
+
+      if (
+        status === 'requires_payment_method' ||
+        status === 'requires_action' ||
+        status === 'requires_confirmation'
+      ) {
+        return this.normalizeIntent(paymentIntent);
+      }
+
+      if (status === 'processing') {
+        if (attempt < KLARNA_PROCESSING_MAX_ATTEMPTS - 1) {
+          await delay(KLARNA_PROCESSING_DELAY_MS);
+          continue;
+        }
+        throw new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message:
+            'Klarna payment is still processing. Please refresh or check your email for confirmation.',
+          method: 'klarna',
+          provider: 'klarna',
+          originalError: paymentIntent,
+        });
+      }
+
+      return this.normalizeIntent(paymentIntent);
+    }
+
+    return this.normalizeIntent(lastIntent);
+  }
+
+  /**
+   * Idempotent Klarna redirect recovery for the current page load.
+   * Returns null when there is no Klarna return attempt in the URL/session.
+   * Always clears return markers after a handled attempt (success or failure).
+   */
+  consumeStripeReturn(): Promise<PaymentResult | null> {
+    if (!this.returnConsumePromise) {
+      this.returnConsumePromise = this.doConsumeStripeReturn();
+    }
+    return this.returnConsumePromise;
+  }
+
+  /** True after a Klarna return was consumed on this page load (URL may already be cleaned). */
+  wasReturnConsumed(): boolean {
+    return this.returnConsumed;
+  }
+
+  private async doConsumeStripeReturn(): Promise<PaymentResult | null> {
+    if (typeof window === 'undefined' || !isKlarnaReturnAttempt()) {
+      return null;
+    }
+
+    this.returnConsumed = true;
+    const { clientSecret, redirectStatus } = readStripeReturnParams();
+
+    try {
+      if (redirectStatus === 'failed') {
+        throw new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message: 'Klarna payment was not completed.',
+          method: 'klarna',
+          provider: 'klarna',
+        });
+      }
+
+      if (!clientSecret?.trim()) {
+        throw new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message: 'Klarna return is missing payment details. Please try the payment again.',
+          method: 'klarna',
+          provider: 'klarna',
+        });
+      }
+
+      return await this.retrieveReturningPayment(clientSecret);
+    } finally {
+      clearKlarnaPendingReturn();
+      clearStripeReturnParamsFromUrl();
+    }
+  }
+
+  isConfirming(): boolean {
+    return this.confirming;
+  }
+
+  unmountPaymentElement(): void {
+    try {
+      this.paymentElement?.unmount();
+    } catch {
+      // Element may already be unmounted.
+    }
+    this.paymentElement = null;
+    this.elements = null;
+  }
+
+  hasMountedElement(): boolean {
+    return !!this.elements && !!this.paymentElement;
+  }
+
+  async destroy(): Promise<void> {
+    this.unmountPaymentElement();
+    this.clientSecret = null;
+    this.sessionId = undefined;
+    this.paymentIntentId = undefined;
+    this.confirming = false;
+  }
+
+  private assertValidKlarnaResponse(response: CreateKlarnaPaymentResponse): void {
+    if (!response || typeof response !== 'object') {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend returned an invalid Klarna payment response.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    if (response.provider && response.provider !== 'klarna') {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend response provider must be "klarna".',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+
+    if (!response.clientSecret || typeof response.clientSecret !== 'string') {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend did not return a Klarna clientSecret.',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+    }
+  }
+
+  private normalizeIntent(paymentIntent: PaymentIntentLike | undefined): PaymentResult {
+    const status = paymentIntent?.status;
+
+    // Terminal success only. Do not treat `processing` as success — Klarna may
+    // still be settling asynchronously after customer authorization.
+    if (status === 'succeeded' || status === 'requires_capture') {
+      return normalizePaymentResult({
+        status: 'success',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: paymentIntent?.id ?? this.paymentIntentId,
+        sessionId: this.sessionId,
+        message: 'Klarna payment completed successfully.',
+        metadata: {
+          stripeStatus: status,
+          gateway: 'stripe',
+        },
+      });
+    }
+
+    if (status === 'canceled') {
+      return normalizePaymentResult({
+        status: 'cancelled',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: paymentIntent?.id ?? this.paymentIntentId,
+        sessionId: this.sessionId,
+        message: 'Klarna payment was cancelled.',
+        metadata: {
+          gateway: 'stripe',
+        },
+      });
+    }
+
+    if (status === 'requires_payment_method') {
+      throw new PaymentError({
+        code: 'PAYMENT_FAILED',
+        message: 'Klarna payment was not completed. Please try again.',
+        method: 'klarna',
+        provider: 'klarna',
+        originalError: paymentIntent,
+      });
+    }
+
+    if (status === 'requires_action' || status === 'requires_confirmation') {
+      throw new PaymentError({
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Klarna payment still requires additional customer action.',
+        method: 'klarna',
+        provider: 'klarna',
+        originalError: paymentIntent,
+      });
+    }
+
+    if (status === 'processing') {
+      throw new PaymentError({
+        code: 'PAYMENT_FAILED',
+        message:
+          'Klarna payment is still processing. Please refresh or check your email for confirmation.',
+        method: 'klarna',
+        provider: 'klarna',
+        originalError: paymentIntent,
+      });
+    }
+
+    throw new PaymentError({
+      code: 'PAYMENT_FAILED',
+      message: `Unexpected PaymentIntent status: ${status ?? 'unknown'}.`,
+      method: 'klarna',
+      provider: 'klarna',
+      originalError: paymentIntent,
+    });
+  }
+}
+
+interface PaymentIntentLike {
+  id?: string;
+  status?: string;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 @Injectable({ providedIn: 'root' })

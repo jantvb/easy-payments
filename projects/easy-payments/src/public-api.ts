@@ -37,19 +37,29 @@ export {
 } from './lib/layout/checkout-layout';
 export type {
   CapturePayPalOrderResponse,
+  CreateKlarnaPaymentResponse,
   CreatePaymentRequest,
   CreatePaymentResponse,
   CreatePayPalOrderResponse,
   CreateStripePaymentResponse,
+  KlarnaCreatePaymentRequest,
   PayPalCreateOrderRequest,
 } from './lib/models/create-payment.model';
-export { toPayPalCreateOrderRequest } from './lib/models/create-payment.model';
+export {
+  toKlarnaCreatePaymentRequest,
+  toPayPalCreateOrderRequest,
+} from './lib/models/create-payment.model';
 
 export { PaymentError, normalizeError } from './lib/errors/payment-error';
 export type { PaymentErrorCode } from './lib/errors/payment-error';
 
 export { MockPaymentController } from './lib/adapters/mock/mock-payment.controller';
 export type { MockPaymentOutcome } from './lib/adapters/mock/mock-payment.controller';
+
+export {
+  isKlarnaReturnAttempt,
+  isKlarnaStripeReturn,
+} from './lib/adapters/klarna/klarna-return';
 
 export { EasyPaymentsConfigValidator } from './lib/validators/config.validator';
 export { validatePaymentProduct } from './lib/validators/product.validator';

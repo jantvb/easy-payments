@@ -5,11 +5,12 @@ import { StripeService } from './stripe.service';
 
 describe('StripeController', () => {
   let controller: StripeController;
-  let service: { createPaymentIntent: jest.Mock };
+  let service: { createPaymentIntent: jest.Mock; createKlarnaPaymentIntent: jest.Mock };
 
   beforeEach(async () => {
     service = {
       createPaymentIntent: jest.fn(),
+      createKlarnaPaymentIntent: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -70,5 +71,26 @@ describe('StripeController', () => {
         amount: -1,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('creates a Klarna PaymentIntent via the dedicated endpoint', async () => {
+    service.createKlarnaPaymentIntent.mockResolvedValue({
+      provider: 'klarna',
+      clientSecret: 'pi_klarna_secret',
+      paymentIntentId: 'pi_klarna_1',
+    });
+
+    await expect(
+      controller.createKlarnaPaymentIntent({
+        provider: 'klarna',
+        productId: 'premium-plan',
+        quantity: 1,
+        currency: 'USD',
+      }),
+    ).resolves.toEqual({
+      provider: 'klarna',
+      clientSecret: 'pi_klarna_secret',
+      paymentIntentId: 'pi_klarna_1',
+    });
   });
 });

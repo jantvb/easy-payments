@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { MockPaymentController } from '../../adapters/mock/mock-payment.controller';
+import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
 import { BrowserGuard } from '../../utils/browser-guard';
 import { PaymentError } from '../../errors/payment-error';
 import { PaymentResult } from '../../models';
@@ -489,6 +490,186 @@ describe('EasyPaymentsComponent', () => {
 
       expect(fixture.nativeElement.classList.contains('ep-theme-dark')).toBeTrue();
       expect(fixture.nativeElement.querySelector('easy-checkout-outcome')).toBeTruthy();
+    });
+
+    it('Klarna return recovery shows processing then success confirmation once', async () => {
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['card', 'klarna']);
+      await render(fixture);
+
+      expect(fixture.componentInstance.selectedMethod()).toBe('card');
+
+      fixture.componentInstance.onKlarnaReturning(true);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('processing');
+      expect(fixture.componentInstance.selectedMethod()).toBe('klarna');
+      expect(fixture.nativeElement.textContent).toContain('Processing payment...');
+
+      fixture.componentInstance.onKlarnaSuccess({
+        status: 'success',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: 'pi_klarna_abc12345',
+      });
+      fixture.componentInstance.onKlarnaReturning(false);
+      fixture.detectChanges();
+
+      expect(successes.length).toBe(1);
+      expect(successes[0].method).toBe('klarna');
+      expect(fixture.componentInstance.viewState()).toBe('success');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Payment successful');
+      expect(text).toContain('Premium Plan');
+      expect(text).toMatch(/\$99\.99/);
+      expect(text).toContain('Klarna');
+      expect(text).toContain('••••2345');
+    });
+
+    it('Klarna parent-owned redirect recovery transitions Processing to Success', async () => {
+      history.replaceState(
+        {},
+        '',
+        '/?payment_intent=pi_parent&payment_intent_client_secret=sec_parent&ep_method=klarna',
+      );
+
+      const klarnaAdapter = TestBed.inject(KlarnaAdapter);
+      spyOn(klarnaAdapter, 'consumeStripeReturn').and.resolveTo({
+        status: 'success',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: 'pi_parent_txn',
+      });
+
+      const successes: PaymentResult[] = [];
+      const fixtureReturn = TestBed.createComponent(EasyPaymentsComponent);
+      fixtureReturn.componentRef.setInput('product', { ...SAMPLE_PRODUCT });
+      fixtureReturn.componentRef.setInput('methods', ['klarna', 'card']);
+      fixtureReturn.componentInstance.success.subscribe((result) => successes.push(result));
+
+      expect(fixtureReturn.componentInstance.viewState()).toBe('processing');
+
+      fixtureReturn.detectChanges();
+      await fixtureReturn.whenStable();
+      await Promise.resolve();
+      await Promise.resolve();
+      fixtureReturn.detectChanges();
+
+      expect(klarnaAdapter.consumeStripeReturn).toHaveBeenCalled();
+      expect(successes.length).toBe(1);
+      expect(successes[0].method).toBe('klarna');
+      expect(successes[0].transactionId).toBe('pi_parent_txn');
+      expect(fixtureReturn.componentInstance.viewState()).toBe('success');
+      expect(fixtureReturn.nativeElement.textContent).toContain('Payment successful');
+      expect(fixtureReturn.nativeElement.textContent).toContain('Klarna');
+
+      history.replaceState({}, '', '/');
+      fixtureReturn.destroy();
+    });
+
+    it('Klarna parent-owned redirect recovery maps retrieve failure to Error', async () => {
+      history.replaceState({}, '', '/?ep_method=klarna&payment_intent_client_secret=bad');
+
+      const klarnaAdapter = TestBed.inject(KlarnaAdapter);
+      spyOn(klarnaAdapter, 'consumeStripeReturn').and.rejectWith(
+        new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message: 'Stripe retrieve failed',
+          method: 'klarna',
+          provider: 'klarna',
+        }),
+      );
+
+      const errors: PaymentError[] = [];
+      const fixtureReturn = TestBed.createComponent(EasyPaymentsComponent);
+      fixtureReturn.componentRef.setInput('product', { ...SAMPLE_PRODUCT });
+      fixtureReturn.componentRef.setInput('methods', ['klarna']);
+      fixtureReturn.componentInstance.error.subscribe((error) => errors.push(error));
+
+      fixtureReturn.detectChanges();
+      await fixtureReturn.whenStable();
+      await Promise.resolve();
+      await Promise.resolve();
+      fixtureReturn.detectChanges();
+
+      expect(errors.length).toBe(1);
+      expect(fixtureReturn.componentInstance.viewState()).toBe('error');
+      expect(fixtureReturn.nativeElement.textContent).toContain('Payment failed');
+
+      history.replaceState({}, '', '/');
+      fixtureReturn.destroy();
+    });
+
+    it('Klarna return respects successBehavior=event-only', async () => {
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['klarna']);
+      fixture.componentRef.setInput('successBehavior', 'event-only');
+      await render(fixture);
+
+      fixture.componentInstance.onKlarnaReturning(true);
+      fixture.componentInstance.onKlarnaSuccess({
+        status: 'success',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: 'pi_event_only',
+      });
+      fixture.componentInstance.onKlarnaReturning(false);
+      fixture.detectChanges();
+
+      expect(successes.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).not.toContain('Payment successful');
+    });
+
+    it('Klarna Continue after success resets to fresh checkout', async () => {
+      const continues: PaymentResult[] = [];
+      fixture.componentInstance.successContinue.subscribe((result) => continues.push(result));
+      fixture.componentRef.setInput('methods', ['klarna']);
+      await render(fixture);
+
+      fixture.componentInstance.onKlarnaSuccess({
+        status: 'success',
+        method: 'klarna',
+        provider: 'klarna',
+        transactionId: 'pi_continue',
+      });
+      fixture.detectChanges();
+
+      const continueBtn = fixture.nativeElement.querySelector(
+        'button.ep-outcome__action',
+      ) as HTMLButtonElement;
+      continueBtn.click();
+      fixture.detectChanges();
+
+      expect(continues.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).toContain('Complete your purchase');
+    });
+
+    it('Klarna cancelled/failed returns map to cancelled and error states', async () => {
+      fixture.componentRef.setInput('methods', ['klarna']);
+      await render(fixture);
+
+      fixture.componentInstance.onKlarnaCancel({
+        status: 'cancelled',
+        method: 'klarna',
+        provider: 'klarna',
+      });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('cancelled');
+
+      fixture.componentInstance.resetCheckoutView();
+      fixture.componentInstance.onKlarnaError(
+        new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message: 'Klarna failed',
+          method: 'klarna',
+          provider: 'klarna',
+        }),
+      );
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('error');
     });
   });
 });

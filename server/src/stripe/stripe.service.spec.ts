@@ -177,4 +177,57 @@ describe('StripeService', () => {
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
+
+  it('creates a Klarna-only PaymentIntent with trusted catalog amount', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_klarna',
+      client_secret: 'pi_klarna_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const service = module.get(StripeService);
+    const result = await service.createKlarnaPaymentIntent({
+      provider: 'klarna',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 9999,
+        currency: 'usd',
+        payment_method_types: ['klarna'],
+        metadata: expect.objectContaining({
+          productId: 'premium-plan',
+          paymentMethod: 'klarna',
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      provider: 'klarna',
+      clientSecret: 'pi_klarna_secret',
+      paymentIntentId: 'pi_klarna',
+    });
+  });
+
+  it('rejects unknown products for Klarna', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const service = module.get(StripeService);
+    await expect(
+      service.createKlarnaPaymentIntent({
+        provider: 'klarna',
+        productId: 'not-in-catalog',
+        quantity: 1,
+        currency: 'USD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(createMock).not.toHaveBeenCalled();
+  });
 });

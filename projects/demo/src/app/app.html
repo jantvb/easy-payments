@@ -46,7 +46,7 @@
           </label>
         </fieldset>
         <p class="hint">
-          Configured providers become real (Stripe TEST / PayPal Sandbox / Google Pay TEST).
+          Configured providers become real (Stripe TEST / PayPal Sandbox / Google Pay TEST / Klarna via Stripe).
           Unconfigured methods stay unavailable. Set keys in <code>environment.ts</code> and
           secrets in <code>server/.env</code>.
         </p>
@@ -61,6 +61,10 @@
             <li>
               Google Pay:
               {{ stripeConfigReady() ? 'configured (availability via isReadyToPay)' : 'needs Stripe' }}
+            </li>
+            <li>
+              Klarna:
+              {{ stripeConfigReady() ? 'configured via Stripe' : 'needs Stripe' }}
             </li>
           </ul>
         }
@@ -269,16 +273,26 @@
 
       <div class="checkout-stage">
         <div class="checkout-stage__surface">
-          <easy-payments
-            [product]="product()"
-            [methods]="methods()"
-            [theme]="theme()"
-            [maxWidth]="checkoutMaxWidth()"
-            (success)="onPaymentSuccess($event)"
-            (cancel)="onPaymentCancel($event)"
-            (error)="onPaymentError($event)"
-            (successContinue)="onSuccessContinue($event)"
-          />
+          @if (!checkoutReady()) {
+            <p class="checkout-boot" role="status">
+              @if (returningFromKlarna()) {
+                Processing payment…
+              } @else {
+                Loading checkout…
+              }
+            </p>
+          } @else {
+            <easy-payments
+              [product]="product()"
+              [methods]="methods()"
+              [theme]="theme()"
+              [maxWidth]="checkoutMaxWidth()"
+              (success)="onPaymentSuccess($event)"
+              (cancel)="onPaymentCancel($event)"
+              (error)="onPaymentError($event)"
+              (successContinue)="onSuccessContinue($event)"
+            />
+          }
         </div>
       </div>
 

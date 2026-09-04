@@ -96,7 +96,9 @@ export class EasyPaymentsConfigValidator {
       }
       case 'klarna': {
         const cfg = providerConfig as EasyPaymentsProviderConfig['klarna'];
-        if (!cfg?.clientId?.trim()) {
+        // Presence of the klarna config object is enough to opt in.
+        // Stripe publishableKey + klarnaCreatePaymentUrl are enforced at runtime by KlarnaAdapter.
+        if (!cfg || typeof cfg !== 'object') {
           return { provider, status: 'invalid', message: required };
         }
         break;
