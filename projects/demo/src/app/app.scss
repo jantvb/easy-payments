@@ -5,7 +5,7 @@
 }
 
 .demo {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 32px 20px 64px;
 }
@@ -38,8 +38,9 @@ h1 {
 }
 
 h2 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   margin-bottom: 12px;
+  font-weight: 700;
 }
 
 .lede {
@@ -51,23 +52,24 @@ h2 {
 .demo-mode-banner,
 .stripe-mode-banner {
   margin: 0;
-  padding: 10px 14px;
+  padding: 8px 14px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .demo-mode-banner {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px dashed #f59e0b;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .stripe-mode-banner {
-  background: #dbeafe;
-  color: #1e3a8a;
-  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
 
 .mode-warning {
@@ -85,12 +87,12 @@ h2 {
 
 .demo-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 24px;
+  align-items: start;
 }
 
 .panel,
-.checkout-card,
 .event-log {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -101,7 +103,17 @@ h2 {
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
+}
+
+.panel-kicker,
+.preview-kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
 }
 
 .field {
@@ -206,20 +218,67 @@ h2 {
   gap: 16px;
 }
 
-.price {
-  margin: 8px 0;
-  font-size: 1.4rem;
-  font-weight: 700;
+.preview-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-.description {
-  margin: 0 0 16px;
+.preview-meta h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.preview-meta code {
+  font-size: 0.9em;
+}
+
+.preview-chip {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.preview-chip--demo {
+  background: #f8fafc;
   color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.preview-chip--stripe {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.checkout-stage {
+  padding: 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 42%),
+    linear-gradient(180deg, #eef2ff 0%, #f8fafc 48%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.checkout-stage__surface {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.checkout-stage__surface--dark {
+  /* Lets dark theme checkout sit on a matching stage without forcing app chrome */
+  filter: none;
 }
 
 .event-log p {
   margin: 0;
   color: #334155;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .visually-hidden {
@@ -241,8 +300,13 @@ h2 {
     display: grid;
   }
 
-  .demo-mode-banner {
+  .demo-mode-banner,
+  .stripe-mode-banner {
     white-space: normal;
+  }
+
+  .preview-meta {
+    flex-direction: column;
   }
 }
 

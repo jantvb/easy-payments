@@ -2,7 +2,7 @@
   "name": "easy-payments-server",
   "version": "0.0.1",
   "private": true,
-  "description": "Minimal NestJS Stripe TEST MODE backend for easy-payments local end-to-end testing",
+  "description": "Minimal NestJS Stripe TEST + PayPal Sandbox backend for easy-payments local end-to-end testing",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "nest start",

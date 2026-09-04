@@ -1,82 +1,85 @@
-<div class="ep-payments">
-  @if (showDemoBanner()) {
-    <p class="ep-demo-banner" role="status">
-      Demo Mode - No real payment will be processed.
-    </p>
-  }
-
-  @if (visibleMethods().length === 0) {
-    <p class="ep-empty" role="status">
-      No payment methods are available for this configuration.
-    </p>
-  }
-
-  <div class="ep-methods" role="list">
-    @for (entry of visibleMethods(); track entry.method) {
-      <div class="ep-method" role="listitem">
-        @switch (entry.method) {
-          @case ('apple-pay') {
-            <easy-apple-pay-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('apple-pay')"
-              (pay)="onPay('apple-pay')"
-            />
-          }
-          @case ('google-pay') {
-            <easy-google-pay-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('google-pay')"
-              (pay)="onPay('google-pay')"
-            />
-          }
-          @case ('samsung-pay') {
-            <easy-samsung-pay-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('samsung-pay')"
-              (pay)="onPay('samsung-pay')"
-            />
-          }
-          @case ('paypal') {
-            <easy-paypal-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('paypal')"
-              (pay)="onPay('paypal')"
-            />
-          }
-          @case ('klarna') {
-            <easy-klarna-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('klarna')"
-              (pay)="onPay('klarna')"
-            />
-          }
-          @case ('affirm') {
-            <easy-affirm-button
-              [isMock]="entry.isMock"
-              [loading]="isMethodLoading('affirm')"
-              (pay)="onPay('affirm')"
-            />
-          }
-          @case ('card') {
-            @if (entry.isMock) {
-              <easy-card-payment
-                [isMock]="true"
-                [loading]="isMethodLoading('card')"
-                (pay)="onPay('card')"
-              />
-            } @else {
-              <easy-stripe-card-payment
-                [product]="product()"
-                [checkout]="checkout()"
-                [resolvedTheme]="resolvedTheme()"
-                (success)="onStripeSuccess($event)"
-                (cancel)="onStripeCancel($event)"
-                (error)="onStripeError($event)"
-              />
-            }
-          }
-        }
-      </div>
-    }
-  </div>
-</div>
+<div class="ep-checkout">
+  <header class="ep-checkout__header">
+    <h2 class="ep-checkout__title">Complete your purchase</h2>
+    <p class="ep-checkout__subtitle">Choose your preferred payment method</p>
+  </header>
+
+  <easy-checkout-product-summary [product]="product()" />
+
+  @if (visibleMethods().length === 0) {
+    <p class="ep-checkout__empty" role="status">
+      No payment methods are available for this configuration.
+    </p>
+  } @else {
+    <section class="ep-checkout__methods" aria-label="Payment method selection">
+      <easy-payment-method-selector
+        [methods]="visibleMethods()"
+        [selected]="selectedMethod()"
+        [theme]="resolvedTheme()"
+        (methodSelect)="selectMethod($event)"
+      />
+    </section>
+
+    <div class="ep-checkout__divider" aria-hidden="true"></div>
+
+    <section class="ep-checkout__detail" aria-live="polite">
+      @if (showStripePanel()) {
+        <!--
+          Keep Stripe mounted while card remains available.
+          Hide with clip (not display:none) so Elements stay healthy and
+          switching methods does not recreate PaymentIntents.
+        -->
+        <div
+          class="ep-checkout__panel"
+          [class.ep-checkout__panel--inactive]="!stripePanelActive()"
+          [attr.aria-hidden]="!stripePanelActive()"
+        >
+          <easy-stripe-card-payment
+            [product]="product()"
+            [checkout]="checkout()"
+            [resolvedTheme]="resolvedTheme()"
+            (success)="onStripeSuccess($event)"
+            (cancel)="onStripeCancel($event)"
+            (error)="onStripeError($event)"
+          />
+        </div>
+      }
+
+      @if (showPayPalPanel()) {
+        <!--
+          Keep PayPal Buttons mounted while PayPal remains available.
+          Avoid remounting / duplicate SDK buttons when switching methods.
+        -->
+        <div
+          class="ep-checkout__panel"
+          [class.ep-checkout__panel--inactive]="!paypalPanelActive()"
+          [attr.aria-hidden]="!paypalPanelActive()"
+        >
+          <easy-paypal-payment
+            [product]="product()"
+            [checkout]="checkout()"
+            [resolvedTheme]="resolvedTheme()"
+            (success)="onPayPalSuccess($event)"
+            (cancel)="onPayPalCancel($event)"
+            (error)="onPayPalError($event)"
+          />
+        </div>
+      }
+
+      @if (showMockPanel()) {
+        @if (selectedEntry(); as entry) {
+          <div class="ep-checkout__panel">
+            <easy-mock-method-panel
+              [method]="entry.method"
+              [product]="product()"
+              [theme]="resolvedTheme()"
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading(entry.method)"
+              (pay)="onPay(entry.method)"
+            />
+          </div>
+        }
+      }
+    </section>
+  }
+</div>

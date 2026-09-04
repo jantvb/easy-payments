@@ -20,7 +20,17 @@ describe('CreatePaymentIntentDto', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('rejects zero amount', async () => {
+  it('accepts a request without client amount (trusted catalog)', async () => {
+    const errors = await validateDto({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects zero amount when provided', async () => {
     const errors = await validateDto({
       provider: 'stripe',
       productId: 'premium-plan',
@@ -68,7 +78,8 @@ describe('CreatePaymentIntentDto', () => {
     const errors = await validateDto({});
     const properties = errors.map((error) => error.property);
     expect(properties).toEqual(
-      expect.arrayContaining(['provider', 'productId', 'quantity', 'currency', 'amount']),
+      expect.arrayContaining(['provider', 'productId', 'quantity', 'currency']),
     );
+    expect(properties).not.toContain('amount');
   });
 });

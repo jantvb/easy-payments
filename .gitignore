@@ -4,6 +4,7 @@
 /dist
 /server/dist
 /tmp
+/tmp-brand-assets
 /out-tsc
 /bazel-out
 

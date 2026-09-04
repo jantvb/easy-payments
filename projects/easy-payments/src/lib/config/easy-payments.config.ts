@@ -46,6 +46,17 @@ export interface EasyPaymentsBackendConfig {
   /** Merchant endpoint that creates a Stripe PaymentIntent and returns clientSecret. */
   createPaymentUrl?: string;
   /**
+   * PayPal Orders API: create order (returns { provider: 'paypal', orderId }).
+   * Required for real PayPal checkout.
+   */
+  paypalCreateOrderUrl?: string;
+  /**
+   * PayPal Orders API: capture approved order
+   * (returns { provider: 'paypal', orderId, captureId, status? }).
+   * Required for real PayPal checkout.
+   */
+  paypalCaptureOrderUrl?: string;
+  /**
    * Optional. Not required for the standard Stripe Payment Element + PaymentIntent flow.
    * Reserved for future provider flows that need an explicit server confirm step.
    */

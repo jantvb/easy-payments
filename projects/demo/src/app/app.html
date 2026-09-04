@@ -4,18 +4,20 @@
       <p class="eyebrow">Easy Payments</p>
       <h1>Checkout playground</h1>
       <p class="lede">
-        Explore method order, themes, mock payments, and real Stripe card checkout (test mode).
+        Configure the library on the left. Preview the customer-facing checkout on the right.
       </p>
     </div>
     @if (mode() === 'demo') {
-      <p class="demo-mode-banner" role="status">Demo Mode — No real payment will be processed.</p>
+      <p class="demo-mode-banner" role="status">Demo Mode</p>
     } @else {
-      <p class="stripe-mode-banner" role="status">Real Stripe Mode — uses your publishable key + backend.</p>
+      <p class="stripe-mode-banner" role="status">Real / Test Providers</p>
     }
   </header>
 
   <div class="demo-layout">
-    <aside class="panel" aria-label="Demo controls">
+    <aside class="panel" aria-label="Developer playground controls">
+      <p class="panel-kicker">Developer controls</p>
+
       <section>
         <h2>Mode</h2>
         <fieldset class="choice-group">
@@ -35,19 +37,28 @@
             <input
               type="radio"
               name="mode"
-              value="stripe"
-              [checked]="mode() === 'stripe'"
+              value="real"
+              [checked]="mode() === 'real'"
               [disabled]="switchingMode()"
-              (change)="setMode('stripe')"
+              (change)="setMode('real')"
             />
-            <span>Real Stripe Mode</span>
+            <span>Real / Test Providers</span>
           </label>
         </fieldset>
-        @if (!stripeConfigReady()) {
+        <p class="hint">
+          Configured providers become real (Stripe TEST / PayPal Sandbox). Unconfigured methods
+          stay unavailable. Set keys in <code>environment.ts</code> and secrets in
+          <code>server/.env</code>.
+        </p>
+        @if (!realProvidersReady()) {
           <p class="hint">
-            Real Stripe mode requires a Stripe publishable key and a backend create-payment endpoint
-            in <code>environment.ts</code>.
+            Add at least one of: Stripe <code>pk_test_...</code> or PayPal Sandbox Client ID.
           </p>
+        } @else {
+          <ul class="status-list">
+            <li>Stripe: {{ stripeConfigReady() ? 'ready' : 'not configured' }}</li>
+            <li>PayPal: {{ paypalConfigReady() ? 'ready' : 'not configured' }}</li>
+          </ul>
         }
         @if (modeMessage()) {
           <p class="mode-warning" role="alert">{{ modeMessage() }}</p>
@@ -56,11 +67,21 @@
 
       <section>
         <h2>Product</h2>
+        @if (productFieldsLocked()) {
+          <p class="hint">
+            Real / Test Providers uses the NestJS trusted catalog. Displayed price matches the
+            charged amount (<code>premium-plan</code> → $99.99 USD). Amount/name/currency are
+            locked; quantity still applies to the trusted unit price.
+          </p>
+        } @else {
+          <p class="hint">Demo Mode: amounts are editable because no real payment is processed.</p>
+        }
         <label class="field">
           <span>Name</span>
           <input
             type="text"
             [value]="productName()"
+            [disabled]="productFieldsLocked()"
             (input)="productName.set($any($event.target).value)"
           />
         </label>
@@ -69,6 +90,7 @@
           <input
             type="text"
             [value]="productDescription()"
+            [disabled]="productFieldsLocked()"
             (input)="productDescription.set($any($event.target).value)"
           />
         </label>
@@ -79,6 +101,7 @@
             min="0.01"
             step="0.01"
             [value]="productAmount()"
+            [disabled]="productFieldsLocked()"
             (input)="productAmount.set($any($event.target).value)"
           />
         </label>
@@ -88,6 +111,7 @@
             type="text"
             maxlength="3"
             [value]="productCurrency()"
+            [disabled]="productFieldsLocked()"
             (input)="productCurrency.set($any($event.target).value)"
           />
         </label>
@@ -186,27 +210,30 @@
     </aside>
 
     <main class="checkout">
-      <section class="checkout-card" [attr.data-theme]="theme()">
-        <h2>Pay for {{ product().name }}</h2>
-        <p class="price">
-          {{ product().currency }} {{ product().amount }}
-          @if (product().quantity && product().quantity !== 1) {
-            <span>× {{ product().quantity }}</span>
-          }
-        </p>
-        @if (product().description) {
-          <p class="description">{{ product().description }}</p>
+      <div class="preview-meta">
+        <div>
+          <p class="preview-kicker">Customer checkout preview</p>
+          <h2>Embedded <code>&lt;easy-payments&gt;</code></h2>
+        </div>
+        @if (mode() === 'demo') {
+          <p class="preview-chip preview-chip--demo">Demo payments</p>
+        } @else {
+          <p class="preview-chip preview-chip--stripe">Test / Sandbox providers</p>
         }
+      </div>
 
-        <easy-payments
-          [product]="product()"
-          [methods]="methods()"
-          [theme]="theme()"
-          (success)="onPaymentSuccess($event)"
-          (cancel)="onPaymentCancel($event)"
-          (error)="onPaymentError($event)"
-        />
-      </section>
+      <div class="checkout-stage">
+        <div class="checkout-stage__surface">
+          <easy-payments
+            [product]="product()"
+            [methods]="methods()"
+            [theme]="theme()"
+            (success)="onPaymentSuccess($event)"
+            (cancel)="onPaymentCancel($event)"
+            (error)="onPaymentError($event)"
+          />
+        </div>
+      </div>
 
       <section class="event-log" aria-live="polite">
         <h2>Last event</h2>

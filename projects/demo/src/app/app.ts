@@ -1,4 +1,6 @@
+import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   EasyPaymentsComponent,
   EasyPaymentsConfigService,
@@ -19,7 +21,17 @@ interface MethodRow {
   enabled: boolean;
 }
 
-type DemoMode = 'demo' | 'stripe';
+/** Demo = all mocks. Real = every configured TEST/Sandbox provider becomes live. */
+type DemoMode = 'demo' | 'real';
+
+/** Mirrors NestJS CatalogProduct — display must match charged amount in Real mode. */
+interface TrustedCatalogProduct {
+  id: string;
+  name: string;
+  description: string;
+  unitAmount: number;
+  currency: string;
+}
 
 const DEFAULT_PRODUCT: PaymentProduct = {
   id: 'premium-plan',
@@ -51,6 +63,7 @@ export class App {
   private readonly configValidator = inject(EasyPaymentsConfigValidator);
   private readonly configService = inject(EasyPaymentsConfigService);
   private readonly orchestrator = inject(PaymentOrchestratorService);
+  private readonly http = inject(HttpClient);
 
   readonly productName = signal(DEFAULT_PRODUCT.name);
   readonly productDescription = signal(DEFAULT_PRODUCT.description ?? '');
@@ -63,15 +76,33 @@ export class App {
   readonly mode = signal<DemoMode>('demo');
   readonly modeMessage = signal<string | null>(null);
   readonly switchingMode = signal(false);
+  /** When set, Real mode displays/charges from this trusted catalog entry. */
+  readonly trustedCatalogProduct = signal<TrustedCatalogProduct | null>(null);
 
-  readonly product = computed<PaymentProduct>(() => ({
-    id: 'premium-plan',
-    name: this.productName(),
-    description: this.productDescription(),
-    amount: Number(this.productAmount()),
-    currency: this.productCurrency().trim().toUpperCase(),
-    quantity: Number(this.productQuantity()),
-  }));
+  readonly product = computed<PaymentProduct>(() => {
+    const trusted = this.trustedCatalogProduct();
+    const quantity = Number(this.productQuantity());
+
+    if (this.mode() === 'real' && trusted) {
+      return {
+        id: trusted.id,
+        name: trusted.name,
+        description: trusted.description,
+        amount: trusted.unitAmount,
+        currency: trusted.currency,
+        quantity: Number.isFinite(quantity) && quantity >= 1 ? quantity : 1,
+      };
+    }
+
+    return {
+      id: 'premium-plan',
+      name: this.productName(),
+      description: this.productDescription(),
+      amount: Number(this.productAmount()),
+      currency: this.productCurrency().trim().toUpperCase(),
+      quantity: Number.isFinite(quantity) && quantity >= 1 ? quantity : 1,
+    };
+  });
 
   readonly methods = computed(() =>
     this.methodRows()
@@ -84,11 +115,35 @@ export class App {
   readonly stripeConfigReady = computed(() => {
     const key = environment.stripePublishableKey?.trim() ?? '';
     const url = environment.createPaymentUrl?.trim() ?? '';
-    return /^pk_(test|live)_/i.test(key) && !!url;
+    return /^pk_(test|live)_/i.test(key) && !!url && !key.includes('xxxx');
   });
+
+  readonly paypalConfigReady = computed(() => {
+    const clientId = environment.paypalClientId?.trim() ?? '';
+    const createUrl = environment.paypalCreateOrderUrl?.trim() ?? '';
+    const captureUrl = environment.paypalCaptureOrderUrl?.trim() ?? '';
+    return !!clientId && !clientId.includes('REPLACE') && !!createUrl && !!captureUrl;
+  });
+
+  readonly realProvidersReady = computed(
+    () => this.stripeConfigReady() || this.paypalConfigReady(),
+  );
+
+  readonly productFieldsLocked = computed(() => this.mode() === 'real');
 
   constructor() {
     this.mockController.setDelay(350);
+    this.applyThemeFromQuery();
+  }
+
+  private applyThemeFromQuery(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const value = new URLSearchParams(window.location.search).get('theme');
+    if (value === 'light' || value === 'dark' || value === 'system') {
+      this.theme.set(value);
+    }
   }
 
   setTheme(theme: PaymentTheme): void {
@@ -103,14 +158,22 @@ export class App {
     return this.mockController.outcome();
   }
 
+  private async loadTrustedCatalogProduct(productId: string): Promise<TrustedCatalogProduct> {
+    const base = environment.catalogProductUrl?.trim().replace(/\/$/, '');
+    if (!base) {
+      throw new Error('catalogProductUrl is not configured in environment.ts');
+    }
+    return firstValueFrom(this.http.get<TrustedCatalogProduct>(`${base}/${encodeURIComponent(productId)}`));
+  }
+
   async setMode(mode: DemoMode): Promise<void> {
     if (mode === this.mode() || this.switchingMode()) {
       return;
     }
 
-    if (mode === 'stripe' && !this.stripeConfigReady()) {
+    if (mode === 'real' && !this.realProvidersReady()) {
       this.modeMessage.set(
-        'Real Stripe mode requires a Stripe publishable key and a backend create-payment endpoint. See projects/demo/src/environments/environment.example.ts.',
+        'Real / Test Providers mode requires Stripe (pk_test_...) and/or PayPal Sandbox Client ID plus NestJS backend URLs. See projects/demo/src/environments/environment.example.ts.',
       );
       return;
     }
@@ -120,6 +183,7 @@ export class App {
 
     try {
       if (mode === 'demo') {
+        this.trustedCatalogProduct.set(null);
         this.configService.replace({
           enableMockMode: true,
           providers: {},
@@ -127,25 +191,51 @@ export class App {
         this.mockController.reset();
         this.mockController.setDelay(350);
       } else {
+        const trusted = await this.loadTrustedCatalogProduct('premium-plan');
+        this.trustedCatalogProduct.set(trusted);
+        // Keep playground fields in sync with catalog for visibility when locked.
+        this.productName.set(trusted.name);
+        this.productDescription.set(trusted.description);
+        this.productAmount.set(String(trusted.unitAmount));
+        this.productCurrency.set(trusted.currency);
+
         this.configService.replace({
           enableMockMode: false,
           providers: {
-            stripe: {
-              publishableKey: environment.stripePublishableKey.trim(),
-            },
+            ...(this.stripeConfigReady()
+              ? {
+                  stripe: {
+                    publishableKey: environment.stripePublishableKey.trim(),
+                  },
+                }
+              : {}),
+            ...(this.paypalConfigReady()
+              ? {
+                  paypal: {
+                    clientId: environment.paypalClientId.trim(),
+                    currency: trusted.currency,
+                    intent: 'capture',
+                  },
+                }
+              : {}),
           },
           backend: {
             createPaymentUrl: environment.createPaymentUrl.trim(),
+            paypalCreateOrderUrl: environment.paypalCreateOrderUrl.trim(),
+            paypalCaptureOrderUrl: environment.paypalCaptureOrderUrl.trim(),
           },
         });
       }
 
+      this.mode.set(mode);
       await this.orchestrator.reinitialize();
       await this.orchestrator.refreshAvailability(this.methods(), this.product());
-      this.mode.set(mode);
     } catch (error) {
+      this.trustedCatalogProduct.set(null);
       this.modeMessage.set(
-        error instanceof Error ? error.message : 'Failed to switch payment mode.',
+        error instanceof Error
+          ? error.message
+          : 'Failed to switch payment mode. Is the NestJS catalog endpoint running?',
       );
     } finally {
       this.switchingMode.set(false);

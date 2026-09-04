@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { getCatalogProduct } from '../catalog/product-catalog';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 
 export interface CreatePaymentIntentResult {
@@ -47,9 +48,29 @@ export class StripeService {
       );
     }
 
-    const unitAmountCents = Math.round(dto.amount * 100);
+    const catalogProduct = getCatalogProduct(dto.productId);
+    if (!catalogProduct) {
+      throw new BadRequestException(
+        `Unknown productId "${dto.productId}". Use a catalog product (e.g. premium-plan).`,
+      );
+    }
+
+    if (dto.currency.toUpperCase() !== catalogProduct.currency) {
+      throw new BadRequestException(
+        `Currency mismatch: catalog product uses ${catalogProduct.currency}, got ${dto.currency}.`,
+      );
+    }
+
+    // Trusted price: ignore any client-supplied amount.
+    if (typeof dto.amount === 'number' && dto.amount !== catalogProduct.unitAmount) {
+      this.logger.warn(
+        `Ignoring client amount ${dto.amount} for ${dto.productId}; using catalog ${catalogProduct.unitAmount}.`,
+      );
+    }
+
+    const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
     if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
-      throw new BadRequestException('amount is too small for Stripe (minimum ~0.50 in major units).');
+      throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');
     }
 
     const totalAmount = unitAmountCents * dto.quantity;
@@ -59,6 +80,7 @@ export class StripeService {
 
     const description =
       dto.description?.trim() ||
+      catalogProduct.name ||
       (typeof dto.metadata?.['productName'] === 'string'
         ? String(dto.metadata['productName'])
         : `Easy Payments demo: ${dto.productId}`);
@@ -67,6 +89,7 @@ export class StripeService {
       productId: dto.productId,
       quantity: String(dto.quantity),
       source: 'easy-payments-demo',
+      trustedUnitAmount: String(catalogProduct.unitAmount),
     };
 
     if (dto.metadata) {
@@ -80,7 +103,7 @@ export class StripeService {
     try {
       const intent = await this.stripe.paymentIntents.create({
         amount: totalAmount,
-        currency: dto.currency.toLowerCase(),
+        currency: catalogProduct.currency.toLowerCase(),
         description,
         metadata: safeMetadata,
         // Easy Payments `card` must only collect cards — not Klarna/Cash App/bank, etc.

@@ -29,10 +29,14 @@ export type { PaymentResult, PaymentStatus } from './lib/models/payment-result.m
 export { normalizePaymentResult } from './lib/models/payment-result.model';
 export type { CheckoutOptions } from './lib/models/checkout-options.model';
 export type {
+  CapturePayPalOrderResponse,
   CreatePaymentRequest,
   CreatePaymentResponse,
+  CreatePayPalOrderResponse,
   CreateStripePaymentResponse,
+  PayPalCreateOrderRequest,
 } from './lib/models/create-payment.model';
+export { toPayPalCreateOrderRequest } from './lib/models/create-payment.model';
 
 export { PaymentError, normalizeError } from './lib/errors/payment-error';
 export type { PaymentErrorCode } from './lib/errors/payment-error';

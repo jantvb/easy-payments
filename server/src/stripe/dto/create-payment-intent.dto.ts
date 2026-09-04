@@ -1,13 +1,24 @@
-import { IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 /**
- * Matches the Angular easy-payments CreatePaymentRequest contract.
+ * Matches the Angular easy-payments CreatePaymentRequest contract for Stripe.
  *
- * IMPORTANT (production):
- * Do not trust `amount` from the browser as the final charge.
- * A real merchant backend should look up productId and compute price server-side.
- * This local demo accepts amount so Stripe TEST MODE can be exercised end to end.
+ * Trusted pricing: the demo server resolves unit amount from productId via the
+ * server-side catalog. A client-supplied `amount` is accepted for backwards
+ * compatibility with older demos but is IGNORED when the product is in the catalog.
  */
 export class CreatePaymentIntentDto {
   @IsIn(['stripe'])
@@ -29,14 +40,15 @@ export class CreatePaymentIntentDto {
   currency!: string;
 
   /**
-   * Unit amount in major currency units (e.g. 99.99 for $99.99).
-   * Converted to Stripe minor units (cents) on the server.
+   * Optional legacy unit amount from the browser.
+   * Ignored when productId exists in the trusted catalog.
    */
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.5)
   @Max(999999)
-  amount!: number;
+  amount?: number;
 
   @IsOptional()
   @IsString()

@@ -1,79 +1,160 @@
 :host {
   display: block;
   width: 100%;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  color: var(--ep-text);
+  background: transparent;
 
-  --ep-bg: #ffffff;
+  /* Design tokens — overridable by host apps */
+  --ep-background: transparent;
+  --ep-surface: #ffffff;
+  --ep-surface-muted: #f8fafc;
+  --ep-surface-hover: #f8fafc;
   --ep-text: #0f172a;
+  --ep-text-secondary: #64748b;
   --ep-border: #e2e8f0;
-  --ep-focus-color: #2563eb;
-  --ep-mock-border: #f59e0b;
-  --ep-mock-badge-bg: #fef3c7;
-  --ep-mock-badge-text: #92400e;
-  --ep-card-bg: #f8fafc;
-  --ep-card-text: #0f172a;
-  --ep-card-border: #cbd5e1;
+  --ep-border-strong: #cbd5e1;
+  --ep-accent: #2563eb;
+  --ep-accent-soft: #eff6ff;
+  --ep-focus: #2563eb;
+  --ep-radius: 16px;
+  --ep-radius-md: 10px;
+  --ep-spacing: 16px;
+  --ep-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --ep-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --ep-cta-bg: #0f172a;
+  --ep-cta-bg-hover: #1e293b;
+  --ep-cta-text: #f8fafc;
+  --ep-demo-bg: #f1f5f9;
+  --ep-demo-text: #64748b;
+  --ep-success: #15803d;
+  --ep-danger: #b91c1c;
+
+  /* Legacy aliases used by Stripe card / older styles */
+  --ep-bg: var(--ep-surface);
+  --ep-focus-color: var(--ep-focus);
+  --ep-card-bg: var(--ep-cta-bg);
+  --ep-card-text: var(--ep-cta-text);
+  --ep-card-border: var(--ep-border);
+  --ep-mock-border: var(--ep-border-strong);
+  --ep-mock-badge-bg: var(--ep-demo-bg);
+  --ep-mock-badge-text: var(--ep-demo-text);
 }
 
 :host(.ep-theme-dark) {
-  --ep-bg: #0f172a;
+  --ep-background: transparent;
+  --ep-surface: #111827;
+  --ep-surface-muted: #0b1220;
+  --ep-surface-hover: #1f2937;
   --ep-text: #f8fafc;
-  --ep-border: #334155;
-  --ep-focus-color: #60a5fa;
-  --ep-mock-badge-bg: #78350f;
-  --ep-mock-badge-text: #fef3c7;
-  --ep-card-bg: #1e293b;
-  --ep-card-text: #f8fafc;
-  --ep-card-border: #475569;
+  --ep-text-secondary: #94a3b8;
+  --ep-border: #243044;
+  --ep-border-strong: #334155;
+  --ep-accent: #60a5fa;
+  --ep-accent-soft: rgba(96, 165, 250, 0.12);
+  --ep-focus: #93c5fd;
+  --ep-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --ep-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --ep-cta-bg: #f8fafc;
+  --ep-cta-bg-hover: #e2e8f0;
+  --ep-cta-text: #0f172a;
+  --ep-demo-bg: #1e293b;
+  --ep-demo-text: #94a3b8;
+  --ep-success: #4ade80;
+  --ep-danger: #f87171;
 }
 
-.ep-payments {
-  background: var(--ep-bg);
-  color: var(--ep-text);
-  border: 1px solid var(--ep-border);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.ep-demo-banner {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px dashed var(--ep-mock-border);
-  background: var(--ep-mock-badge-bg);
-  color: var(--ep-mock-badge-text);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.ep-methods {
+.ep-checkout {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.ep-method {
-  width: 100%;
-}
-
-.ep-empty {
-  margin: 0;
-  padding: 12px;
-  text-align: center;
+  gap: var(--ep-spacing);
+  padding: 20px;
+  border: 1px solid var(--ep-border);
+  border-radius: var(--ep-radius);
+  background: var(--ep-surface);
   color: var(--ep-text);
-  opacity: 0.7;
+  box-shadow: var(--ep-shadow);
+}
+
+.ep-checkout__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ep-checkout__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.ep-checkout__subtitle {
+  margin: 0;
   font-size: 14px;
+  color: var(--ep-text-secondary);
+}
+
+.ep-checkout__methods {
+  margin-top: 4px;
+}
+
+.ep-checkout__divider {
+  height: 1px;
+  background: var(--ep-border);
+  margin: 4px 0;
+}
+
+.ep-checkout__detail {
+  position: relative;
+  min-height: 4px;
+}
+
+.ep-checkout__panel {
+  display: block;
+}
+
+/**
+ * Keep inactive Stripe panel in the DOM without display:none.
+ * Clipping avoids iframe remount / PaymentIntent recreation when switching methods.
+ */
+.ep-checkout__panel--inactive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+
+.ep-checkout__empty {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--ep-text-secondary);
+  font-size: 14px;
+  border: 1px dashed var(--ep-border);
+  border-radius: var(--ep-radius-md);
 }
 
 @media (max-width: 480px) {
-  .ep-payments {
-    padding: 12px;
-    border-radius: 8px;
+  .ep-checkout {
+    padding: 16px;
+    border-radius: 14px;
   }
 
-  .ep-methods {
-    gap: 10px;
+  .ep-checkout__title {
+    font-size: 1.125rem;
   }
 }
 

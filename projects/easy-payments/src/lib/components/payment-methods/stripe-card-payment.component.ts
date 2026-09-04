@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   OnDestroy,
+  computed,
   effect,
   inject,
   input,
@@ -23,15 +24,18 @@ import { validatePaymentProduct } from '../../validators/product.validator';
 import { StripeCardAdapter } from '../../adapters/stripe/stripe-card.adapter';
 import { buildStripeSessionKey } from '../../adapters/stripe/stripe-appearance';
 import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
+import { formatMoney } from '../../utils/format-money';
+import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 
 @Component({
   selector: 'easy-stripe-card-payment',
   standalone: true,
+  imports: [CheckoutSecurityMessageComponent],
   template: `
     <div class="ep-stripe-card" [attr.data-state]="uiState()">
       <div class="ep-stripe-card__header">
-        <h3 class="ep-stripe-card__title">Card</h3>
-        <p class="ep-stripe-card__hint">Secure card fields are provided by Stripe.</p>
+        <h3 class="ep-stripe-card__title">Pay with card</h3>
+        <easy-checkout-security-message message="Secure card payment powered by Stripe" />
       </div>
 
       @if (uiState() === 'initializing' || uiState() === 'loading-session') {
@@ -52,6 +56,10 @@ import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
         aria-label="Stripe secure card payment form"
       ></div>
 
+      <p class="ep-stripe-card__brands" aria-label="Commonly accepted cards">
+        Cards accepted via Stripe (Visa, Mastercard, American Express, and more)
+      </p>
+
       @if (inlineError()) {
         <p class="ep-stripe-card__error" role="alert">{{ inlineError() }}</p>
       }
@@ -68,9 +76,9 @@ import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
         (click)="onPay()"
       >
         @if (uiState() === 'processing') {
-          Processing…
+          Processing payment…
         } @else {
-          Pay with card
+          Pay {{ amountLabel() }}
         }
       </button>
     </div>
@@ -85,28 +93,31 @@ import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
       .ep-stripe-card {
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        padding: 14px;
-        border-radius: 10px;
-        border: 1px solid var(--ep-border, #e2e8f0);
-        background: var(--ep-bg, #fff);
-        color: var(--ep-text, #0f172a);
+        gap: 14px;
+      }
+
+      .ep-stripe-card__header {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
       }
 
       .ep-stripe-card__title {
         margin: 0;
         font-size: 1rem;
+        font-weight: 650;
+        color: var(--ep-text, #0f172a);
       }
 
-      .ep-stripe-card__hint,
       .ep-stripe-card__status {
-        margin: 4px 0 0;
+        margin: 0;
         font-size: 13px;
-        opacity: 0.75;
+        color: var(--ep-text-secondary, #64748b);
       }
 
       .ep-stripe-card__element {
         min-height: 48px;
+        padding: 4px 0;
       }
 
       .ep-stripe-card__element--pending {
@@ -114,15 +125,21 @@ import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
         pointer-events: none;
       }
 
+      .ep-stripe-card__brands {
+        margin: 0;
+        font-size: 12px;
+        color: var(--ep-text-secondary, #64748b);
+      }
+
       .ep-stripe-card__error {
         margin: 0;
-        color: #b91c1c;
+        color: var(--ep-danger, #b91c1c);
         font-size: 13px;
       }
 
       .ep-stripe-card__success {
         margin: 0;
-        color: #15803d;
+        color: var(--ep-success, #15803d);
         font-size: 13px;
         font-weight: 600;
       }
@@ -130,16 +147,21 @@ import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
       .ep-stripe-card__pay {
         min-height: 48px;
         border: 0;
-        border-radius: 8px;
-        background: var(--ep-card-bg, #0f172a);
-        color: var(--ep-card-text, #f8fafc);
+        border-radius: var(--ep-radius-md, 10px);
+        background: var(--ep-cta-bg, #0f172a);
+        color: var(--ep-cta-text, #f8fafc);
         font: inherit;
-        font-weight: 600;
+        font-size: 15px;
+        font-weight: 650;
         cursor: pointer;
       }
 
+      .ep-stripe-card__pay:hover:not(:disabled) {
+        background: var(--ep-cta-bg-hover, #1e293b);
+      }
+
       .ep-stripe-card__pay:focus-visible {
-        outline: 2px solid var(--ep-focus-color, #2563eb);
+        outline: 2px solid var(--ep-focus, #2563eb);
         outline-offset: 2px;
       }
 
@@ -179,6 +201,10 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   private sessionKey: string | null = null;
   private initGeneration = 0;
   private lastAppliedTheme: ResolvedPaymentTheme | null = null;
+
+  readonly amountLabel = computed(() =>
+    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+  );
 
   constructor() {
     // Product/checkout changes may require a new PaymentIntent.

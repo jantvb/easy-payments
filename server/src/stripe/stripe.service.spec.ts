@@ -93,7 +93,34 @@ describe('StripeService', () => {
     ).rejects.toThrow('Failed to create Stripe PaymentIntent.');
   });
 
-  it('rejects amounts that are too small after conversion', async () => {
+  it('uses trusted catalog price and ignores client amount', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_trusted',
+      client_secret: 'pi_trusted_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const service = module.get(StripeService);
+    await service.createPaymentIntent({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      amount: 0.01,
+    });
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 9999,
+        currency: 'usd',
+      }),
+    );
+  });
+
+  it('rejects unknown productId', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
     }).compile();
@@ -103,10 +130,10 @@ describe('StripeService', () => {
     await expect(
       service.createPaymentIntent({
         provider: 'stripe',
-        productId: 'premium-plan',
+        productId: 'not-in-catalog',
         quantity: 1,
         currency: 'USD',
-        amount: 0.1,
+        amount: 0.01,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(createMock).not.toHaveBeenCalled();

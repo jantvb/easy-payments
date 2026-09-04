@@ -6,16 +6,18 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 
 ## Current status
 
-**Phase 2 — Stripe card frontend + NestJS TEST MODE demo backend.**
+**Phase 3 — Real PayPal Sandbox + Stripe card TEST + NestJS demo backend.**
 
 - Library foundation from Phase 1 remains intact (ordering, themes, mocks, validation, events).
 - **Real Stripe card payments** use Stripe Payment Element + PaymentIntent (`clientSecret` from your backend).
-- A minimal **NestJS** server under `server/` creates PaymentIntents for local Stripe TEST MODE.
-- Easy Payments loads Stripe.js lazily, mounts secure Elements, confirms payment, handles 3D Secure redirects when required, and emits normalized `success` / `cancel` / `error` events.
-- **Mock mode still does not process real payments** and does not require Stripe credentials.
-- Real PayPal, Apple Pay, Google Pay, Samsung Pay, Klarna, and Affirm are **not** implemented yet.
+- **Real PayPal payments** use the official PayPal JS SDK Buttons + Orders v2 create/capture.
+- A minimal **NestJS** server under `server/` creates Stripe PaymentIntents and PayPal orders for local TEST / Sandbox.
+- Both providers use a **trusted server-side product catalog** — browser amounts are not authoritative.
+- Easy Payments loads Stripe.js / PayPal JS lazily, mounts official provider UI, and emits normalized `success` / `cancel` / `error` events.
+- **Mock mode still does not process real payments** and does not require provider credentials.
+- Real Apple Pay, Google Pay, Samsung Pay, Klarna, and Affirm are **not** implemented yet.
 
-Angular never accepts Stripe secret keys. Only `pk_test_...` / `pk_live_...` belong in the browser.
+Angular never accepts Stripe secret keys or PayPal Client Secrets. Only publishable / Client ID values belong in the browser.
 
 ## Installation
 
@@ -88,6 +90,51 @@ methods: PaymentMethod[] = ['card'];
 
 That is enough on the Angular side. You do **not** manually load Stripe.js, create Elements, or call `confirmPayment`.
 
+## Quick start (real PayPal)
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    paypal: {
+      clientId: environment.paypalClientId, // Sandbox / Live Client ID only
+    },
+    // Optional: enable Stripe Card at the same time
+    stripe: {
+      publishableKey: environment.stripePublishableKey,
+    },
+  },
+  backend: {
+    createPaymentUrl: '/api/payments/create',
+    paypalCreateOrderUrl: '/api/payments/paypal/create',
+    paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['paypal', 'card'];
+```
+
+Easy Payments loads the official PayPal JS SDK and renders PayPal Buttons. You do **not** invent a fake PayPal CTA.
+
+## Backend contract (provider-aware)
+
+| Provider | Create | Capture / confirm |
+| --- | --- | --- |
+| Stripe | `POST /api/payments/create` | Payment Element confirms client-side |
+| PayPal | `POST /api/payments/paypal/create` | `POST /api/payments/paypal/capture` |
+
+This scales cleanly to future providers without forcing unrelated frontend conventions. Shared trusted pricing lives in `server/src/catalog/product-catalog.ts`.
+
+### Trusted pricing
+
+The browser may send `productId` + `quantity` (+ optional currency hint). The NestJS demo resolves:
+
+`premium-plan` → **99.99 USD** (unit)
+
+Changing the displayed amount in DevTools does **not** change the charged amount.
+
 ## Stripe integration
 
 ### What it provides
@@ -138,7 +185,7 @@ The browser is not trusted for the final charge amount. Easy Payments sends prod
 }
 ```
 
-`amount` is included so the local NestJS demo can create a PaymentIntent without a product database. **Production merchants must not trust browser amounts** — look up `productId` and compute the authoritative total on the server.
+`amount` may still be sent for display/back-compat. **The NestJS demo ignores it** and uses the trusted catalog price for `productId`. Production merchants must also re-price server-side.
 
 ### Expected backend response
 
@@ -210,7 +257,7 @@ npm run server:start
 npm start
 ```
 
-Open `http://localhost:4200/`, choose **Real Stripe Mode**, enable **Card**, pay with a Stripe test card.
+Open `http://localhost:4200/`, choose **Real / Test Providers**, enable **Card**, pay with a Stripe test card.
 
 ### Manual test payment (TEST MODE)
 
@@ -218,7 +265,7 @@ Open `http://localhost:4200/`, choose **Real Stripe Mode**, enable **Card**, pay
 2. Put `sk_test_...` in `server/.env` as `STRIPE_SECRET_KEY`.
 3. Put `pk_test_...` in Angular `environment.ts` as `stripePublishableKey`.
 4. Start NestJS (`npm run server:start`) and the demo (`npm start`).
-5. Select **Real Stripe Mode**.
+5. Select **Real / Test Providers**.
 6. In the Stripe Payment Element use test card `4242 4242 4242 4242`, any future expiry, any CVC, any ZIP.
 7. Click **Pay with card**.
 8. Confirm success in the demo event log and in Stripe Dashboard → Payments (Test mode).
@@ -233,12 +280,137 @@ Complete the test authentication modal. Easy Payments uses Stripe’s official `
 
 ### Production warning
 
-This NestJS app is a **local Stripe TEST helper**. A production backend must:
+This NestJS app is a **local Stripe TEST / PayPal Sandbox helper**. A production backend must:
 
 - derive/validate price from `productId` (do not trust browser `amount`)
 - use HTTPS
 - lock down CORS
-- never log secrets or full card data
+- never log secrets or full card / PayPal credential data
+
+## PayPal integration
+
+### Official APIs / SDK used
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | PayPal JavaScript SDK v5 Buttons (`https://www.paypal.com/sdk/js`, `components=buttons`) — still documented as CURRENT / STANDARD |
+| Backend | PayPal REST **Orders v2** (`POST /v2/checkout/orders`, `POST /v2/checkout/orders/{id}/capture`) + OAuth2 client credentials |
+| Auth | `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` on the server only |
+
+### Prerequisites
+
+1. A [PayPal Developer](https://developer.paypal.com/) account
+2. A Sandbox app with **Client ID** + **Client Secret**
+3. A merchant backend that creates and captures orders with a trusted amount
+
+### Where credentials belong
+
+| Credential | Where | Example |
+| --- | --- | --- |
+| Client ID | Angular only | `paypalClientId` in `environment.ts` |
+| Client Secret | NestJS `.env` only | `PAYPAL_CLIENT_SECRET=...` |
+
+Never put the Client Secret in Angular.
+
+### Create Order flow
+
+1. Customer selects the **PayPal** tile
+2. Easy Payments shows official PayPal Buttons
+3. Customer clicks PayPal
+4. Easy Payments POSTs `{ provider: 'paypal', productId, quantity }` to `paypalCreateOrderUrl`
+5. NestJS validates catalog product → creates PayPal order with trusted amount
+6. Returns `{ provider: 'paypal', orderId }`
+7. PayPal checkout UI opens for approval
+
+### Capture Order flow
+
+1. Customer approves in PayPal
+2. Buttons `onApprove` fires with `orderID`
+3. Easy Payments POSTs `{ orderId }` to `paypalCaptureOrderUrl`
+4. NestJS captures via Orders v2
+5. Easy Payments emits normalized success:
+
+```ts
+{
+  status: 'success',
+  method: 'paypal',
+  provider: 'paypal',
+  transactionId: captureId,
+  sessionId: orderId,
+}
+```
+
+### Cancellation
+
+Closing the PayPal popup / cancelling checkout emits `(cancel)` with `status: 'cancelled'`. It is **not** treated as a generic failure.
+
+### Configure NestJS for PayPal
+
+```bash
+cd server
+cp .env.example .env
+# Edit server/.env:
+# PAYPAL_CLIENT_ID=...
+# PAYPAL_CLIENT_SECRET=...
+# PAYPAL_MODE=sandbox
+# STRIPE_SECRET_KEY=sk_test_...   # optional if testing card too
+npm install
+npm run start:dev
+```
+
+Endpoints:
+
+- `POST http://localhost:3000/api/payments/paypal/create`
+- `POST http://localhost:3000/api/payments/paypal/capture`
+
+### Configure Angular demo for PayPal
+
+In `projects/demo/src/environments/environment.ts`:
+
+```ts
+paypalClientId: 'YOUR_SANDBOX_CLIENT_ID',
+paypalCreateOrderUrl: 'http://localhost:3000/api/payments/paypal/create',
+paypalCaptureOrderUrl: 'http://localhost:3000/api/payments/paypal/capture',
+```
+
+### Manual PayPal Sandbox test
+
+1. Create a Sandbox app at [developer.paypal.com/dashboard](https://developer.paypal.com/dashboard/).
+2. Copy **Client ID** → Angular `environment.paypalClientId`.
+3. Copy **Client Secret** → `server/.env` as `PAYPAL_CLIENT_SECRET` (and matching `PAYPAL_CLIENT_ID`).
+4. Start NestJS (`npm run server:start`) and the demo (`npm start`).
+5. Select **Real / Test Providers**.
+6. Select the **PayPal** tile → official PayPal button appears.
+7. Click PayPal → sign in with a **Sandbox buyer** account from the Developer Dashboard.
+8. Approve the payment.
+9. Confirm `(success)` in the demo event log (`transactionId` = capture id).
+10. Verify the transaction under PayPal Developer Dashboard → Sandbox → Transactions.
+
+### Manual cancellation test
+
+1. Click the official PayPal button.
+2. Close the PayPal window / cancel checkout.
+3. Confirm the demo event log shows `Cancelled (paypal)` — not an error.
+
+### Common PayPal errors
+
+| Situation | Typical `PaymentError.code` |
+| --- | --- |
+| Missing Client ID | method unavailable / `CONFIG_MISSING` |
+| Missing create/capture URLs | method unavailable / `BACKEND_ERROR` |
+| SDK load failure | `SDK_LOAD_FAILED` |
+| Create-order failure / invalid response | `BACKEND_ERROR` |
+| Capture failure / declined | `PAYMENT_FAILED` |
+| Network issues | `NETWORK_ERROR` |
+| Customer cancels / popup closed | `PAYMENT_CANCELLED` → `(cancel)` |
+
+### Production considerations (PayPal)
+
+- Switch to Live Client ID / Secret only on a hardened merchant backend
+- Keep `PAYPAL_MODE=live` (or live API host) out of local demos until ready
+- Implement idempotent capture handling and webhook verification for fulfillment
+- Follow [PayPal brand guidelines](https://www.paypal.com/us/webapps/mpp/logo-center) for Buttons
+- NestJS in this repo is a **reference** backend — merchants may implement the same contract on any stack
 
 ## Security
 
@@ -293,6 +465,32 @@ Automated unit tests never call Stripe’s network.
 
 `light` · `dark` · `system` (`prefers-color-scheme`, live updates).
 
+## Third-Party Trademarks
+
+Apple Pay, Google Pay, Samsung Pay, PayPal, Klarna, Affirm, Stripe, Visa, Mastercard, American Express, Discover, and related marks are trademarks of their respective owners. Easy Payments does **not** claim ownership of these marks.
+
+Official provider artwork is used only to identify supported payment options in the checkout selector and must follow each provider’s current brand guidelines. Downloading or installing Easy Payments does **not** grant unrestricted trademark rights.
+
+Consumers are responsible for:
+
+- Merchant / partner onboarding with each payment provider before production use
+- Complying with that provider’s branding, button, and checkout requirements
+- Obtaining any additional official assets required by the provider (for example Samsung Developer branding packs)
+
+Current asset approach:
+
+| Method | Asset approach |
+| --- | --- |
+| Card | Generic neutral icon (not a card-network logo) |
+| Apple Pay | Official Apple Pay mark from Apple’s marketing mark package |
+| Google Pay | Official Google Pay mark from Google’s acceptance mark package |
+| PayPal | PayPal-hosted assets (`paypalobjects.com`) |
+| Klarna | Klarna-hosted badge CDN |
+| Affirm | Affirm-hosted CDN logos |
+| Samsung Pay | Text fallback until an official Samsung mark is supplied |
+
+See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
+
 ## Events
 
 | Output | Payload |
@@ -303,14 +501,14 @@ Automated unit tests never call Stripe’s network.
 
 ## Mock / demo mode
 
-`enableMockMode: true` forces mock adapters. Banner: **Demo Mode - No real payment will be processed.**
+`enableMockMode: true` forces mock adapters. Selector tiles show a subtle **Demo** badge.
 
 `MockPaymentController` still supports `success` / `cancelled` / `failed`.
 
 ## Real provider roadmap
 
 1. ~~Stripe card~~ (Phase 2)
-2. PayPal
+2. ~~PayPal~~ (Phase 3)
 3. Apple Pay
 4. Google Pay
 5. Samsung Pay

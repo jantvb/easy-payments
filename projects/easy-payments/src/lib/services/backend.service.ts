@@ -4,8 +4,12 @@ import { firstValueFrom } from 'rxjs';
 import { EasyPaymentsConfigService } from '../config/easy-payments-config.service';
 import { PaymentError } from '../errors/payment-error';
 import {
+  CapturePayPalOrderResponse,
   CreatePaymentRequest,
+  CreatePayPalOrderResponse,
   CreateStripePaymentResponse,
+  PayPalCreateOrderRequest,
+  toPayPalCreateOrderRequest,
 } from '../models/create-payment.model';
 
 @Injectable({ providedIn: 'root' })
@@ -15,6 +19,14 @@ export class BackendService {
 
   get createPaymentUrl(): string | undefined {
     return this.configService.getSnapshot().backend?.createPaymentUrl?.trim() || undefined;
+  }
+
+  get paypalCreateOrderUrl(): string | undefined {
+    return this.configService.getSnapshot().backend?.paypalCreateOrderUrl?.trim() || undefined;
+  }
+
+  get paypalCaptureOrderUrl(): string | undefined {
+    return this.configService.getSnapshot().backend?.paypalCaptureOrderUrl?.trim() || undefined;
   }
 
   /** @deprecated Prefer createPaymentUrl. Kept optional for future provider flows. */
@@ -33,19 +45,138 @@ export class BackendService {
       });
     }
 
+    return this.postJson<CreateStripePaymentResponse>(url, payload, 'card', 'stripe', {
+      successMessage: 'Failed to create payment on backend.',
+      networkMessage: 'A network error occurred while creating the payment session.',
+      validate: (response) => {
+        if (
+          response?.provider !== 'stripe' ||
+          typeof response.clientSecret !== 'string' ||
+          !response.clientSecret.trim()
+        ) {
+          throw new PaymentError({
+            code: 'BACKEND_ERROR',
+            message: 'Invalid Stripe create-payment response from backend.',
+            method: 'card',
+            provider: 'stripe',
+          });
+        }
+      },
+    });
+  }
+
+  /**
+   * Posts the minimal PayPal create-order wire contract.
+   * Never forwards amount / metadata even if callers pass extra fields.
+   */
+  async createPayPalOrder(
+    payload: PayPalCreateOrderRequest | { productId: string; quantity: number; currency: string },
+  ): Promise<CreatePayPalOrderResponse> {
+    const url = this.paypalCreateOrderUrl;
+    if (!url) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend paypalCreateOrderUrl is not configured.',
+        method: 'paypal',
+        provider: 'paypal',
+      });
+    }
+
+    const body = toPayPalCreateOrderRequest(payload);
+
+    return this.postJson<CreatePayPalOrderResponse>(url, body, 'paypal', 'paypal', {
+      successMessage: 'Failed to create PayPal order on backend.',
+      networkMessage: 'A network error occurred while creating the PayPal order.',
+      validate: (response) => {
+        if (
+          response?.provider !== 'paypal' ||
+          typeof response.orderId !== 'string' ||
+          !response.orderId.trim()
+        ) {
+          throw new PaymentError({
+            code: 'BACKEND_ERROR',
+            message: 'Invalid PayPal create-order response from backend.',
+            method: 'paypal',
+            provider: 'paypal',
+          });
+        }
+      },
+    });
+  }
+
+  async capturePayPalOrder(orderId: string): Promise<CapturePayPalOrderResponse> {
+    const url = this.paypalCaptureOrderUrl;
+    if (!url) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend paypalCaptureOrderUrl is not configured.',
+        method: 'paypal',
+        provider: 'paypal',
+      });
+    }
+
+    const id = orderId?.trim();
+    if (!id) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'PayPal orderId is required to capture payment.',
+        method: 'paypal',
+        provider: 'paypal',
+      });
+    }
+
+    return this.postJson<CapturePayPalOrderResponse>(
+      url,
+      { orderId: id },
+      'paypal',
+      'paypal',
+      {
+        successMessage: 'Failed to capture PayPal order on backend.',
+        networkMessage: 'A network error occurred while capturing the PayPal payment.',
+        validate: (response) => {
+          if (
+            response?.provider !== 'paypal' ||
+            typeof response.orderId !== 'string' ||
+            !response.orderId.trim() ||
+            typeof response.captureId !== 'string' ||
+            !response.captureId.trim()
+          ) {
+            throw new PaymentError({
+              code: 'BACKEND_ERROR',
+              message: 'Invalid PayPal capture response from backend.',
+              method: 'paypal',
+              provider: 'paypal',
+            });
+          }
+        },
+      },
+    );
+  }
+
+  private async postJson<T>(
+    url: string,
+    payload: unknown,
+    method: 'card' | 'paypal',
+    provider: 'stripe' | 'paypal',
+    options: {
+      successMessage: string;
+      networkMessage: string;
+      validate: (response: T) => void;
+    },
+  ): Promise<T> {
     if (!this.http) {
       throw new PaymentError({
         code: 'BACKEND_ERROR',
-        message: 'HttpClient is required for backend integration. Call provideHttpClient() in your app config.',
-        method: 'card',
-        provider: 'stripe',
+        message:
+          'HttpClient is required for backend integration. Call provideHttpClient() in your app config.',
+        method,
+        provider,
       });
     }
 
     try {
-      const response = await firstValueFrom(
-        this.http.post<CreateStripePaymentResponse>(url, payload),
-      );
+      const response = await firstValueFrom(this.http.post<T>(url, payload));
+      options.validate(response);
       return response;
     } catch (error) {
       if (error instanceof PaymentError) {
@@ -55,13 +186,21 @@ export class BackendService {
       const network =
         error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500);
 
+      let message = network ? options.networkMessage : options.successMessage;
+      if (error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500) {
+        const body = error.error as { message?: string | string[] } | string | null;
+        if (body && typeof body === 'object' && body.message) {
+          message = Array.isArray(body.message) ? body.message.join('; ') : String(body.message);
+        } else if (typeof body === 'string' && body.trim()) {
+          message = body;
+        }
+      }
+
       throw new PaymentError({
         code: network ? 'NETWORK_ERROR' : 'BACKEND_ERROR',
-        message: network
-          ? 'A network error occurred while creating the payment session.'
-          : 'Failed to create payment on backend.',
-        method: 'card',
-        provider: 'stripe',
+        message,
+        method,
+        provider,
         originalError: error,
       });
     }
