@@ -1,0 +1,160 @@
+import { inject, Injectable } from '@angular/core';
+import {
+  EasyPaymentsConfig,
+  EasyPaymentsProviderConfig,
+  PROVIDER_DISPLAY_NAMES,
+  PROVIDER_REQUIRED_FIELD_LABEL,
+  ProviderConfigStatus,
+  ProviderValidationResult,
+} from '../config/easy-payments.config';
+import { EasyPaymentsConfigService } from '../config/easy-payments-config.service';
+import { PaymentMethod, PAYMENT_METHOD_PROVIDER_MAP } from '../models';
+
+const ALL_PROVIDERS = [
+  'stripe',
+  'paypal',
+  'applePay',
+  'googlePay',
+  'samsungPay',
+  'klarna',
+  'affirm',
+] as const satisfies ReadonlyArray<keyof EasyPaymentsProviderConfig>;
+
+@Injectable({ providedIn: 'root' })
+export class EasyPaymentsConfigValidator {
+  private readonly configService = inject(EasyPaymentsConfigService);
+
+  private get config(): EasyPaymentsConfig {
+    return this.configService.getSnapshot();
+  }
+
+  validateProvider(
+    provider: keyof EasyPaymentsProviderConfig,
+    providerConfig: EasyPaymentsProviderConfig[keyof EasyPaymentsProviderConfig] | undefined,
+  ): ProviderValidationResult {
+    const required = PROVIDER_REQUIRED_FIELD_LABEL[provider];
+
+    if (!providerConfig) {
+      return {
+        provider,
+        status: 'missing',
+        message: required,
+      };
+    }
+
+    switch (provider) {
+      case 'stripe': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['stripe'];
+        const key = cfg?.publishableKey?.trim() ?? '';
+        if (!key) {
+          return { provider, status: 'invalid', message: required };
+        }
+        if (/^sk_(test|live)_/i.test(key)) {
+          return {
+            provider,
+            status: 'invalid',
+            message: 'secret key is not allowed in the frontend',
+          };
+        }
+        if (!/^pk_(test|live)_/i.test(key)) {
+          return {
+            provider,
+            status: 'invalid',
+            message: 'publishableKey appears invalid',
+          };
+        }
+        break;
+      }
+      case 'paypal': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['paypal'];
+        if (!cfg?.clientId?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+      case 'applePay': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['applePay'];
+        if (!cfg?.merchantId?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+      case 'googlePay': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['googlePay'];
+        if (!cfg?.merchantId?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+      case 'samsungPay': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['samsungPay'];
+        if (!cfg?.merchantId?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+      case 'klarna': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['klarna'];
+        if (!cfg?.clientId?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+      case 'affirm': {
+        const cfg = providerConfig as EasyPaymentsProviderConfig['affirm'];
+        if (!cfg?.publicKey?.trim()) {
+          return { provider, status: 'invalid', message: required };
+        }
+        break;
+      }
+    }
+
+    return { provider, status: 'configured' };
+  }
+
+  validateAll(
+    methods: PaymentMethod[] = [],
+    config: EasyPaymentsConfig | null = this.config,
+  ): ProviderValidationResult[] {
+    const providers = config?.providers ?? {};
+    const requestedProviders = new Set(
+      methods.map((method) => PAYMENT_METHOD_PROVIDER_MAP[method]),
+    );
+
+    return ALL_PROVIDERS.map((provider) => {
+      if (methods.length > 0 && !requestedProviders.has(provider)) {
+        return { provider, status: 'not_requested' as ProviderConfigStatus };
+      }
+      return this.validateProvider(provider, providers[provider]);
+    });
+  }
+
+  /**
+   * Human-readable status lines. Never includes secret values such as keys.
+   */
+  getStatusSummary(
+    methods: PaymentMethod[] = [],
+    config: EasyPaymentsConfig | null = this.config,
+  ): string[] {
+    const mockMode = config?.enableMockMode === true;
+
+    return this.validateAll(methods, config)
+      .filter((result) => result.status !== 'not_requested')
+      .map((result) => this.formatStatusLine(result, mockMode));
+  }
+
+  formatStatusLine(result: ProviderValidationResult, mockMode = false): string {
+    const name = PROVIDER_DISPLAY_NAMES[result.provider];
+    const demoSuffix = mockMode ? ' (demo mode)' : '';
+
+    switch (result.status) {
+      case 'configured':
+        return `${name}: configured${demoSuffix}`;
+      case 'missing':
+      case 'invalid':
+        return `${name}: ${result.message ?? 'invalid configuration'}${demoSuffix}`;
+      default:
+        return `${name}: ${result.status}${demoSuffix}`;
+    }
+  }
+}

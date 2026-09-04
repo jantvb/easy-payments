@@ -1,0 +1,82 @@
+<div class="ep-payments">
+  @if (showDemoBanner()) {
+    <p class="ep-demo-banner" role="status">
+      Demo Mode - No real payment will be processed.
+    </p>
+  }
+
+  @if (visibleMethods().length === 0) {
+    <p class="ep-empty" role="status">
+      No payment methods are available for this configuration.
+    </p>
+  }
+
+  <div class="ep-methods" role="list">
+    @for (entry of visibleMethods(); track entry.method) {
+      <div class="ep-method" role="listitem">
+        @switch (entry.method) {
+          @case ('apple-pay') {
+            <easy-apple-pay-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('apple-pay')"
+              (pay)="onPay('apple-pay')"
+            />
+          }
+          @case ('google-pay') {
+            <easy-google-pay-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('google-pay')"
+              (pay)="onPay('google-pay')"
+            />
+          }
+          @case ('samsung-pay') {
+            <easy-samsung-pay-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('samsung-pay')"
+              (pay)="onPay('samsung-pay')"
+            />
+          }
+          @case ('paypal') {
+            <easy-paypal-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('paypal')"
+              (pay)="onPay('paypal')"
+            />
+          }
+          @case ('klarna') {
+            <easy-klarna-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('klarna')"
+              (pay)="onPay('klarna')"
+            />
+          }
+          @case ('affirm') {
+            <easy-affirm-button
+              [isMock]="entry.isMock"
+              [loading]="isMethodLoading('affirm')"
+              (pay)="onPay('affirm')"
+            />
+          }
+          @case ('card') {
+            @if (entry.isMock) {
+              <easy-card-payment
+                [isMock]="true"
+                [loading]="isMethodLoading('card')"
+                (pay)="onPay('card')"
+              />
+            } @else {
+              <easy-stripe-card-payment
+                [product]="product()"
+                [checkout]="checkout()"
+                [resolvedTheme]="resolvedTheme()"
+                (success)="onStripeSuccess($event)"
+                (cancel)="onStripeCancel($event)"
+                (error)="onStripeError($event)"
+              />
+            }
+          }
+        }
+      </div>
+    }
+  </div>
+</div>

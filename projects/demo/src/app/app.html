@@ -1,0 +1,217 @@
+<div class="demo">
+  <header class="demo-header">
+    <div>
+      <p class="eyebrow">Easy Payments</p>
+      <h1>Checkout playground</h1>
+      <p class="lede">
+        Explore method order, themes, mock payments, and real Stripe card checkout (test mode).
+      </p>
+    </div>
+    @if (mode() === 'demo') {
+      <p class="demo-mode-banner" role="status">Demo Mode — No real payment will be processed.</p>
+    } @else {
+      <p class="stripe-mode-banner" role="status">Real Stripe Mode — uses your publishable key + backend.</p>
+    }
+  </header>
+
+  <div class="demo-layout">
+    <aside class="panel" aria-label="Demo controls">
+      <section>
+        <h2>Mode</h2>
+        <fieldset class="choice-group">
+          <legend class="visually-hidden">Payment mode</legend>
+          <label class="choice">
+            <input
+              type="radio"
+              name="mode"
+              value="demo"
+              [checked]="mode() === 'demo'"
+              [disabled]="switchingMode()"
+              (change)="setMode('demo')"
+            />
+            <span>Demo Mode</span>
+          </label>
+          <label class="choice">
+            <input
+              type="radio"
+              name="mode"
+              value="stripe"
+              [checked]="mode() === 'stripe'"
+              [disabled]="switchingMode()"
+              (change)="setMode('stripe')"
+            />
+            <span>Real Stripe Mode</span>
+          </label>
+        </fieldset>
+        @if (!stripeConfigReady()) {
+          <p class="hint">
+            Real Stripe mode requires a Stripe publishable key and a backend create-payment endpoint
+            in <code>environment.ts</code>.
+          </p>
+        }
+        @if (modeMessage()) {
+          <p class="mode-warning" role="alert">{{ modeMessage() }}</p>
+        }
+      </section>
+
+      <section>
+        <h2>Product</h2>
+        <label class="field">
+          <span>Name</span>
+          <input
+            type="text"
+            [value]="productName()"
+            (input)="productName.set($any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Description</span>
+          <input
+            type="text"
+            [value]="productDescription()"
+            (input)="productDescription.set($any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Amount</span>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            [value]="productAmount()"
+            (input)="productAmount.set($any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Currency</span>
+          <input
+            type="text"
+            maxlength="3"
+            [value]="productCurrency()"
+            (input)="productCurrency.set($any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Quantity</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            [value]="productQuantity()"
+            (input)="productQuantity.set($any($event.target).value)"
+          />
+        </label>
+      </section>
+
+      <section>
+        <h2>Theme</h2>
+        <fieldset class="choice-group">
+          <legend class="visually-hidden">Theme</legend>
+          @for (option of ['light', 'dark', 'system']; track option) {
+            <label class="choice">
+              <input
+                type="radio"
+                name="theme"
+                [value]="option"
+                [checked]="theme() === option"
+                (change)="setTheme($any($event.target).value)"
+              />
+              <span>{{ option }}</span>
+            </label>
+          }
+        </fieldset>
+      </section>
+
+      @if (mode() === 'demo') {
+        <section>
+          <h2>Next mock payment</h2>
+          <fieldset class="choice-group">
+            <legend class="visually-hidden">Mock payment outcome</legend>
+            @for (option of ['success', 'cancelled', 'failed']; track option) {
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="mock-outcome"
+                  [value]="option"
+                  [checked]="mockOutcome() === option"
+                  (change)="setMockOutcome($any($event.target).value)"
+                />
+                <span>{{ option }}</span>
+              </label>
+            }
+          </fieldset>
+        </section>
+      }
+
+      <section>
+        <h2>Payment methods</h2>
+        <p class="hint">Enable, disable, and reorder. The array order is the visual order.</p>
+        <ul class="method-list">
+          @for (row of methodRows(); track row.method; let i = $index) {
+            <li>
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="row.enabled"
+                  (change)="toggleMethod(row.method, $any($event.target).checked)"
+                />
+                <span>{{ methodLabel(row.method) }}</span>
+              </label>
+              <span class="reorder">
+                <button type="button" [disabled]="i === 0" (click)="moveMethod(i, -1)" [attr.aria-label]="'Move ' + methodLabel(row.method) + ' up'">
+                  Up
+                </button>
+                <button
+                  type="button"
+                  [disabled]="i === methodRows().length - 1"
+                  (click)="moveMethod(i, 1)"
+                  [attr.aria-label]="'Move ' + methodLabel(row.method) + ' down'"
+                >
+                  Down
+                </button>
+              </span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section>
+        <h2>Provider status</h2>
+        <ul class="status-list">
+          @for (line of configStatus(); track line) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+      </section>
+    </aside>
+
+    <main class="checkout">
+      <section class="checkout-card" [attr.data-theme]="theme()">
+        <h2>Pay for {{ product().name }}</h2>
+        <p class="price">
+          {{ product().currency }} {{ product().amount }}
+          @if (product().quantity && product().quantity !== 1) {
+            <span>× {{ product().quantity }}</span>
+          }
+        </p>
+        @if (product().description) {
+          <p class="description">{{ product().description }}</p>
+        }
+
+        <easy-payments
+          [product]="product()"
+          [methods]="methods()"
+          [theme]="theme()"
+          (success)="onPaymentSuccess($event)"
+          (cancel)="onPaymentCancel($event)"
+          (error)="onPaymentError($event)"
+        />
+      </section>
+
+      <section class="event-log" aria-live="polite">
+        <h2>Last event</h2>
+        <p>{{ lastEvent() }}</p>
+      </section>
+    </main>
+  </div>
+</div>
