@@ -6,18 +6,20 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 
 ## Current status
 
-**Phase 5 — Real Klarna (via Stripe Payment Element) + Google Pay TEST + PayPal Sandbox + Stripe card TEST.**
+**Phase 6 — Real Affirm (via Stripe Payment Element) + Klarna + Google Pay TEST + PayPal Sandbox + Stripe card TEST.**
 
 - Library foundation remains intact (ordering, themes, mocks, validation, events).
 - **Real Stripe card** — Payment Element + PaymentIntent.
 - **Real PayPal** — official Buttons + Orders v2 create/capture.
 - **Real Google Pay TEST** — official `pay.js` + `PaymentsClient` + `createButton`, tokenized through Stripe `PAYMENT_GATEWAY`.
 - **Real Klarna** — Stripe Payment Element + Klarna-only PaymentIntent (`payment_method_types: ['klarna']`). No direct Klarna SDK.
-- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay/Klarna charges.
+- **Real Affirm** — Stripe Payment Element + Affirm-only PaymentIntent (`payment_method_types: ['affirm']`). No Affirm.js / Affirm API secrets in Angular.
+- Shared Stripe redirect recovery for Klarna + Affirm (`ep_method` + `retrievePaymentIntent`).
+- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay/Klarna/Affirm charges.
 - **Mock mode still does not process real payments.**
-- Real Apple Pay and Affirm are **not** implemented yet.
+- Real Apple Pay is **not** implemented yet.
 
-Angular never accepts Stripe secret keys, PayPal Client Secrets, or Klarna API secrets.
+Angular never accepts Stripe secret keys, PayPal Client Secrets, Klarna API secrets, or Affirm API secrets.
 
 ## Installation
 
@@ -170,6 +172,32 @@ methods: PaymentMethod[] = ['klarna', 'card'];
 
 Enable Klarna in the Stripe Dashboard (TEST). Angular uses the same `pk_test_...`; Nest uses `sk_test_...`. No Klarna API secrets in the browser.
 
+## Quick start (real Affirm via Stripe)
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: { publishableKey: environment.stripePublishableKey },
+    affirm: {
+      purchaseCountry: 'US',
+      locale: 'en-US',
+    },
+  },
+  backend: {
+    affirmCreatePaymentUrl: '/api/payments/affirm/create',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['affirm', 'card'];
+```
+
+Enable **Affirm** in the Stripe Dashboard (TEST → Settings → Payment methods). Complete any Affirm onboarding Stripe requires. Angular reuses `pk_test_...`; Nest uses `sk_test_...`. No Affirm public/private API keys in the browser.
+
+Demo product `premium-plan` ($99.99 USD) is within Affirm’s typical US presentment range (~$35–$30,000).
+
 ## Backend contract (provider-aware)
 
 | Provider | Create | Capture / confirm |
@@ -177,6 +205,7 @@ Enable Klarna in the Stripe Dashboard (TEST). Angular uses the same `pk_test_...
 | Stripe | `POST /api/payments/create` | Payment Element confirms client-side |
 | PayPal | `POST /api/payments/paypal/create` | `POST /api/payments/paypal/capture` |
 | Klarna (via Stripe) | `POST /api/payments/klarna/create` | Payment Element confirms client-side |
+| Affirm (via Stripe) | `POST /api/payments/affirm/create` | Payment Element confirms client-side |
 
 This scales cleanly to future providers without forcing unrelated frontend conventions. Shared trusted pricing lives in `server/src/catalog/product-catalog.ts`.
 
@@ -662,6 +691,68 @@ Presence of `providers.klarna` (even `{}`) opts Klarna in. Runtime also requires
 - Prefer HTTPS return URLs for redirects.
 - Follow Klarna brand guidelines for marks / wording.
 
+## Affirm integration (via Stripe)
+
+Easy Payments does **not** load Affirm.js or use Affirm API credentials in Angular.
+Affirm is enabled as a Stripe payment method and rendered through the Stripe.js **Payment Element**.
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Stripe.js Payment Element (`payment_method_types: ['affirm']` on the PaymentIntent) |
+| Backend | Stripe PaymentIntents API with secret key (`sk_test_...` / `sk_live_...`) |
+| Pricing | Trusted NestJS catalog (`productId` + `quantity` only) |
+| Redirect recovery | Shared with Klarna (`ep_method=affirm` + `retrievePaymentIntent`) |
+
+### Prerequisites
+
+1. Stripe Dashboard → Settings → Payment methods → **enable Affirm** (complete any Affirm onboarding Stripe requires — Affirm is not ready just because a Stripe API key exists).
+2. Same Stripe TEST keys as card/Klarna:
+   - `pk_test_...` in Angular
+   - `sk_test_...` in NestJS only
+3. NestJS `POST /api/payments/affirm/create`
+4. US/CAD presentment; demo targets **US / USD**. Typical Affirm minimum ~**$35**, maximum ~**$30,000** (see [Stripe Affirm docs](https://docs.stripe.com/payments/affirm)).
+
+### Configure Angular
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: { publishableKey: environment.stripePublishableKey },
+    affirm: { purchaseCountry: 'US', locale: 'en-US' },
+  },
+  backend: {
+    affirmCreatePaymentUrl: '/api/payments/affirm/create',
+  },
+});
+```
+
+Presence of `providers.affirm` (even `{}`) opts Affirm in. Runtime also requires Stripe `publishableKey` + `affirmCreatePaymentUrl`.
+
+### Flow
+
+1. Customer selects **Affirm**
+2. Nest creates an Affirm-only PaymentIntent (trusted catalog amount)
+3. Payment Element mounts
+4. Customer completes Affirm (often redirect; `redirect: 'if_required'`)
+5. On return, Easy Payments recovers via `retrievePaymentIntent` (does **not** create a new Intent)
+6. Success confirmation shows **Paid with Affirm**
+
+### Manual TEST checkout
+
+1. Enable Affirm in Stripe Dashboard (TEST) and finish any required Affirm activation.
+2. Start NestJS with `STRIPE_SECRET_KEY=sk_test_...`.
+3. Demo env: `pk_test_...` + `affirmCreatePaymentUrl`.
+4. **Real / Test Providers** → **Affirm**.
+5. Complete Affirm sandbox. If prompted for SSN last-four, Stripe/Affirm docs suggest **`0000`** or **`5678`**.
+6. Expect: Processing → Payment successful (Paid with Affirm, $99.99 USD).
+7. Cancellation: close Affirm window → PaymentIntent often returns to `requires_payment_method` → error/retry (not silent checkout).
+8. Production must verify final state with Stripe webhooks — browser success is not an accounting system.
+
+### Payment Method Messaging
+
+Stripe’s Payment Method Messaging Element can show Affirm financing copy pre-checkout. Not required for this payment flow; documented as a future enhancement.
+
 ## Security
 
 - Never put `sk_...` in Angular / `provideEasyPayments`
@@ -780,8 +871,8 @@ See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 2. ~~PayPal~~ (Phase 3)
 3. ~~Google Pay~~ (Phase 4 — TEST via Stripe gateway)
 4. ~~Klarna~~ (Phase 5 — via Stripe Payment Element)
-5. Apple Pay
-6. Affirm
+5. ~~Affirm~~ (Phase 6 — via Stripe Payment Element)
+6. Apple Pay
 7. Samsung Pay — under consideration for a future release
 
 ## Building & testing

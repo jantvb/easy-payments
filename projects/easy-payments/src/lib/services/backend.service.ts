@@ -5,13 +5,16 @@ import { EasyPaymentsConfigService } from '../config/easy-payments-config.servic
 import { PaymentError } from '../errors/payment-error';
 import { PaymentMethod, PaymentProviderName } from '../models';
 import {
+  AffirmCreatePaymentRequest,
   CapturePayPalOrderResponse,
+  CreateAffirmPaymentResponse,
   CreateKlarnaPaymentResponse,
   CreatePaymentRequest,
   CreatePayPalOrderResponse,
   CreateStripePaymentResponse,
   KlarnaCreatePaymentRequest,
   PayPalCreateOrderRequest,
+  toAffirmCreatePaymentRequest,
   toKlarnaCreatePaymentRequest,
   toPayPalCreateOrderRequest,
 } from '../models/create-payment.model';
@@ -35,6 +38,10 @@ export class BackendService {
 
   get klarnaCreatePaymentUrl(): string | undefined {
     return this.configService.getSnapshot().backend?.klarnaCreatePaymentUrl?.trim() || undefined;
+  }
+
+  get affirmCreatePaymentUrl(): string | undefined {
+    return this.configService.getSnapshot().backend?.affirmCreatePaymentUrl?.trim() || undefined;
   }
 
   /** @deprecated Prefer createPaymentUrl. Kept optional for future provider flows. */
@@ -194,6 +201,45 @@ export class BackendService {
             message: 'Invalid Klarna create-payment response from backend.',
             method: 'klarna',
             provider: 'klarna',
+          });
+        }
+      },
+    });
+  }
+
+  /**
+   * Posts the minimal Affirm create-payment wire contract.
+   * Never forwards amount / metadata even if callers pass extra fields.
+   */
+  async createAffirmPayment(
+    payload: AffirmCreatePaymentRequest | { productId: string; quantity: number; currency: string },
+  ): Promise<CreateAffirmPaymentResponse> {
+    const url = this.affirmCreatePaymentUrl;
+    if (!url) {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: 'Backend affirmCreatePaymentUrl is not configured.',
+        method: 'affirm',
+        provider: 'affirm',
+      });
+    }
+
+    const body = toAffirmCreatePaymentRequest(payload);
+
+    return this.postJson<CreateAffirmPaymentResponse>(url, body, 'affirm', 'affirm', {
+      successMessage: 'Failed to create Affirm payment on backend.',
+      networkMessage: 'A network error occurred while creating the Affirm payment session.',
+      validate: (response) => {
+        if (
+          response?.provider !== 'affirm' ||
+          typeof response.clientSecret !== 'string' ||
+          !response.clientSecret.trim()
+        ) {
+          throw new PaymentError({
+            code: 'BACKEND_ERROR',
+            message: 'Invalid Affirm create-payment response from backend.',
+            method: 'affirm',
+            provider: 'affirm',
           });
         }
       },

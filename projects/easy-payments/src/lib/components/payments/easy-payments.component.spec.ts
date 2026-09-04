@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { MockPaymentController } from '../../adapters/mock/mock-payment.controller';
-import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
+import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
 import { BrowserGuard } from '../../utils/browser-guard';
 import { PaymentError } from '../../errors/payment-error';
 import { PaymentResult } from '../../models';
@@ -533,8 +533,8 @@ describe('EasyPaymentsComponent', () => {
         '/?payment_intent=pi_parent&payment_intent_client_secret=sec_parent&ep_method=klarna',
       );
 
-      const klarnaAdapter = TestBed.inject(KlarnaAdapter);
-      spyOn(klarnaAdapter, 'consumeStripeReturn').and.resolveTo({
+      const recovery = TestBed.inject(StripeRedirectRecoveryService);
+      spyOn(recovery, 'consumeReturn').and.resolveTo({
         status: 'success',
         method: 'klarna',
         provider: 'klarna',
@@ -555,7 +555,7 @@ describe('EasyPaymentsComponent', () => {
       await Promise.resolve();
       fixtureReturn.detectChanges();
 
-      expect(klarnaAdapter.consumeStripeReturn).toHaveBeenCalled();
+      expect(recovery.consumeReturn).toHaveBeenCalled();
       expect(successes.length).toBe(1);
       expect(successes[0].method).toBe('klarna');
       expect(successes[0].transactionId).toBe('pi_parent_txn');
@@ -570,8 +570,8 @@ describe('EasyPaymentsComponent', () => {
     it('Klarna parent-owned redirect recovery maps retrieve failure to Error', async () => {
       history.replaceState({}, '', '/?ep_method=klarna&payment_intent_client_secret=bad');
 
-      const klarnaAdapter = TestBed.inject(KlarnaAdapter);
-      spyOn(klarnaAdapter, 'consumeStripeReturn').and.rejectWith(
+      const recovery = TestBed.inject(StripeRedirectRecoveryService);
+      spyOn(recovery, 'consumeReturn').and.rejectWith(
         new PaymentError({
           code: 'PAYMENT_FAILED',
           message: 'Stripe retrieve failed',
@@ -595,6 +595,46 @@ describe('EasyPaymentsComponent', () => {
       expect(errors.length).toBe(1);
       expect(fixtureReturn.componentInstance.viewState()).toBe('error');
       expect(fixtureReturn.nativeElement.textContent).toContain('Payment failed');
+
+      history.replaceState({}, '', '/');
+      fixtureReturn.destroy();
+    });
+
+    it('Affirm parent-owned redirect recovery transitions Processing to Success', async () => {
+      history.replaceState(
+        {},
+        '',
+        '/?payment_intent=pi_aff&payment_intent_client_secret=sec_aff&ep_method=affirm',
+      );
+
+      const recovery = TestBed.inject(StripeRedirectRecoveryService);
+      spyOn(recovery, 'consumeReturn').and.resolveTo({
+        status: 'success',
+        method: 'affirm',
+        provider: 'affirm',
+        transactionId: 'pi_aff_txn',
+      });
+
+      const successes: PaymentResult[] = [];
+      const fixtureReturn = TestBed.createComponent(EasyPaymentsComponent);
+      fixtureReturn.componentRef.setInput('product', { ...SAMPLE_PRODUCT });
+      fixtureReturn.componentRef.setInput('methods', ['affirm', 'card']);
+      fixtureReturn.componentInstance.success.subscribe((result) => successes.push(result));
+
+      expect(fixtureReturn.componentInstance.viewState()).toBe('processing');
+      expect(fixtureReturn.componentInstance.selectedMethod()).toBe('affirm');
+
+      fixtureReturn.detectChanges();
+      await fixtureReturn.whenStable();
+      await Promise.resolve();
+      await Promise.resolve();
+      fixtureReturn.detectChanges();
+
+      expect(recovery.consumeReturn).toHaveBeenCalled();
+      expect(successes.length).toBe(1);
+      expect(successes[0].method).toBe('affirm');
+      expect(fixtureReturn.componentInstance.viewState()).toBe('success');
+      expect(fixtureReturn.nativeElement.textContent).toContain('Affirm');
 
       history.replaceState({}, '', '/');
       fixtureReturn.destroy();

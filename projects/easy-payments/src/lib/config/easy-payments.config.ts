@@ -41,8 +41,10 @@ export interface KlarnaProviderConfig {
 }
 
 export interface AffirmProviderConfig {
-  publicKey: string;
-  scriptUrl?: string;
+  /** ISO country for Affirm purchase context (default US). */
+  purchaseCountry?: string;
+  /** Locale hint for Affirm/Stripe. */
+  locale?: string;
 }
 
 export interface EasyPaymentsBackendConfig {
@@ -61,6 +63,8 @@ export interface EasyPaymentsBackendConfig {
   paypalCaptureOrderUrl?: string;
   /** Creates a Klarna-only Stripe PaymentIntent. Returns clientSecret. */
   klarnaCreatePaymentUrl?: string;
+  /** Creates an Affirm-only Stripe PaymentIntent. Returns clientSecret. */
+  affirmCreatePaymentUrl?: string;
   /**
    * Optional. Not required for the standard Stripe Payment Element + PaymentIntent flow.
    * Reserved for future provider flows that need an explicit server confirm step.
@@ -102,7 +106,7 @@ export const PROVIDER_REQUIRED_FIELD_LABEL: Record<keyof EasyPaymentsProviderCon
   applePay: 'merchantId missing',
   googlePay: 'configuration missing (requires Stripe publishableKey for gateway)',
   klarna: 'configuration missing (requires Stripe publishableKey + klarnaCreatePaymentUrl)',
-  affirm: 'publicKey missing',
+  affirm: 'configuration missing (requires Stripe publishableKey + affirmCreatePaymentUrl)',
 };
 
 export type ProviderConfigStatus =

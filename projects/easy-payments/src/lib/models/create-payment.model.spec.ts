@@ -1,4 +1,5 @@
 import {
+  toAffirmCreatePaymentRequest,
   toKlarnaCreatePaymentRequest,
   toPayPalCreateOrderRequest,
 } from './create-payment.model';
@@ -51,6 +52,25 @@ describe('toKlarnaCreatePaymentRequest', () => {
       productId: 'premium-plan',
       quantity: 1,
       currency: 'EUR',
+    });
+    expect(Object.keys(body)).not.toContain('amount');
+    expect(Object.keys(body)).not.toContain('metadata');
+  });
+});
+
+describe('toAffirmCreatePaymentRequest', () => {
+  it('maps only provider, productId, quantity, and currency', () => {
+    const body = toAffirmCreatePaymentRequest({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'cad',
+    });
+
+    expect(body).toEqual({
+      provider: 'affirm',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'CAD',
     });
     expect(Object.keys(body)).not.toContain('amount');
     expect(Object.keys(body)).not.toContain('metadata');

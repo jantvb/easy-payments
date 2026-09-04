@@ -110,7 +110,47 @@ export interface CreateKlarnaPaymentResponse {
   sessionId?: string;
 }
 
+/**
+ * Minimal wire contract for Affirm-via-Stripe create PaymentIntent.
+ * Never includes browser-controlled amount or arbitrary metadata.
+ */
+export interface AffirmCreatePaymentRequest {
+  provider: 'affirm';
+  productId: string;
+  quantity: number;
+  currency: string;
+}
+
+/**
+ * Maps product identity fields into the Affirm create-payment HTTP body.
+ * Strips amount, metadata, and any other internal fields.
+ */
+export function toAffirmCreatePaymentRequest(input: {
+  productId: string;
+  quantity: number;
+  currency: string;
+}): AffirmCreatePaymentRequest {
+  return {
+    provider: 'affirm',
+    productId: input.productId.trim(),
+    quantity: input.quantity,
+    currency: input.currency.trim().toUpperCase(),
+  };
+}
+
+/**
+ * Response from POST affirm create (Affirm-only Stripe PaymentIntent).
+ * The backend alone decides the trusted amount and uses the Stripe secret key.
+ */
+export interface CreateAffirmPaymentResponse {
+  provider: 'affirm';
+  clientSecret: string;
+  paymentIntentId?: string;
+  sessionId?: string;
+}
+
 export type CreatePaymentResponse =
   | CreateStripePaymentResponse
   | CreatePayPalOrderResponse
-  | CreateKlarnaPaymentResponse;
+  | CreateKlarnaPaymentResponse
+  | CreateAffirmPaymentResponse;

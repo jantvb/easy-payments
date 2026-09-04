@@ -121,6 +121,27 @@
       }
     }
 
+    @if (showAffirmPanel()) {
+      @for (key of [providerMountKey()]; track key) {
+        <div
+          class="ep-checkout__panel"
+          [class.ep-checkout__panel--inactive]="!affirmPanelActive()"
+          [attr.aria-hidden]="!affirmPanelActive()"
+        >
+          <easy-affirm-payment
+            [product]="product()"
+            [checkout]="checkout()"
+            [resolvedTheme]="resolvedTheme()"
+            (success)="onAffirmSuccess($event)"
+            (cancel)="onAffirmCancel($event)"
+            (error)="onAffirmError($event)"
+            (busyChange)="onProviderBusy($event)"
+            (returning)="onAffirmReturning($event)"
+          />
+        </div>
+      }
+    }
+
     @if (showMockPanel()) {
       @if (selectedEntry(); as entry) {
         <div class="ep-checkout__panel">

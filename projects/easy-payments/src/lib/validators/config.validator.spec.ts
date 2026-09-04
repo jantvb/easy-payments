@@ -27,7 +27,7 @@ describe('EasyPaymentsConfigValidator', () => {
     expect(summary).toContain('Google Pay: configured (demo mode)');
     expect(summary).toContain('Apple Pay: merchantId missing (demo mode)');
     expect(summary).toContain('Klarna: configured (demo mode)');
-    expect(summary).toContain('Affirm: publicKey missing (demo mode)');
+    expect(summary).toContain('Affirm: configuration missing (requires Stripe publishableKey + affirmCreatePaymentUrl) (demo mode)');
     expect(summary.join(' ')).not.toContain('pk_test_secret_value');
   });
 

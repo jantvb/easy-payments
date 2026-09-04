@@ -10,6 +10,7 @@ import Stripe from 'stripe';
 import { getCatalogProduct } from '../catalog/product-catalog';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { CreateKlarnaPaymentIntentDto } from './dto/create-klarna-payment-intent.dto';
+import { CreateAffirmPaymentIntentDto } from './dto/create-affirm-payment-intent.dto';
 
 export interface CreatePaymentIntentResult {
   provider: 'stripe';
@@ -19,6 +20,12 @@ export interface CreatePaymentIntentResult {
 
 export interface CreateKlarnaPaymentIntentResult {
   provider: 'klarna';
+  clientSecret: string;
+  paymentIntentId: string;
+}
+
+export interface CreateAffirmPaymentIntentResult {
+  provider: 'affirm';
   clientSecret: string;
   paymentIntentId: string;
 }
@@ -245,6 +252,124 @@ export class StripeService {
       }
 
       throw new InternalServerErrorException('Failed to create Klarna PaymentIntent.');
+    }
+  }
+
+  /**
+   * Affirm via Stripe PaymentIntent (official Stripe Affirm payment method).
+   * Trusted catalog pricing — same product catalog as card/Klarna payments.
+   * Affirm US/CAD presentment: minimum typically $35 USD (see Stripe Affirm docs).
+   */
+  async createAffirmPaymentIntent(
+    dto: CreateAffirmPaymentIntentDto,
+  ): Promise<CreateAffirmPaymentIntentResult> {
+    if (!this.stripe) {
+      throw new ServiceUnavailableException(
+        'Stripe is not configured. Set STRIPE_SECRET_KEY=sk_test_... in server/.env',
+      );
+    }
+
+    const catalogProduct = getCatalogProduct(dto.productId);
+    if (!catalogProduct) {
+      throw new BadRequestException(
+        `Unknown productId "${dto.productId}". Use a catalog product (e.g. premium-plan).`,
+      );
+    }
+
+    const currency = dto.currency.toUpperCase();
+    if (currency !== catalogProduct.currency) {
+      throw new BadRequestException(
+        `Currency mismatch: catalog product uses ${catalogProduct.currency}, got ${dto.currency}.`,
+      );
+    }
+
+    // Affirm presentment currencies supported for Easy Payments demo target markets.
+    if (currency !== 'USD' && currency !== 'CAD') {
+      throw new BadRequestException(
+        `Affirm via Stripe supports USD and CAD presentment in this demo (got ${currency}).`,
+      );
+    }
+
+    const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
+    if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
+      throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');
+    }
+
+    const totalAmount = unitAmountCents * dto.quantity;
+    // Stripe Affirm docs: minimum about 35.00 USD / CAD presentment.
+    const affirmMinCents = 3500;
+    if (totalAmount < affirmMinCents) {
+      throw new BadRequestException(
+        `Affirm requires a minimum of about $35.00 (got ${(totalAmount / 100).toFixed(2)} ${currency}).`,
+      );
+    }
+    // Stripe Affirm docs: maximum about 30,000.00 USD / CAD.
+    const affirmMaxCents = 3_000_000;
+    if (totalAmount > affirmMaxCents) {
+      throw new BadRequestException(
+        `Affirm maximum is about $30,000.00 (got ${(totalAmount / 100).toFixed(2)} ${currency}).`,
+      );
+    }
+
+    const description =
+      dto.description?.trim() || catalogProduct.name || `Easy Payments Affirm: ${dto.productId}`;
+
+    const safeMetadata: Record<string, string> = {
+      productId: dto.productId,
+      quantity: String(dto.quantity),
+      source: 'easy-payments-demo',
+      paymentMethod: 'affirm',
+      trustedUnitAmount: String(catalogProduct.unitAmount),
+    };
+
+    if (dto.metadata) {
+      for (const [key, value] of Object.entries(dto.metadata)) {
+        if (typeof value === 'string' && value.length <= 500 && key.length <= 40) {
+          safeMetadata[key] = value;
+        }
+      }
+    }
+
+    try {
+      const intent = await this.stripe.paymentIntents.create({
+        amount: totalAmount,
+        currency: catalogProduct.currency.toLowerCase(),
+        description,
+        metadata: safeMetadata,
+        // Affirm-only PaymentIntent — keeps Card/Klarna/Google Pay flows isolated.
+        payment_method_types: ['affirm'],
+      });
+
+      if (!intent.client_secret) {
+        throw new InternalServerErrorException('Stripe did not return a client_secret.');
+      }
+
+      return {
+        provider: 'affirm',
+        clientSecret: intent.client_secret,
+        paymentIntentId: intent.id,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      const stripeMessage =
+        error instanceof Stripe.errors.StripeError
+          ? error.message
+          : 'Failed to create Affirm PaymentIntent.';
+
+      this.logger.error(`Affirm PaymentIntent creation failed: ${stripeMessage}`);
+
+      if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+        throw new BadRequestException(stripeMessage);
+      }
+
+      throw new InternalServerErrorException('Failed to create Affirm PaymentIntent.');
     }
   }
 }

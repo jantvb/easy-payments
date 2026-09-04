@@ -36,6 +36,10 @@ export const environment = {
    */
   klarnaCreatePaymentUrl: 'http://localhost:3000/api/payments/klarna/create',
   /**
+   * NestJS demo endpoint that creates an Affirm-only Stripe PaymentIntent.
+   */
+  affirmCreatePaymentUrl: 'http://localhost:3000/api/payments/affirm/create',
+  /**
    * Trusted catalog used by Real / Test Providers so displayed price matches charge.
    */
   catalogProductUrl: 'http://localhost:3000/api/catalog/products',

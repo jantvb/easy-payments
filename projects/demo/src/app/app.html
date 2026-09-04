@@ -46,7 +46,7 @@
           </label>
         </fieldset>
         <p class="hint">
-          Configured providers become real (Stripe TEST / PayPal Sandbox / Google Pay TEST / Klarna via Stripe).
+          Configured providers become real (Stripe TEST / PayPal Sandbox / Google Pay TEST / Klarna & Affirm via Stripe).
           Unconfigured methods stay unavailable. Set keys in <code>environment.ts</code> and
           secrets in <code>server/.env</code>.
         </p>
@@ -64,6 +64,10 @@
             </li>
             <li>
               Klarna:
+              {{ stripeConfigReady() ? 'configured via Stripe' : 'needs Stripe' }}
+            </li>
+            <li>
+              Affirm:
               {{ stripeConfigReady() ? 'configured via Stripe' : 'needs Stripe' }}
             </li>
           </ul>
@@ -275,7 +279,7 @@
         <div class="checkout-stage__surface">
           @if (!checkoutReady()) {
             <p class="checkout-boot" role="status">
-              @if (returningFromKlarna()) {
+              @if (returningFromProvider()) {
                 Processing payment…
               } @else {
                 Loading checkout…

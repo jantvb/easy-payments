@@ -25,6 +25,7 @@ import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payme
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
 import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
 import { KlarnaPaymentComponent } from '../payment-methods/klarna-payment.component';
+import { AffirmPaymentComponent } from '../payment-methods/affirm-payment.component';
 import { CheckoutProductSummaryComponent } from '../checkout/checkout-product-summary.component';
 import { PaymentMethodSelectorComponent } from '../checkout/payment-method-selector.component';
 import { MockMethodPanelComponent } from '../checkout/mock-method-panel.component';
@@ -34,8 +35,12 @@ import {
   DEFAULT_CHECKOUT_MAX_WIDTH,
   resolveCheckoutMaxWidth,
 } from '../../layout/checkout-layout';
-import { isKlarnaReturnAttempt } from '../../adapters/klarna/klarna-return';
-import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
+import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
+import {
+  detectStripeReturnMethod,
+  isStripeReturnAttempt,
+  type StripeRedirectMethod,
+} from '../../adapters/stripe/stripe-redirect-return';
 
 @Component({
   selector: 'easy-payments',
@@ -48,6 +53,7 @@ import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
     PayPalPaymentComponent,
     GooglePayPaymentComponent,
     KlarnaPaymentComponent,
+    AffirmPaymentComponent,
     CheckoutOutcomeComponent,
   ],
   templateUrl: './easy-payments.component.html',
@@ -66,7 +72,7 @@ import { KlarnaAdapter } from '../../adapters/klarna/klarna.adapter';
 export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
   private readonly themeService = inject(ThemeService);
-  private readonly klarnaAdapter = inject(KlarnaAdapter);
+  private readonly stripeRedirectRecovery = inject(StripeRedirectRecoveryService);
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
 
@@ -111,8 +117,8 @@ export class EasyPaymentsComponent {
   /** Bumped on reset so real provider panels remount with a fresh session. */
   readonly providerMountKey = signal(0);
 
-  /** Prevents duplicate Klarna return recovery / success emits on one page load. */
-  private klarnaReturnRecoveryStarted = false;
+  /** Prevents duplicate Stripe BNPL return recovery / success emits on one page load. */
+  private stripeReturnRecoveryStarted = false;
   private terminalSuccessEmitted = false;
 
   /** Terminal/mock-processing screens that replace the checkout form. */
@@ -172,6 +178,10 @@ export class EasyPaymentsComponent {
     this.visibleMethods().some((entry) => entry.method === 'klarna' && !entry.isMock),
   );
 
+  readonly hasRealAffirmMethod = computed(() =>
+    this.visibleMethods().some((entry) => entry.method === 'affirm' && !entry.isMock),
+  );
+
   readonly showMockPanel = computed(() => {
     if (!this.showCheckoutForm()) {
       return false;
@@ -192,6 +202,9 @@ export class EasyPaymentsComponent {
     if (entry.method === 'klarna' && !entry.isMock) {
       return false;
     }
+    if (entry.method === 'affirm' && !entry.isMock) {
+      return false;
+    }
     return true;
   });
 
@@ -199,6 +212,7 @@ export class EasyPaymentsComponent {
   readonly showPayPalPanel = computed(() => this.hasRealPayPalMethod());
   readonly showGooglePayPanel = computed(() => this.hasRealGooglePayMethod());
   readonly showKlarnaPanel = computed(() => this.hasRealKlarnaMethod());
+  readonly showAffirmPanel = computed(() => this.hasRealAffirmMethod());
 
   /**
    * Keep the active real-provider panel interactive while its own UI is needed
@@ -233,20 +247,28 @@ export class EasyPaymentsComponent {
       this.hasRealKlarnaMethod(),
   );
 
+  readonly affirmPanelActive = computed(
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'affirm' &&
+      this.hasRealAffirmMethod(),
+  );
+
   constructor() {
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
     });
 
-    // Avoid flashing fresh checkout when Stripe redirects back from Klarna.
-    // Recovery itself is owned here (not only by the Klarna panel), so Processing
+    // Avoid flashing fresh checkout when Stripe redirects back from Klarna/Affirm.
+    // Recovery itself is owned here (not only by the BNPL panel), so Processing
     // always resolves even if the panel has not mounted yet.
-    if (typeof window !== 'undefined' && isKlarnaReturnAttempt()) {
+    if (typeof window !== 'undefined' && isStripeReturnAttempt()) {
+      const method = detectStripeReturnMethod() ?? 'klarna';
       this.viewState.set('processing');
-      this.selectedMethod.set('klarna');
+      this.selectedMethod.set(method);
       this.providerBusy.set(true);
       queueMicrotask(() => {
-        void this.recoverKlarnaReturn();
+        void this.recoverStripeReturn(method);
       });
     }
 
@@ -272,7 +294,7 @@ export class EasyPaymentsComponent {
       const current = untracked(() => this.selectedMethod());
       const state = untracked(() => this.viewState());
 
-      // Do not steal method selection during Klarna return recovery / outcomes.
+      // Do not steal method selection during Stripe BNPL return recovery / outcomes.
       if (state !== 'checkout') {
         return;
       }
@@ -291,21 +313,23 @@ export class EasyPaymentsComponent {
   }
 
   /**
-   * Library-owned Klarna redirect recovery. Always leaves processing for a
-   * terminal state (success / error / cancelled). Idempotent per page load.
+   * Library-owned Stripe BNPL redirect recovery (Klarna / Affirm). Always leaves
+   * processing for a terminal state (success / error / cancelled). Idempotent per page load.
    */
-  private async recoverKlarnaReturn(): Promise<void> {
-    if (this.klarnaReturnRecoveryStarted) {
+  private async recoverStripeReturn(method: StripeRedirectMethod): Promise<void> {
+    if (this.stripeReturnRecoveryStarted) {
       return;
     }
-    this.klarnaReturnRecoveryStarted = true;
+    this.stripeReturnRecoveryStarted = true;
 
     this.viewState.set('processing');
-    this.selectedMethod.set('klarna');
+    this.selectedMethod.set(method);
     this.providerBusy.set(true);
 
+    const label = method === 'affirm' ? 'Affirm' : 'Klarna';
+
     try {
-      const result = await this.klarnaAdapter.consumeStripeReturn();
+      const result = await this.stripeRedirectRecovery.consumeReturn();
       if (this.destroyed) {
         return;
       }
@@ -313,9 +337,9 @@ export class EasyPaymentsComponent {
         this.handlePaymentError(
           new PaymentError({
             code: 'PAYMENT_FAILED',
-            message: 'Klarna return could not be verified.',
-            method: 'klarna',
-            provider: 'klarna',
+            message: `${label} return could not be verified.`,
+            method,
+            provider: method,
           }),
         );
         return;
@@ -329,9 +353,9 @@ export class EasyPaymentsComponent {
         this.handlePaymentError(
           new PaymentError({
             code: 'PAYMENT_FAILED',
-            message: result.message ?? 'Klarna payment failed.',
-            method: 'klarna',
-            provider: 'klarna',
+            message: result.message ?? `${label} payment failed.`,
+            method,
+            provider: method,
           }),
         );
       }
@@ -339,12 +363,12 @@ export class EasyPaymentsComponent {
       if (this.destroyed) {
         return;
       }
-      const paymentError = normalizeError(err, { method: 'klarna', provider: 'klarna' });
+      const paymentError = normalizeError(err, { method, provider: method });
       if (paymentError.code === 'PAYMENT_CANCELLED') {
         this.handleCancelled({
           status: 'cancelled',
-          method: 'klarna',
-          provider: 'klarna',
+          method,
+          provider: method,
           message: paymentError.message,
         });
       } else {
@@ -410,7 +434,7 @@ export class EasyPaymentsComponent {
 
   onKlarnaSuccess(result: PaymentResult): void {
     // Parent owns redirect recovery; ignore duplicate panel success for the same load.
-    if (this.klarnaAdapter.wasReturnConsumed() && this.terminalSuccessEmitted) {
+    if (this.stripeRedirectRecovery.wasReturnConsumed() && this.terminalSuccessEmitted) {
       return;
     }
     this.handleSuccess(result);
@@ -426,11 +450,38 @@ export class EasyPaymentsComponent {
 
   /**
    * Klarna panel busy/returning signals (in-page confirm). Redirect recovery is
-   * owned by recoverKlarnaReturn() so Processing cannot hang without a panel.
+   * owned by recoverStripeReturn() so Processing cannot hang without a panel.
    */
   onKlarnaReturning(active: boolean): void {
     if (active) {
       this.selectedMethod.set('klarna');
+      if (this.viewState() === 'checkout') {
+        this.viewState.set('processing');
+      }
+      this.providerBusy.set(true);
+      return;
+    }
+    this.providerBusy.set(false);
+  }
+
+  onAffirmSuccess(result: PaymentResult): void {
+    if (this.stripeRedirectRecovery.wasReturnConsumed() && this.terminalSuccessEmitted) {
+      return;
+    }
+    this.handleSuccess(result);
+  }
+
+  onAffirmCancel(result: PaymentResult): void {
+    this.handleCancelled(result);
+  }
+
+  onAffirmError(error: PaymentError): void {
+    this.handlePaymentError(error);
+  }
+
+  onAffirmReturning(active: boolean): void {
+    if (active) {
+      this.selectedMethod.set('affirm');
       if (this.viewState() === 'checkout') {
         this.viewState.set('processing');
       }
@@ -513,10 +564,13 @@ export class EasyPaymentsComponent {
   }
 
   private handleSuccess(result: PaymentResult): void {
-    if (this.terminalSuccessEmitted && result.method === 'klarna') {
+    if (
+      this.terminalSuccessEmitted &&
+      (result.method === 'klarna' || result.method === 'affirm')
+    ) {
       return;
     }
-    if (result.method === 'klarna') {
+    if (result.method === 'klarna' || result.method === 'affirm') {
       this.terminalSuccessEmitted = true;
     }
 

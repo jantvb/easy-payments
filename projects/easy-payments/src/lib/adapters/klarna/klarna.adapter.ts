@@ -18,15 +18,8 @@ import { BaseMockAdapter, BaseProviderAdapter } from '../base.adapter';
 import { mapResolvedThemeToStripeAppearance } from '../stripe/stripe-appearance';
 import { mapStripeError } from '../stripe/stripe-error.mapper';
 import { StripeSdkLoader } from '../stripe/stripe-sdk.loader';
-import {
-  buildKlarnaReturnUrl,
-  clearKlarnaPendingReturn,
-  clearStripeReturnParamsFromUrl,
-  isKlarnaReturnAttempt,
-  KLARNA_PROCESSING_DELAY_MS,
-  KLARNA_PROCESSING_MAX_ATTEMPTS,
-  readStripeReturnParams,
-} from './klarna-return';
+import { StripeRedirectRecoveryService } from '../stripe/stripe-redirect-recovery.service';
+import { buildKlarnaReturnUrl } from './klarna-return';
 import {
   KLARNA_PAYMENT_ELEMENT_OPTIONS,
   KlarnaSessionResult,
@@ -61,6 +54,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
   private readonly backend = inject(BackendService);
   private readonly browser = inject(BrowserGuard);
   private readonly sdkLoader = inject(StripeSdkLoader);
+  private readonly redirectRecovery = inject(StripeRedirectRecoveryService);
 
   private stripe: Stripe | null = null;
   private elements: StripeElements | null = null;
@@ -71,9 +65,6 @@ export class KlarnaAdapter extends BaseProviderAdapter {
   private loadPromise: Promise<Stripe> | null = null;
   private confirming = false;
   private configReady = false;
-  /** Shared in-flight Klarna redirect recovery (parent + panel must not double-run). */
-  private returnConsumePromise: Promise<PaymentResult | null> | null = null;
-  private returnConsumed = false;
 
   /**
    * Validates Klarna + Stripe gateway config only. Does not load Stripe.js until needed.
@@ -338,120 +329,22 @@ export class KlarnaAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * After Stripe redirects back to return_url, recover the PaymentIntent status
-   * via the official client-secret query param (do not create a new intent).
-   * Polls a finite number of times when status is still `processing`.
+   * After Stripe redirects back, recover via shared StripeRedirectRecoveryService.
    */
   async retrieveReturningPayment(clientSecret: string): Promise<PaymentResult> {
-    if (!clientSecret?.trim()) {
-      throw new PaymentError({
-        code: 'PAYMENT_FAILED',
-        message: 'Missing payment_intent_client_secret after Klarna return.',
-        method: 'klarna',
-        provider: 'klarna',
-      });
-    }
-
-    const stripe = await this.ensureStripeLoaded();
-    const secret = clientSecret.trim();
-    let lastIntent: PaymentIntentLike | undefined;
-
-    for (let attempt = 0; attempt < KLARNA_PROCESSING_MAX_ATTEMPTS; attempt++) {
-      const { paymentIntent, error } = await stripe.retrievePaymentIntent(secret);
-
-      if (error) {
-        throw mapKlarnaStripeError(error);
-      }
-
-      lastIntent = paymentIntent ?? undefined;
-      if (paymentIntent?.id) {
-        this.paymentIntentId = paymentIntent.id;
-      }
-
-      const status = paymentIntent?.status;
-
-      if (status === 'succeeded' || status === 'requires_capture' || status === 'canceled') {
-        return this.normalizeIntent(paymentIntent);
-      }
-
-      if (
-        status === 'requires_payment_method' ||
-        status === 'requires_action' ||
-        status === 'requires_confirmation'
-      ) {
-        return this.normalizeIntent(paymentIntent);
-      }
-
-      if (status === 'processing') {
-        if (attempt < KLARNA_PROCESSING_MAX_ATTEMPTS - 1) {
-          await delay(KLARNA_PROCESSING_DELAY_MS);
-          continue;
-        }
-        throw new PaymentError({
-          code: 'PAYMENT_FAILED',
-          message:
-            'Klarna payment is still processing. Please refresh or check your email for confirmation.',
-          method: 'klarna',
-          provider: 'klarna',
-          originalError: paymentIntent,
-        });
-      }
-
-      return this.normalizeIntent(paymentIntent);
-    }
-
-    return this.normalizeIntent(lastIntent);
+    return this.redirectRecovery.retrieveReturningPayment('klarna', clientSecret);
   }
 
   /**
-   * Idempotent Klarna redirect recovery for the current page load.
-   * Returns null when there is no Klarna return attempt in the URL/session.
-   * Always clears return markers after a handled attempt (success or failure).
+   * Idempotent Klarna redirect recovery — delegates to shared Stripe BNPL recovery.
    */
   consumeStripeReturn(): Promise<PaymentResult | null> {
-    if (!this.returnConsumePromise) {
-      this.returnConsumePromise = this.doConsumeStripeReturn();
-    }
-    return this.returnConsumePromise;
+    return this.redirectRecovery.consumeReturn();
   }
 
-  /** True after a Klarna return was consumed on this page load (URL may already be cleaned). */
+  /** True after a Stripe BNPL return was consumed on this page load. */
   wasReturnConsumed(): boolean {
-    return this.returnConsumed;
-  }
-
-  private async doConsumeStripeReturn(): Promise<PaymentResult | null> {
-    if (typeof window === 'undefined' || !isKlarnaReturnAttempt()) {
-      return null;
-    }
-
-    this.returnConsumed = true;
-    const { clientSecret, redirectStatus } = readStripeReturnParams();
-
-    try {
-      if (redirectStatus === 'failed') {
-        throw new PaymentError({
-          code: 'PAYMENT_FAILED',
-          message: 'Klarna payment was not completed.',
-          method: 'klarna',
-          provider: 'klarna',
-        });
-      }
-
-      if (!clientSecret?.trim()) {
-        throw new PaymentError({
-          code: 'PAYMENT_FAILED',
-          message: 'Klarna return is missing payment details. Please try the payment again.',
-          method: 'klarna',
-          provider: 'klarna',
-        });
-      }
-
-      return await this.retrieveReturningPayment(clientSecret);
-    } finally {
-      clearKlarnaPendingReturn();
-      clearStripeReturnParamsFromUrl();
-    }
+    return this.redirectRecovery.wasReturnConsumed();
   }
 
   isConfirming(): boolean {
@@ -587,10 +480,6 @@ export class KlarnaAdapter extends BaseProviderAdapter {
 interface PaymentIntentLike {
   id?: string;
   status?: string;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 @Injectable({ providedIn: 'root' })

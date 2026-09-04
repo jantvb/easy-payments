@@ -5,12 +5,17 @@ import { StripeService } from './stripe.service';
 
 describe('StripeController', () => {
   let controller: StripeController;
-  let service: { createPaymentIntent: jest.Mock; createKlarnaPaymentIntent: jest.Mock };
+  let service: {
+    createPaymentIntent: jest.Mock;
+    createKlarnaPaymentIntent: jest.Mock;
+    createAffirmPaymentIntent: jest.Mock;
+  };
 
   beforeEach(async () => {
     service = {
       createPaymentIntent: jest.fn(),
       createKlarnaPaymentIntent: jest.fn(),
+      createAffirmPaymentIntent: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -91,6 +96,27 @@ describe('StripeController', () => {
       provider: 'klarna',
       clientSecret: 'pi_klarna_secret',
       paymentIntentId: 'pi_klarna_1',
+    });
+  });
+
+  it('creates an Affirm PaymentIntent via the dedicated endpoint', async () => {
+    service.createAffirmPaymentIntent.mockResolvedValue({
+      provider: 'affirm',
+      clientSecret: 'pi_affirm_secret',
+      paymentIntentId: 'pi_affirm_1',
+    });
+
+    await expect(
+      controller.createAffirmPaymentIntent({
+        provider: 'affirm',
+        productId: 'premium-plan',
+        quantity: 1,
+        currency: 'USD',
+      }),
+    ).resolves.toEqual({
+      provider: 'affirm',
+      clientSecret: 'pi_affirm_secret',
+      paymentIntentId: 'pi_affirm_1',
     });
   });
 });

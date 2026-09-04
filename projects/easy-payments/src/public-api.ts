@@ -36,7 +36,9 @@ export {
   resolveCheckoutMaxWidth,
 } from './lib/layout/checkout-layout';
 export type {
+  AffirmCreatePaymentRequest,
   CapturePayPalOrderResponse,
+  CreateAffirmPaymentResponse,
   CreateKlarnaPaymentResponse,
   CreatePaymentRequest,
   CreatePaymentResponse,
@@ -46,6 +48,7 @@ export type {
   PayPalCreateOrderRequest,
 } from './lib/models/create-payment.model';
 export {
+  toAffirmCreatePaymentRequest,
   toKlarnaCreatePaymentRequest,
   toPayPalCreateOrderRequest,
 } from './lib/models/create-payment.model';
@@ -59,7 +62,13 @@ export type { MockPaymentOutcome } from './lib/adapters/mock/mock-payment.contro
 export {
   isKlarnaReturnAttempt,
   isKlarnaStripeReturn,
+  isAnyStripeBnplReturnAttempt,
 } from './lib/adapters/klarna/klarna-return';
+export {
+  detectStripeReturnMethod,
+  isStripeReturnAttempt,
+} from './lib/adapters/stripe/stripe-redirect-return';
+export type { StripeRedirectMethod } from './lib/adapters/stripe/stripe-redirect-return';
 
 export { EasyPaymentsConfigValidator } from './lib/validators/config.validator';
 export { validatePaymentProduct } from './lib/validators/product.validator';

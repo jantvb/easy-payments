@@ -25,6 +25,7 @@ describe('BackendService', () => {
             paypalCreateOrderUrl: '/api/payments/paypal/create',
             paypalCaptureOrderUrl: '/api/payments/paypal/capture',
             klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+            affirmCreatePaymentUrl: '/api/payments/affirm/create',
           },
         }),
       ],
@@ -177,6 +178,38 @@ describe('BackendService', () => {
 
     await expectAsync(promise).toBeResolvedTo(
       jasmine.objectContaining({ clientSecret: 'pi_klarna_secret' }),
+    );
+  });
+
+  it('creates an Affirm payment via backend with a minimal wire payload', async () => {
+    const promise = backend.createAffirmPayment({
+      provider: 'affirm',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      ...( {
+        amount: 1,
+        metadata: { productName: 'Premium Plan' },
+      } as object),
+    } as never);
+
+    const req = http.expectOne('/api/payments/affirm/create');
+    expect(req.request.body).toEqual({
+      provider: 'affirm',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    expect(req.request.body.amount).toBeUndefined();
+    expect(req.request.body.metadata).toBeUndefined();
+    req.flush({
+      provider: 'affirm',
+      clientSecret: 'pi_affirm_secret',
+      paymentIntentId: 'pi_affirm_1',
+    });
+
+    await expectAsync(promise).toBeResolvedTo(
+      jasmine.objectContaining({ clientSecret: 'pi_affirm_secret' }),
     );
   });
 });

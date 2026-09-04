@@ -13,7 +13,7 @@ import {
   PaymentResult,
   PaymentTheme,
   PAYMENT_METHOD_LABELS,
-  isKlarnaReturnAttempt,
+  isAnyStripeBnplReturnAttempt,
 } from 'easy-payments';
 import { environment } from '../environments/environment';
 import {
@@ -144,8 +144,8 @@ export class App {
 
   readonly productFieldsLocked = computed(() => this.mode() === 'real');
 
-  readonly returningFromKlarna = computed(
-    () => typeof window !== 'undefined' && isKlarnaReturnAttempt(),
+  readonly returningFromProvider = computed(
+    () => typeof window !== 'undefined' && isAnyStripeBnplReturnAttempt(),
   );
 
   constructor() {
@@ -173,7 +173,7 @@ export class App {
     this.checkoutReady.set(false);
 
     try {
-      const forceReal = typeof window !== 'undefined' && isKlarnaReturnAttempt();
+      const forceReal = typeof window !== 'undefined' && isAnyStripeBnplReturnAttempt();
       const persisted = readPersistedDemoMode();
       const target: DemoMode = forceReal ? 'real' : (persisted ?? 'demo');
 
@@ -181,7 +181,7 @@ export class App {
         if (!this.realProvidersReady()) {
           this.modeMessage.set(
             forceReal
-              ? 'Returned from Klarna, but Real / Test Providers are not configured. Add Stripe pk_test_... and NestJS URLs.'
+              ? 'Returned from a Stripe payment (Klarna/Affirm), but Real / Test Providers are not configured. Add Stripe pk_test_... and NestJS URLs.'
               : 'Real / Test Providers mode requires Stripe (pk_test_...) and/or PayPal Sandbox Client ID plus NestJS backend URLs.',
           );
           await this.applyDemoModeConfig();
@@ -272,6 +272,11 @@ export class App {
                 purchaseCountry: 'US',
                 locale: 'en-US',
               },
+              // Affirm via Stripe Payment Element (same pk_test / sk_test).
+              affirm: {
+                purchaseCountry: 'US',
+                locale: 'en-US',
+              },
             }
           : {}),
         ...(this.paypalConfigReady()
@@ -289,6 +294,7 @@ export class App {
         paypalCreateOrderUrl: environment.paypalCreateOrderUrl.trim(),
         paypalCaptureOrderUrl: environment.paypalCaptureOrderUrl.trim(),
         klarnaCreatePaymentUrl: environment.klarnaCreatePaymentUrl.trim(),
+        affirmCreatePaymentUrl: environment.affirmCreatePaymentUrl.trim(),
       },
     });
 

@@ -105,7 +105,9 @@ export class EasyPaymentsConfigValidator {
       }
       case 'affirm': {
         const cfg = providerConfig as EasyPaymentsProviderConfig['affirm'];
-        if (!cfg?.publicKey?.trim()) {
+        // Presence of the affirm config object is enough to opt in.
+        // Stripe publishableKey + affirmCreatePaymentUrl are enforced at runtime by AffirmAdapter.
+        if (!cfg || typeof cfg !== 'object') {
           return { provider, status: 'invalid', message: required };
         }
         break;
