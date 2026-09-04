@@ -145,6 +145,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** True during create/approve/capture — parent should lock method switching. */
+  readonly busyChange = output<boolean>();
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('paypalButtonsHost');
 
@@ -170,6 +172,11 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       untracked(() => {
         void this.ensureButtons(product, checkout);
       });
+    });
+
+    effect(() => {
+      const busy = this.isBusyState();
+      untracked(() => this.busyChange.emit(busy));
     });
   }
 

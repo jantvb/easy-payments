@@ -207,6 +207,12 @@ export class App {
                   stripe: {
                     publishableKey: environment.stripePublishableKey.trim(),
                   },
+                  // Google Pay TEST reuses Stripe as PAYMENT_GATEWAY processor.
+                  googlePay: {
+                    environment: 'TEST' as const,
+                    merchantName: 'Easy Payments Demo',
+                    countryCode: 'US',
+                  },
                 }
               : {}),
             ...(this.paypalConfigReady()
@@ -214,7 +220,7 @@ export class App {
                   paypal: {
                     clientId: environment.paypalClientId.trim(),
                     currency: trusted.currency,
-                    intent: 'capture',
+                    intent: 'capture' as const,
                   },
                 }
               : {}),
@@ -268,6 +274,13 @@ export class App {
   onPaymentSuccess(result: PaymentResult): void {
     this.lastEvent.set(
       `Success (${result.method}): ${result.message ?? 'Payment completed'} [${result.transactionId ?? 'no id'}]`,
+    );
+  }
+
+  onSuccessContinue(result: PaymentResult): void {
+    // Library already resets the checkout view; keep playground config intact.
+    this.lastEvent.set(
+      `Continue after success (${result.method}) — checkout reset for another test payment.`,
     );
   }
 

@@ -239,4 +239,194 @@ describe('EasyPaymentsComponent', () => {
       'Demo Mode - No real payment will be processed.',
     );
   });
+
+  describe('checkout view states', () => {
+    it('shows success confirmation with product, total, and method after mock success', async () => {
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['google-pay']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(successes.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('success');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Payment successful');
+      expect(text).toContain('Premium Plan');
+      expect(text).toMatch(/\$99\.99/);
+      expect(text).toContain('Google Pay');
+      expect(text).toContain('Continue');
+      expect(text).not.toContain('Complete your purchase');
+      expect(fixture.nativeElement.querySelector('easy-mock-method-panel')).toBeNull();
+    });
+
+    it('emits success exactly once and shows truncated transaction reference', async () => {
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(successes.length).toBe(1);
+      const txn = successes[0].transactionId;
+      expect(txn).toBeTruthy();
+      if (txn && txn.length > 8) {
+        expect(fixture.nativeElement.textContent).toContain(`••••${txn.slice(-4)}`);
+        expect(fixture.nativeElement.textContent).not.toContain(txn);
+      }
+    });
+
+    it('does not show confirmation when successBehavior is event-only', async () => {
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['card']);
+      fixture.componentRef.setInput('successBehavior', 'event-only');
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(successes.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).toContain('Complete your purchase');
+      expect(fixture.nativeElement.textContent).not.toContain('Payment successful');
+    });
+
+    it('emits successContinue and resets checkout on Continue', async () => {
+      const continues: PaymentResult[] = [];
+      fixture.componentInstance.successContinue.subscribe((result) => continues.push(result));
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const continueBtn = fixture.nativeElement.querySelector(
+        'button.ep-outcome__action',
+      ) as HTMLButtonElement;
+      expect(continueBtn?.textContent?.trim()).toBe('Continue');
+      continueBtn.click();
+      fixture.detectChanges();
+
+      expect(continues.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).toContain('Complete your purchase');
+      expect(payCta(fixture)).toBeTruthy();
+    });
+
+    it('shows processing state and prevents duplicate mock submits', async () => {
+      TestBed.inject(MockPaymentController).setDelay(200);
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const cta = payCta(fixture)!;
+      cta.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.viewState()).toBe('processing');
+      expect(fixture.nativeElement.textContent).toContain('Processing payment...');
+      expect(fixture.nativeElement.textContent).toContain("Please don't close this window.");
+      expect(payCta(fixture)).toBeNull();
+
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('success');
+    });
+
+    it('shows error screen for mock failure and Try again restores checkout', async () => {
+      TestBed.inject(MockPaymentController).setOutcome('failed');
+      const errors: PaymentError[] = [];
+      fixture.componentInstance.error.subscribe((error) => errors.push(error));
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(errors.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('error');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Payment failed');
+      expect(text).toContain("We couldn't complete your payment.");
+      expect(text).not.toContain('Your payment method was not charged');
+      expect(text).not.toContain('{');
+
+      const tryAgain = fixture.nativeElement.querySelector(
+        'button.ep-outcome__action',
+      ) as HTMLButtonElement;
+      expect(tryAgain.textContent?.trim()).toBe('Try again');
+      tryAgain.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(payCta(fixture)).toBeTruthy();
+    });
+
+    it('shows cancelled screen (not error) and Return to checkout works', async () => {
+      TestBed.inject(MockPaymentController).setOutcome('cancelled');
+      const cancellations: PaymentResult[] = [];
+      fixture.componentInstance.cancel.subscribe((result) => cancellations.push(result));
+      fixture.componentRef.setInput('methods', ['paypal']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(cancellations.length).toBe(1);
+      expect(fixture.componentInstance.viewState()).toBe('cancelled');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Payment cancelled');
+      expect(text).toContain('No payment was completed.');
+      expect(text).not.toContain('Payment failed');
+
+      const back = fixture.nativeElement.querySelector(
+        'button.ep-outcome__action',
+      ) as HTMLButtonElement;
+      expect(back.textContent?.trim()).toBe('Return to checkout');
+      back.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).toContain('Pay with PayPal');
+    });
+
+    it('locks method switching while processing', async () => {
+      TestBed.inject(MockPaymentController).setDelay(200);
+      fixture.componentRef.setInput('methods', ['card', 'paypal']);
+      await render(fixture);
+
+      expect(fixture.componentInstance.selectedMethod()).toBe('card');
+      payCta(fixture)!.click();
+      fixture.detectChanges();
+
+      fixture.componentInstance.selectMethod('paypal');
+      expect(fixture.componentInstance.selectedMethod()).toBe('card');
+
+      await fixture.whenStable();
+      fixture.detectChanges();
+    });
+
+    it('keeps success/error/cancelled themed with the host theme', async () => {
+      fixture.componentRef.setInput('theme', 'dark');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.classList.contains('ep-theme-dark')).toBeTrue();
+      expect(fixture.nativeElement.querySelector('easy-checkout-outcome')).toBeTruthy();
+    });
+  });
 });

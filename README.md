@@ -6,18 +6,17 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 
 ## Current status
 
-**Phase 3 — Real PayPal Sandbox + Stripe card TEST + NestJS demo backend.**
+**Phase 4 — Real Google Pay TEST (via Stripe gateway) + PayPal Sandbox + Stripe card TEST.**
 
-- Library foundation from Phase 1 remains intact (ordering, themes, mocks, validation, events).
-- **Real Stripe card payments** use Stripe Payment Element + PaymentIntent (`clientSecret` from your backend).
-- **Real PayPal payments** use the official PayPal JS SDK Buttons + Orders v2 create/capture.
-- A minimal **NestJS** server under `server/` creates Stripe PaymentIntents and PayPal orders for local TEST / Sandbox.
-- Both providers use a **trusted server-side product catalog** — browser amounts are not authoritative.
-- Easy Payments loads Stripe.js / PayPal JS lazily, mounts official provider UI, and emits normalized `success` / `cancel` / `error` events.
-- **Mock mode still does not process real payments** and does not require provider credentials.
-- Real Apple Pay, Google Pay, Samsung Pay, Klarna, and Affirm are **not** implemented yet.
+- Library foundation remains intact (ordering, themes, mocks, validation, events).
+- **Real Stripe card** — Payment Element + PaymentIntent.
+- **Real PayPal** — official Buttons + Orders v2 create/capture.
+- **Real Google Pay TEST** — official `pay.js` + `PaymentsClient` + `createButton`, tokenized through Stripe `PAYMENT_GATEWAY`.
+- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay charges.
+- **Mock mode still does not process real payments.**
+- Real Apple Pay, Samsung Pay, Klarna, and Affirm are **not** implemented yet.
 
-Angular never accepts Stripe secret keys or PayPal Client Secrets. Only publishable / Client ID values belong in the browser.
+Angular never accepts Stripe secret keys or PayPal Client Secrets.
 
 ## Installation
 
@@ -117,6 +116,32 @@ methods: PaymentMethod[] = ['paypal', 'card'];
 ```
 
 Easy Payments loads the official PayPal JS SDK and renders PayPal Buttons. You do **not** invent a fake PayPal CTA.
+
+## Quick start (real Google Pay TEST)
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: {
+      publishableKey: environment.stripePublishableKey,
+    },
+    googlePay: {
+      environment: 'TEST',
+      merchantName: 'Easy Payments Demo',
+    },
+  },
+  backend: {
+    createPaymentUrl: '/api/payments/create',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['google-pay', 'card', 'paypal'];
+```
+
+Easy Payments loads Google `pay.js`, checks `isReadyToPay`, and renders the official Google Pay button. Stripe is the gateway/processor behind the scenes.
 
 ## Backend contract (provider-aware)
 
@@ -412,6 +437,130 @@ paypalCaptureOrderUrl: 'http://localhost:3000/api/payments/paypal/capture',
 - Follow [PayPal brand guidelines](https://www.paypal.com/us/webapps/mpp/logo-center) for Buttons
 - NestJS in this repo is a **reference** backend — merchants may implement the same contract on any stack
 
+## Google Pay integration
+
+### Architecture decision
+
+Easy Payments uses the **official Google Pay API for Web** (`google.payments.api.PaymentsClient`) with Stripe as the **PAYMENT_GATEWAY** processor.
+
+Why Stripe gateway (not Google Pay Direct):
+
+- Avoids decrypting payment credentials in Easy Payments / Nest
+- Keeps PCI scope with Stripe
+- Reuses the existing Stripe publishable key + PaymentIntent backend
+- Matches Google’s documented Stripe gateway parameters
+
+Public method remains `'google-pay'` (not “another Stripe Card UI”).
+
+### Official APIs / SDK
+
+| Layer | Technology |
+| --- | --- |
+| Frontend wallet | Google Pay JS `https://pay.google.com/gp/p/js/pay.js` |
+| Button | Official `PaymentsClient.createButton(...)` |
+| Readiness | Official `isReadyToPay(...)` |
+| Tokenization | `PAYMENT_GATEWAY` → `gateway: 'stripe'` + `stripe:publishableKey` |
+| Processing | Stripe.js `createPaymentMethod({ card: { token } })` + `confirmCardPayment` |
+| Backend | Existing `POST /api/payments/create` (trusted catalog PaymentIntent) |
+
+### Public configuration
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: {
+      publishableKey: environment.stripePublishableKey, // required gateway key
+    },
+    googlePay: {
+      environment: 'TEST', // default
+      merchantName: 'Easy Payments Demo',
+      countryCode: 'US',
+      // merchantId optional in TEST (defaults to Google's TEST merchantId)
+      // merchantId required for PRODUCTION
+    },
+  },
+  backend: {
+    createPaymentUrl: '/api/payments/create',
+  },
+});
+```
+
+Do **not** configure Stripe twice. Google Pay reuses `providers.stripe.publishableKey`.
+
+### Flow
+
+1. Customer selects **Google Pay** tile
+2. Easy Payments lazy-loads `pay.js` once and calls `isReadyToPay`
+3. Official Google Pay button is rendered (`createButton`)
+4. On click: Nest creates a trusted PaymentIntent (catalog price)
+5. Google Pay sheet opens with the **same** total
+6. Customer authorizes → Google returns a Stripe gateway token
+7. Easy Payments confirms the PaymentIntent via Stripe.js
+8. Host receives normalized `(success)` / `(cancel)` / `(error)`
+
+PaymentIntents are created **only on button click**, never on theme changes or method hover.
+
+### Trusted pricing
+
+Real / Test Providers mode loads Nest catalog (`premium-plan` → **99.99 USD**).
+
+Displayed checkout total = Google Pay sheet total = Stripe charge total.
+
+### TEST mode limitations (important)
+
+Google’s `environment: 'TEST'`:
+
+- Is suitable for testing button, sheet, readiness, and request wiring
+- Does **not** return live chargeable payment credentials
+- Stripe confirmation may therefore fail after a successful sheet close
+
+That is expected Google behavior — Easy Payments does **not** fake success.
+
+Stripe’s own Google Pay test-card suite applies mainly to Stripe-hosted Elements/Checkout paths. This integration uses Google’s native button + Stripe gateway tokens.
+
+### Windows manual testing (Chrome / Edge)
+
+1. Start NestJS: `npm run server:start`
+2. Start demo: `npm start`
+3. Open latest **Chrome** or **Edge** on Windows (`http://localhost:4200`)
+4. Sign into a Google account that has an eligible payment method saved (Google may still require a real card in the wallet for the sheet to appear usefully)
+5. Select **Real / Test Providers** (requires Stripe `pk_test_...` + Nest running)
+6. Select the **Google Pay** tile
+7. Confirm the official Google Pay button appears (not a custom CTA)
+8. Click it → Google payment sheet should open
+9. Complete / cancel the sheet
+10. Inspect Network: `POST /api/payments/create` only after click; Console for Google/Stripe errors
+
+Localhost is supported for Google Pay **TEST** development. Production requires HTTPS + registered domains.
+
+### Cancellation
+
+Closing the Google Pay sheet emits `(cancel)` with `status: 'cancelled'` — not a generic error.
+
+### Common Google Pay errors
+
+| Situation | Typical `PaymentError.code` |
+| --- | --- |
+| Missing Stripe publishableKey / createPaymentUrl | method unavailable |
+| `pay.js` load failure | `SDK_LOAD_FAILED` |
+| `isReadyToPay` false | method hidden / unavailable |
+| User closes sheet | `PAYMENT_CANCELLED` → `(cancel)` |
+| Invalid/non-chargeable TEST token | `PAYMENT_FAILED` / Stripe mapped error |
+| Backend / network | `BACKEND_ERROR` / `NETWORK_ERROR` |
+
+### Production requirements (not implemented yet)
+
+- Google Pay & Wallet Console business profile / merchant registration
+- Real Google Pay `merchantId` and production approval
+- Register every web domain with Stripe Payment Method Domains (and Google as required)
+- HTTPS with a valid TLS certificate
+- `environment: 'PRODUCTION'`
+- Production Stripe account + webhooks/fulfillment
+- Google Pay brand compliance for buttons/marks
+
+Do **not** ship PRODUCTION Google Pay until those steps are complete.
+
 ## Security
 
 - Never put `sk_...` in Angular / `provideEasyPayments`
@@ -509,8 +658,8 @@ See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 
 1. ~~Stripe card~~ (Phase 2)
 2. ~~PayPal~~ (Phase 3)
-3. Apple Pay
-4. Google Pay
+3. ~~Google Pay~~ (Phase 4 — TEST via Stripe gateway)
+4. Apple Pay
 5. Samsung Pay
 6. Klarna
 7. Affirm

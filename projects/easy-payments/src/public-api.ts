@@ -27,7 +27,9 @@ export { PAYMENT_METHOD_LABELS } from './lib/models/payment-method.model';
 export type { PaymentTheme, ResolvedPaymentTheme } from './lib/models/payment-theme.model';
 export type { PaymentResult, PaymentStatus } from './lib/models/payment-result.model';
 export { normalizePaymentResult } from './lib/models/payment-result.model';
-export type { CheckoutOptions } from './lib/models/checkout-options.model';
+export type { CheckoutOptions, CheckoutSuccessBehavior } from './lib/models/checkout-options.model';
+export type { CheckoutViewState } from './lib/components/checkout/checkout-view-state';
+export { formatTransactionReference } from './lib/components/checkout/checkout-view-state';
 export type {
   CapturePayPalOrderResponse,
   CreatePaymentRequest,

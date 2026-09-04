@@ -81,8 +81,17 @@ export class EasyPaymentsConfigValidator {
       }
       case 'googlePay': {
         const cfg = providerConfig as EasyPaymentsProviderConfig['googlePay'];
-        if (!cfg?.merchantId?.trim()) {
+        // Presence of the googlePay config object is enough to opt in.
+        // Stripe publishableKey + backend URL are enforced at runtime by GooglePayAdapter.
+        if (!cfg || typeof cfg !== 'object') {
           return { provider, status: 'invalid', message: required };
+        }
+        if ((cfg.environment ?? 'TEST') === 'PRODUCTION' && !cfg.merchantId?.trim()) {
+          return {
+            provider,
+            status: 'invalid',
+            message: 'merchantId required for PRODUCTION',
+          };
         }
         break;
       }

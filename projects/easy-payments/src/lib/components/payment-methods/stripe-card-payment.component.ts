@@ -189,6 +189,8 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** True while confirmPayment / 3DS is in progress — parent should lock method switching. */
+  readonly busyChange = output<boolean>();
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('paymentElementHost');
 
@@ -258,6 +260,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
 
     this.inlineError.set(null);
     this.uiState.set('processing');
+    this.busyChange.emit(true);
 
     try {
       const result = await this.stripeAdapter.confirmPayment(this.checkout()?.successUrl);
@@ -295,6 +298,8 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
       this.uiState.set('ready');
       this.inlineError.set(paymentError.message);
       this.error.emit(paymentError);
+    } finally {
+      this.busyChange.emit(false);
     }
   }
 

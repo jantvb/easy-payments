@@ -29,7 +29,8 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
             [theme]="theme()"
             [isMock]="entry.isMock"
             [selected]="entry.method === selected()"
-            (select)="methodSelect.emit(entry.method)"
+            [disabled]="disabled()"
+            (select)="onTileSelect(entry.method)"
           />
         }
       </div>
@@ -69,11 +70,22 @@ export class PaymentMethodSelectorComponent {
   readonly methods = input.required<AvailablePaymentMethod[]>();
   readonly selected = input<PaymentMethod | null>(null);
   readonly theme = input<ResolvedPaymentTheme>('light');
+  readonly disabled = input(false);
   readonly methodSelect = output<PaymentMethod>();
 
   private readonly tiles = viewChildren(PaymentMethodTileComponent, { read: ElementRef });
 
+  onTileSelect(method: PaymentMethod): void {
+    if (this.disabled()) {
+      return;
+    }
+    this.methodSelect.emit(method);
+  }
+
   onKeydown(event: KeyboardEvent): void {
+    if (this.disabled()) {
+      return;
+    }
     const items = this.methods();
     if (items.length === 0) {
       return;

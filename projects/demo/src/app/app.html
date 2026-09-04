@@ -46,9 +46,9 @@
           </label>
         </fieldset>
         <p class="hint">
-          Configured providers become real (Stripe TEST / PayPal Sandbox). Unconfigured methods
-          stay unavailable. Set keys in <code>environment.ts</code> and secrets in
-          <code>server/.env</code>.
+          Configured providers become real (Stripe TEST / PayPal Sandbox / Google Pay TEST).
+          Unconfigured methods stay unavailable. Set keys in <code>environment.ts</code> and
+          secrets in <code>server/.env</code>.
         </p>
         @if (!realProvidersReady()) {
           <p class="hint">
@@ -58,6 +58,10 @@
           <ul class="status-list">
             <li>Stripe: {{ stripeConfigReady() ? 'ready' : 'not configured' }}</li>
             <li>PayPal: {{ paypalConfigReady() ? 'ready' : 'not configured' }}</li>
+            <li>
+              Google Pay:
+              {{ stripeConfigReady() ? 'configured (availability via isReadyToPay)' : 'needs Stripe' }}
+            </li>
           </ul>
         }
         @if (modeMessage()) {
@@ -231,6 +235,7 @@
             (success)="onPaymentSuccess($event)"
             (cancel)="onPaymentCancel($event)"
             (error)="onPaymentError($event)"
+            (successContinue)="onSuccessContinue($event)"
           />
         </div>
       </div>

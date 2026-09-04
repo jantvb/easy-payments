@@ -19,11 +19,18 @@ export interface ApplePayProviderConfig {
 }
 
 export interface GooglePayProviderConfig {
-  merchantId: string;
+  /**
+   * Google Pay merchant ID from Google Pay & Wallet Console.
+   * Optional in TEST (Easy Payments defaults to Google's documented TEST merchantId).
+   * Required for PRODUCTION.
+   */
+  merchantId?: string;
+  /** User-visible merchant name shown in the Google Pay sheet. */
   merchantName?: string;
+  /** Defaults to TEST. Do not use PRODUCTION until merchant approval is complete. */
   environment?: 'TEST' | 'PRODUCTION';
-  gateway?: string;
-  gatewayMerchantId?: string;
+  /** ISO 3166-1 alpha-2 country for transactionInfo (default US). */
+  countryCode?: string;
 }
 
 export interface SamsungPayProviderConfig {
@@ -97,7 +104,7 @@ export const PROVIDER_REQUIRED_FIELD_LABEL: Record<keyof EasyPaymentsProviderCon
   stripe: 'publishableKey missing',
   paypal: 'clientId missing',
   applePay: 'merchantId missing',
-  googlePay: 'merchantId missing',
+  googlePay: 'configuration missing (requires Stripe publishableKey for gateway)',
   samsungPay: 'merchantId missing',
   klarna: 'clientId missing',
   affirm: 'publicKey missing',

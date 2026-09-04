@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import {
   CheckoutOptions,
+  CheckoutSuccessBehavior,
   PaymentMethod,
   PaymentProduct,
   PaymentResult,
@@ -21,9 +22,12 @@ import { PaymentOrchestratorService } from '../../services/payment-orchestrator.
 import { ThemeService } from '../../themes/theme.service';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
+import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
 import { CheckoutProductSummaryComponent } from '../checkout/checkout-product-summary.component';
 import { PaymentMethodSelectorComponent } from '../checkout/payment-method-selector.component';
 import { MockMethodPanelComponent } from '../checkout/mock-method-panel.component';
+import { CheckoutOutcomeComponent } from '../checkout/checkout-outcome.component';
+import { CheckoutViewState } from '../checkout/checkout-view-state';
 
 @Component({
   selector: 'easy-payments',
@@ -34,6 +38,8 @@ import { MockMethodPanelComponent } from '../checkout/mock-method-panel.componen
     MockMethodPanelComponent,
     StripeCardPaymentComponent,
     PayPalPaymentComponent,
+    GooglePayPaymentComponent,
+    CheckoutOutcomeComponent,
   ],
   templateUrl: './easy-payments.component.html',
   styleUrl: './easy-payments.component.scss',
@@ -54,20 +60,56 @@ export class EasyPaymentsComponent {
   readonly methods = input<PaymentMethod[]>(['apple-pay', 'google-pay', 'paypal', 'card']);
   readonly checkout = input<CheckoutOptions>();
   readonly theme = input<PaymentTheme>('system');
+  /**
+   * Built-in confirmation UI after success. Defaults to confirmation.
+   * Can also be set via checkout.successBehavior.
+   */
+  readonly successBehavior = input<CheckoutSuccessBehavior>('confirmation');
 
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** Fired when the customer clicks Continue on the built-in success screen. */
+  readonly successContinue = output<PaymentResult>();
 
   readonly resolvedTheme = this.themeService.resolvedTheme;
   readonly availableMethods = this.orchestrator.availableMethods;
   readonly loading = this.orchestrator.loading;
 
-  /** Method currently selected in the payment method grid. */
   readonly selectedMethod = signal<PaymentMethod | null>(null);
-
-  /** Method currently processing a mock payment. */
   private readonly processingMethod = signal<PaymentMethod | null>(null);
+  /** Real provider is mid-flow (3DS / PayPal approval / Google Pay sheet). */
+  readonly providerBusy = signal(false);
+
+  readonly viewState = signal<CheckoutViewState>('checkout');
+  readonly lastResult = signal<PaymentResult | null>(null);
+  readonly lastError = signal<PaymentError | null>(null);
+  /** Bumped on reset so real provider panels remount with a fresh session. */
+  readonly providerMountKey = signal(0);
+
+  /** Terminal/mock-processing screens that replace the checkout form. */
+  readonly showOutcome = computed(() => {
+    const state = this.viewState();
+    return state === 'success' || state === 'error' || state === 'cancelled' || state === 'processing';
+  });
+
+  readonly showCheckoutForm = computed(() => !this.showOutcome());
+
+  readonly methodsLocked = computed(
+    () => this.showOutcome() || this.providerBusy() || this.processingMethod() !== null,
+  );
+
+  readonly resolvedSuccessBehavior = computed<CheckoutSuccessBehavior>(() => {
+    return this.checkout()?.successBehavior ?? this.successBehavior();
+  });
+
+  readonly outcomeState = computed(() => {
+    const state = this.viewState();
+    if (state === 'checkout') {
+      return 'processing' as const;
+    }
+    return state;
+  });
 
   readonly visibleMethods = computed(() => {
     const requested = this.methods();
@@ -86,17 +128,22 @@ export class EasyPaymentsComponent {
     return this.visibleMethods().find((entry) => entry.method === selected) ?? null;
   });
 
-  /** True when real Stripe card UI should stay mounted (even if another method is selected). */
   readonly hasRealCardMethod = computed(() =>
     this.visibleMethods().some((entry) => entry.method === 'card' && !entry.isMock),
   );
 
-  /** True when real PayPal UI should stay mounted. */
   readonly hasRealPayPalMethod = computed(() =>
     this.visibleMethods().some((entry) => entry.method === 'paypal' && !entry.isMock),
   );
 
+  readonly hasRealGooglePayMethod = computed(() =>
+    this.visibleMethods().some((entry) => entry.method === 'google-pay' && !entry.isMock),
+  );
+
   readonly showMockPanel = computed(() => {
+    if (!this.showCheckoutForm()) {
+      return false;
+    }
     const entry = this.selectedEntry();
     if (!entry) {
       return false;
@@ -107,18 +154,40 @@ export class EasyPaymentsComponent {
     if (entry.method === 'paypal' && !entry.isMock) {
       return false;
     }
+    if (entry.method === 'google-pay' && !entry.isMock) {
+      return false;
+    }
     return true;
   });
 
   readonly showStripePanel = computed(() => this.hasRealCardMethod());
   readonly showPayPalPanel = computed(() => this.hasRealPayPalMethod());
+  readonly showGooglePayPanel = computed(() => this.hasRealGooglePayMethod());
 
+  /**
+   * Keep the active real-provider panel interactive while its own UI is needed
+   * (including during providerBusy / 3DS / sheets). Clip only when another method
+   * is selected or a terminal/mock-processing outcome replaced the form.
+   */
   readonly stripePanelActive = computed(
-    () => this.selectedMethod() === 'card' && this.hasRealCardMethod(),
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'card' &&
+      this.hasRealCardMethod(),
   );
 
   readonly paypalPanelActive = computed(
-    () => this.selectedMethod() === 'paypal' && this.hasRealPayPalMethod(),
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'paypal' &&
+      this.hasRealPayPalMethod(),
+  );
+
+  readonly googlePayPanelActive = computed(
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'google-pay' &&
+      this.hasRealGooglePayMethod(),
   );
 
   constructor() {
@@ -133,12 +202,12 @@ export class EasyPaymentsComponent {
 
       untracked(() => {
         void this.orchestrator.refreshAvailability(methods, product, checkout).catch((err: unknown) => {
+          // Config/availability errors emit only — do not take over the checkout UI.
           this.error.emit(normalizeError(err));
         });
       });
     });
 
-    // Keep selection valid as availability / order changes.
     effect(() => {
       const visible = this.visibleMethods();
       const current = untracked(() => this.selectedMethod());
@@ -157,6 +226,9 @@ export class EasyPaymentsComponent {
   }
 
   selectMethod(method: PaymentMethod): void {
+    if (this.methodsLocked()) {
+      return;
+    }
     this.selectedMethod.set(method);
   }
 
@@ -164,42 +236,65 @@ export class EasyPaymentsComponent {
     return this.loading() && this.processingMethod() === method;
   }
 
+  onProviderBusy(busy: boolean): void {
+    this.providerBusy.set(busy);
+  }
+
   onStripeSuccess(result: PaymentResult): void {
-    this.success.emit(result);
+    this.handleSuccess(result);
   }
 
   onStripeCancel(result: PaymentResult): void {
-    this.cancel.emit(result);
+    this.handleCancelled(result);
   }
 
   onStripeError(error: PaymentError): void {
-    this.error.emit(error);
+    this.handlePaymentError(error);
   }
 
   onPayPalSuccess(result: PaymentResult): void {
-    this.success.emit(result);
+    this.handleSuccess(result);
   }
 
   onPayPalCancel(result: PaymentResult): void {
-    this.cancel.emit(result);
+    this.handleCancelled(result);
   }
 
   onPayPalError(error: PaymentError): void {
-    this.error.emit(error);
+    this.handlePaymentError(error);
+  }
+
+  onGooglePaySuccess(result: PaymentResult): void {
+    this.handleSuccess(result);
+  }
+
+  onGooglePayCancel(result: PaymentResult): void {
+    this.handleCancelled(result);
+  }
+
+  onGooglePayError(error: PaymentError): void {
+    this.handlePaymentError(error);
   }
 
   async onPay(method: PaymentMethod): Promise<void> {
+    if (this.methodsLocked() || this.processingMethod()) {
+      return;
+    }
+
     this.processingMethod.set(method);
+    this.viewState.set('processing');
+    this.lastError.set(null);
+    this.lastResult.set(null);
 
     try {
       const result = await this.orchestrator.processPayment(method, this.product(), this.checkout());
 
       if (result.status === 'success') {
-        this.success.emit(result);
+        this.handleSuccess(result);
       } else if (result.status === 'cancelled') {
-        this.cancel.emit(result);
+        this.handleCancelled(result);
       } else {
-        this.error.emit(
+        this.handlePaymentError(
           new PaymentError({
             code: 'PAYMENT_FAILED',
             message: result.message ?? 'Payment failed.',
@@ -212,17 +307,72 @@ export class EasyPaymentsComponent {
       const paymentError = normalizeError(err, { method });
 
       if (paymentError.code === 'PAYMENT_CANCELLED') {
-        this.cancel.emit({
+        this.handleCancelled({
           status: 'cancelled',
           method,
           provider: paymentError.provider ?? 'stripe',
           message: paymentError.message,
         });
       } else {
-        this.error.emit(paymentError);
+        this.handlePaymentError(paymentError);
       }
     } finally {
       this.processingMethod.set(null);
     }
+  }
+
+  onOutcomeAction(): void {
+    const state = this.viewState();
+    if (state === 'success') {
+      const result = this.lastResult();
+      if (result) {
+        this.successContinue.emit(result);
+      }
+      this.resetCheckoutView();
+      return;
+    }
+
+    if (state === 'error' || state === 'cancelled') {
+      this.resetCheckoutView();
+    }
+  }
+
+  /** Public helper for hosts (e.g. demo Continue) to restore a fresh checkout UI. */
+  resetCheckoutView(): void {
+    this.viewState.set('checkout');
+    this.lastResult.set(null);
+    this.lastError.set(null);
+    this.processingMethod.set(null);
+    this.providerBusy.set(false);
+    this.providerMountKey.update((value) => value + 1);
+  }
+
+  private handleSuccess(result: PaymentResult): void {
+    this.success.emit(result);
+    this.lastResult.set(result);
+    this.lastError.set(null);
+    this.providerBusy.set(false);
+
+    if (this.resolvedSuccessBehavior() === 'confirmation') {
+      this.viewState.set('success');
+    } else {
+      this.viewState.set('checkout');
+    }
+  }
+
+  private handleCancelled(result: PaymentResult): void {
+    this.cancel.emit(result);
+    this.lastResult.set(result);
+    this.lastError.set(null);
+    this.providerBusy.set(false);
+    this.viewState.set('cancelled');
+  }
+
+  private handlePaymentError(error: PaymentError): void {
+    this.error.emit(error);
+    this.lastError.set(error);
+    this.lastResult.set(null);
+    this.providerBusy.set(false);
+    this.viewState.set('error');
   }
 }
