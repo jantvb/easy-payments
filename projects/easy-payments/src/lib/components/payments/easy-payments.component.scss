@@ -1,6 +1,11 @@
 :host {
   display: block;
   width: 100%;
+  max-width: var(--ep-checkout-max-width, 640px);
+  box-sizing: border-box;
+  /* Embeddable layout: payment grid responds to THIS component's width. */
+  container-type: inline-size;
+  container-name: ep-checkout;
   font-family:
     'Segoe UI',
     system-ui,
@@ -79,6 +84,8 @@
   background: var(--ep-surface);
   color: var(--ep-text);
   box-shadow: var(--ep-shadow);
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .ep-checkout__header {
@@ -147,7 +154,7 @@
   border-radius: var(--ep-radius-md);
 }
 
-@media (max-width: 480px) {
+@container ep-checkout (max-width: 420px) {
   .ep-checkout {
     padding: 16px;
     border-radius: 14px;

@@ -15,13 +15,9 @@
  * - PayPal logos — paypalobjects.com
  * - Affirm logos — cdn-assets.affirm.com
  *
- * Text fallbacks (no redistributable mark bundled yet):
- * - Samsung Pay — Samsung Developer branding toolkit (login / agreement required)
- *
  * Guideline portals:
  * - Apple: https://developer.apple.com/apple-pay/marketing/
  * - Google: https://developers.google.com/pay/api/web/guides/brand-guidelines
- * - Samsung: https://developer.samsung.com/pay/design
  * - PayPal: https://newsroom.paypal-corp.com/media-resources
  * - Klarna: https://docs.klarna.com/ (checkout styling / brand guidelines)
  * - Affirm: https://businesshub.affirm.com/ (Logos, Banners, and Buttons)

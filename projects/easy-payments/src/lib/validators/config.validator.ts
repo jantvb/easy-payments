@@ -15,7 +15,6 @@ const ALL_PROVIDERS = [
   'paypal',
   'applePay',
   'googlePay',
-  'samsungPay',
   'klarna',
   'affirm',
 ] as const satisfies ReadonlyArray<keyof EasyPaymentsProviderConfig>;
@@ -92,13 +91,6 @@ export class EasyPaymentsConfigValidator {
             status: 'invalid',
             message: 'merchantId required for PRODUCTION',
           };
-        }
-        break;
-      }
-      case 'samsungPay': {
-        const cfg = providerConfig as EasyPaymentsProviderConfig['samsungPay'];
-        if (!cfg?.merchantId?.trim()) {
-          return { provider, status: 'invalid', message: required };
         }
         break;
       }

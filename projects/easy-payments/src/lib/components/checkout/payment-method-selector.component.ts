@@ -53,13 +53,34 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
 
       .ep-selector__grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
         gap: 10px;
+        width: 100%;
+        /*
+          Columns follow the <easy-payments> container width (container queries),
+          not the browser viewport — so sidebars / modals / CMS embeds layout correctly.
+          Skip 4-column layouts for the common 6-method set to avoid awkward 4+2 rows.
+        */
+        grid-template-columns: minmax(0, 1fr);
       }
 
-      @media (max-width: 420px) {
+      /* ~2 usable tiles (≥ ~112px each + gap + padding) */
+      @container ep-checkout (min-width: 360px) {
         .ep-selector__grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      /* Default polished layout at ~640px max-width → 3 × 2 */
+      @container ep-checkout (min-width: 520px) {
+        .ep-selector__grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      /* Comfortable single row for six methods (~112px tiles + gaps) */
+      @container ep-checkout (min-width: 880px) {
+        .ep-selector__grid {
+          grid-template-columns: repeat(6, minmax(0, 1fr));
         }
       }
     `,

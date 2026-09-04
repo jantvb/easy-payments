@@ -57,6 +57,7 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       }
 
       .ep-tile {
+        box-sizing: border-box;
         position: relative;
         display: flex;
         flex-direction: column;
@@ -64,8 +65,9 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
         justify-content: center;
         gap: 6px;
         width: 100%;
-        min-height: 84px;
-        padding: 16px 10px 14px;
+        height: 88px;
+        min-height: 88px;
+        padding: 18px 8px 12px;
         border: 1px solid var(--ep-border, #e2e8f0);
         border-radius: var(--ep-radius-md, 10px);
         background: var(--ep-surface, #fff);
@@ -91,7 +93,10 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       .ep-tile--selected {
         border-color: var(--ep-accent, #2563eb);
         background: var(--ep-accent-soft, #eff6ff);
-        box-shadow: inset 0 0 0 1px var(--ep-accent, #2563eb);
+        /* Keep 1px border; inset ring avoids layout shift vs unselected tiles. */
+        box-shadow:
+          var(--ep-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.04)),
+          inset 0 0 0 1px var(--ep-accent, #2563eb);
       }
 
       .ep-tile:disabled {
@@ -103,20 +108,24 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
         position: absolute;
         top: 6px;
         left: 6px;
+        z-index: 1;
         padding: 1px 5px;
         border-radius: 999px;
         font-size: 9px;
         font-weight: 700;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+        line-height: 1.2;
         background: var(--ep-demo-bg, #f1f5f9);
         color: var(--ep-demo-text, #64748b);
+        pointer-events: none;
       }
 
       .ep-tile__check {
         position: absolute;
         top: 6px;
         right: 6px;
+        z-index: 1;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -125,14 +134,17 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
         border-radius: 999px;
         background: var(--ep-accent, #2563eb);
         color: #fff;
+        pointer-events: none;
       }
 
       .ep-tile__icon {
         display: flex;
         align-items: center;
         justify-content: center;
+        flex: 0 0 36px;
         height: 36px;
         width: 100%;
+        max-width: 100%;
         color: var(--ep-text, #0f172a);
       }
 
@@ -143,6 +155,10 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
         text-align: center;
         color: var(--ep-text-secondary, #475569);
         min-height: 1.2em;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .ep-tile__label--spacer {

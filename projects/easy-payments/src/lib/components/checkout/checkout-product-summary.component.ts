@@ -87,6 +87,8 @@ import { formatMoney, formatUnitAmount } from '../../utils/format-money';
         font-weight: 650;
         letter-spacing: -0.01em;
         color: var(--ep-text, #0f172a);
+        overflow-wrap: anywhere;
+        min-width: 0;
       }
 
       .ep-summary__amount {
@@ -95,6 +97,7 @@ import { formatMoney, formatUnitAmount } from '../../utils/format-money';
         font-weight: 700;
         color: var(--ep-text, #0f172a);
         white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .ep-summary__description,
@@ -105,13 +108,32 @@ import { formatMoney, formatUnitAmount } from '../../utils/format-money';
         color: var(--ep-text-secondary, #64748b);
       }
 
+      .ep-summary__description {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
       .ep-summary__currency {
         text-transform: uppercase;
         white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .ep-summary__unit {
         margin-top: 4px;
+      }
+
+      @container ep-checkout (max-width: 380px) {
+        .ep-summary__row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+
+        .ep-summary__amount,
+        .ep-summary__currency {
+          white-space: normal;
+        }
       }
     `,
   ],

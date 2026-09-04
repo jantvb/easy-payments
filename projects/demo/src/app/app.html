@@ -150,6 +150,47 @@
         </fieldset>
       </section>
 
+      <section>
+        <h2>Checkout width</h2>
+        <p class="hint">
+          Public <code>[maxWidth]</code> input. The library clamps 320–1200 and reflows the
+          payment grid from the component container width.
+        </p>
+        <fieldset class="choice-group">
+          <legend class="visually-hidden">Checkout width preset</legend>
+          @for (
+            preset of [
+              { label: 'Default — 640', value: 640 },
+              { label: 'Wide — 900', value: 900 },
+              { label: 'Extra Wide — 1100', value: 1100 }
+            ];
+            track preset.value
+          ) {
+            <label class="choice">
+              <input
+                type="radio"
+                name="checkout-width"
+                [value]="preset.value"
+                [checked]="checkoutMaxWidth() === preset.value"
+                (change)="setCheckoutMaxWidth(preset.value)"
+              />
+              <span>{{ preset.label }}</span>
+            </label>
+          }
+        </fieldset>
+        <label class="field">
+          <span>maxWidth ({{ checkoutMaxWidth() }} px)</span>
+          <input
+            type="range"
+            min="320"
+            max="1200"
+            step="20"
+            [value]="checkoutMaxWidth()"
+            (input)="setCheckoutMaxWidth($any($event.target).value)"
+          />
+        </label>
+      </section>
+
       @if (mode() === 'demo') {
         <section>
           <h2>Next mock payment</h2>
@@ -232,6 +273,7 @@
             [product]="product()"
             [methods]="methods()"
             [theme]="theme()"
+            [maxWidth]="checkoutMaxWidth()"
             (success)="onPaymentSuccess($event)"
             (cancel)="onPaymentCancel($event)"
             (error)="onPaymentError($event)"

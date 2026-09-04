@@ -28,6 +28,10 @@ import { PaymentMethodSelectorComponent } from '../checkout/payment-method-selec
 import { MockMethodPanelComponent } from '../checkout/mock-method-panel.component';
 import { CheckoutOutcomeComponent } from '../checkout/checkout-outcome.component';
 import { CheckoutViewState } from '../checkout/checkout-view-state';
+import {
+  DEFAULT_CHECKOUT_MAX_WIDTH,
+  resolveCheckoutMaxWidth,
+} from '../../layout/checkout-layout';
 
 @Component({
   selector: 'easy-payments',
@@ -48,6 +52,8 @@ import { CheckoutViewState } from '../checkout/checkout-view-state';
     '[class.ep-theme-light]': 'resolvedTheme() === "light"',
     '[class.ep-theme-dark]': 'resolvedTheme() === "dark"',
     '[attr.data-theme]': 'resolvedTheme()',
+    '[style.--ep-checkout-max-width]': 'checkoutMaxWidthCss()',
+    '[style.max-width.px]': 'effectiveMaxWidth()',
     role: 'region',
     'aria-label': 'Checkout',
   },
@@ -60,6 +66,12 @@ export class EasyPaymentsComponent {
   readonly methods = input<PaymentMethod[]>(['apple-pay', 'google-pay', 'paypal', 'card']);
   readonly checkout = input<CheckoutOptions>();
   readonly theme = input<PaymentTheme>('system');
+  /**
+   * Maximum checkout width in pixels. The component stays fluid (`width: 100%`)
+   * up to this cap. Values are clamped to library-safe limits (320–1200).
+   * Defaults to 640.
+   */
+  readonly maxWidth = input<number | string | null | undefined>(DEFAULT_CHECKOUT_MAX_WIDTH);
   /**
    * Built-in confirmation UI after success. Defaults to confirmation.
    * Can also be set via checkout.successBehavior.
@@ -75,6 +87,10 @@ export class EasyPaymentsComponent {
   readonly resolvedTheme = this.themeService.resolvedTheme;
   readonly availableMethods = this.orchestrator.availableMethods;
   readonly loading = this.orchestrator.loading;
+
+  /** Clamped max-width applied to the host (and used by container queries). */
+  readonly effectiveMaxWidth = computed(() => resolveCheckoutMaxWidth(this.maxWidth()));
+  readonly checkoutMaxWidthCss = computed(() => `${this.effectiveMaxWidth()}px`);
 
   readonly selectedMethod = signal<PaymentMethod | null>(null);
   private readonly processingMethod = signal<PaymentMethod | null>(null);

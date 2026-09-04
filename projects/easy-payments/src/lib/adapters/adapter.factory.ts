@@ -9,7 +9,6 @@ import { StripeCardAdapter, StripeCardMockAdapter } from './stripe/stripe-card.a
 import { PayPalAdapter, PayPalMockAdapter } from './paypal/paypal.adapter';
 import { ApplePayAdapter, ApplePayMockAdapter } from './apple-pay/apple-pay.adapter';
 import { GooglePayAdapter, GooglePayMockAdapter } from './google-pay/google-pay.adapter';
-import { SamsungPayAdapter, SamsungPayMockAdapter } from './samsung-pay/samsung-pay.adapter';
 import { KlarnaAdapter, KlarnaMockAdapter } from './klarna/klarna.adapter';
 import { AffirmAdapter, AffirmMockAdapter } from './affirm/affirm.adapter';
 
@@ -20,7 +19,6 @@ const REAL_ADAPTERS: Record<PaymentProviderName, new (...args: never[]) => Payme
   paypal: PayPalAdapter,
   applePay: ApplePayAdapter,
   googlePay: GooglePayAdapter,
-  samsungPay: SamsungPayAdapter,
   klarna: KlarnaAdapter,
   affirm: AffirmAdapter,
 };
@@ -30,7 +28,6 @@ const MOCK_ADAPTERS: Record<PaymentProviderName, new (...args: never[]) => Payme
   paypal: PayPalMockAdapter,
   applePay: ApplePayMockAdapter,
   googlePay: GooglePayMockAdapter,
-  samsungPay: SamsungPayMockAdapter,
   klarna: KlarnaMockAdapter,
   affirm: AffirmMockAdapter,
 };
@@ -40,7 +37,6 @@ const CONFIG_KEY_MAP: Record<PaymentProviderName, ProviderKey> = {
   paypal: 'paypal',
   applePay: 'applePay',
   googlePay: 'googlePay',
-  samsungPay: 'samsungPay',
   klarna: 'klarna',
   affirm: 'affirm',
 };

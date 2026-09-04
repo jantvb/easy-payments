@@ -135,6 +135,68 @@ describe('EasyPaymentsComponent', () => {
     expect(getComputedStyle(grid).display).toBe('grid');
   });
 
+  it('renders six methods in the supplied array order and selects the first', async () => {
+    fixture.componentRef.setInput('methods', [
+      'card',
+      'paypal',
+      'apple-pay',
+      'google-pay',
+      'klarna',
+      'affirm',
+    ]);
+    await render(fixture);
+
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual([
+      'Card',
+      'PayPal',
+      'Apple Pay',
+      'Google Pay',
+      'Klarna',
+      'Affirm',
+    ]);
+    expect(fixture.componentInstance.selectedMethod()).toBe('card');
+    expect(fixture.nativeElement.textContent).toContain('Pay with Card');
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(640);
+    expect(fixture.nativeElement.style.maxWidth).toBe('640px');
+  });
+
+  it('clamps and applies maxWidth on the host', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('maxWidth', 200);
+    await render(fixture);
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(320);
+    expect(fixture.nativeElement.style.maxWidth).toBe('320px');
+
+    fixture.componentRef.setInput('maxWidth', 3000);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(1200);
+
+    fixture.componentRef.setInput('maxWidth', 'not-a-number');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(640);
+
+    fixture.componentRef.setInput('maxWidth', 900);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(900);
+    expect(fixture.nativeElement.style.maxWidth).toBe('900px');
+  });
+
+  it('keeps selected and unselected tiles the same size', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    await render(fixture);
+
+    const tiles = fixture.nativeElement.querySelectorAll('button.ep-tile') as NodeListOf<HTMLButtonElement>;
+    expect(tiles.length).toBe(2);
+    const selected = tiles[0];
+    const unselected = tiles[1];
+    expect(selected.getAttribute('aria-checked')).toBe('true');
+    expect(unselected.getAttribute('aria-checked')).toBe('false');
+    expect(getComputedStyle(selected).height).toBe(getComputedStyle(unselected).height);
+    expect(Math.abs(selected.getBoundingClientRect().width - unselected.getBoundingClientRect().width)).toBeLessThan(
+      1,
+    );
+  });
+
   it('applies the light theme class', async () => {
     fixture.componentRef.setInput('theme', 'light');
     fixture.componentRef.setInput('methods', ['card']);

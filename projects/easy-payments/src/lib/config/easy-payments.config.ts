@@ -33,12 +33,6 @@ export interface GooglePayProviderConfig {
   countryCode?: string;
 }
 
-export interface SamsungPayProviderConfig {
-  merchantId: string;
-  serviceId?: string;
-  countryCode?: string;
-}
-
 export interface KlarnaProviderConfig {
   clientId: string;
   environment?: 'playground' | 'production';
@@ -75,7 +69,6 @@ export interface EasyPaymentsProviderConfig {
   paypal?: PayPalProviderConfig;
   applePay?: ApplePayProviderConfig;
   googlePay?: GooglePayProviderConfig;
-  samsungPay?: SamsungPayProviderConfig;
   klarna?: KlarnaProviderConfig;
   affirm?: AffirmProviderConfig;
 }
@@ -95,7 +88,6 @@ export const PROVIDER_DISPLAY_NAMES: Record<keyof EasyPaymentsProviderConfig, st
   paypal: 'PayPal',
   applePay: 'Apple Pay',
   googlePay: 'Google Pay',
-  samsungPay: 'Samsung Pay',
   klarna: 'Klarna',
   affirm: 'Affirm',
 };
@@ -105,7 +97,6 @@ export const PROVIDER_REQUIRED_FIELD_LABEL: Record<keyof EasyPaymentsProviderCon
   paypal: 'clientId missing',
   applePay: 'merchantId missing',
   googlePay: 'configuration missing (requires Stripe publishableKey for gateway)',
-  samsungPay: 'merchantId missing',
   klarna: 'clientId missing',
   affirm: 'publicKey missing',
 };

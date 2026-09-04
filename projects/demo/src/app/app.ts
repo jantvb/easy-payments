@@ -43,13 +43,12 @@ const DEFAULT_PRODUCT: PaymentProduct = {
 };
 
 const DEFAULT_METHODS: MethodRow[] = [
+  { method: 'card', enabled: true },
+  { method: 'paypal', enabled: true },
   { method: 'apple-pay', enabled: true },
   { method: 'google-pay', enabled: true },
-  { method: 'samsung-pay', enabled: true },
-  { method: 'paypal', enabled: true },
   { method: 'klarna', enabled: true },
   { method: 'affirm', enabled: true },
-  { method: 'card', enabled: true },
 ];
 
 @Component({
@@ -71,6 +70,8 @@ export class App {
   readonly productCurrency = signal(DEFAULT_PRODUCT.currency);
   readonly productQuantity = signal(String(DEFAULT_PRODUCT.quantity ?? 1));
   readonly theme = signal<PaymentTheme>('system');
+  /** Demo-only control for <easy-payments [maxWidth]>. */
+  readonly checkoutMaxWidth = signal(640);
   readonly methodRows = signal<MethodRow[]>(DEFAULT_METHODS.map((row) => ({ ...row })));
   readonly lastEvent = signal<string>('No payment events yet.');
   readonly mode = signal<DemoMode>('demo');
@@ -148,6 +149,11 @@ export class App {
 
   setTheme(theme: PaymentTheme): void {
     this.theme.set(theme);
+  }
+
+  setCheckoutMaxWidth(value: number | string): void {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    this.checkoutMaxWidth.set(Number.isFinite(numeric) ? numeric : 640);
   }
 
   setMockOutcome(outcome: 'success' | 'cancelled' | 'failed'): void {

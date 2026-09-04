@@ -82,8 +82,8 @@ import { getPaymentMethodPresentation } from '../../branding/payment-method-pres
       }
 
       .ep-mark[data-method='google-pay'] .ep-mark__img {
-        height: 40px;
-        max-width: 80px;
+        height: 32px;
+        max-width: 72px;
       }
 
       /* Wordmarks — keep contained; Klarna badge is visually dense. */

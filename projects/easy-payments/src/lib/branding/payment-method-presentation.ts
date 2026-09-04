@@ -124,17 +124,6 @@ export function getPaymentMethodPresentation(
           'Affirm-hosted logo assets (cdn-assets.affirm.com). Merchant toolkit recommends Affirm-hosted assets.',
       };
 
-    case 'samsung-pay':
-      return {
-        method,
-        label,
-        markIncludesName: false,
-        source: 'text-fallback',
-        markUrl: null,
-        notes:
-          'Samsung Pay / Samsung Wallet branding assets require Samsung Developer portal download and are not redistributed here. TODO: optional host-supplied official mark.',
-      };
-
     default: {
       const _exhaustive: never = method;
       return _exhaustive;
@@ -149,7 +138,6 @@ export function listPaymentMethodPresentations(
     'card',
     'apple-pay',
     'google-pay',
-    'samsung-pay',
     'paypal',
     'klarna',
     'affirm',

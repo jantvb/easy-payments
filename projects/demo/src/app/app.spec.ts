@@ -33,6 +33,49 @@ describe('App', () => {
     expect(compiled.querySelector('easy-payments')).toBeTruthy();
   });
 
+  it('defaults payment methods with Card first in a six-method order', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+
+    expect(app.methods()).toEqual([
+      'card',
+      'paypal',
+      'apple-pay',
+      'google-pay',
+      'klarna',
+      'affirm',
+    ]);
+    expect(app.checkoutMaxWidth()).toBe(640);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('button.ep-tile') as NodeListOf<HTMLButtonElement>,
+    ).map((button) => (button.getAttribute('aria-label') ?? '').replace(/,.*/, ''));
+
+    expect(labels).toEqual(['Card', 'PayPal', 'Apple Pay', 'Google Pay', 'Klarna', 'Affirm']);
+    expect(labels[0]).toBe('Card');
+    expect(
+      (fixture.nativeElement.querySelector('button.ep-tile[aria-checked="true"]') as HTMLButtonElement)
+        ?.getAttribute('aria-label') ?? '',
+    ).toContain('Card');
+  });
+
+  it('updates the checkout maxWidth control live', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    app.setCheckoutMaxWidth(1100);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement.querySelector('easy-payments') as HTMLElement;
+    expect(app.checkoutMaxWidth()).toBe(1100);
+    expect(host.style.maxWidth).toBe('1100px');
+  });
+
   it('locks product pricing to trusted catalog values in Real mode', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;

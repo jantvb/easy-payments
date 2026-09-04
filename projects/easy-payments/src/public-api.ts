@@ -17,7 +17,6 @@ export type {
   PayPalProviderConfig,
   ProviderConfigStatus,
   ProviderValidationResult,
-  SamsungPayProviderConfig,
   StripeProviderConfig,
 } from './lib/config/easy-payments.config';
 
@@ -30,6 +29,12 @@ export { normalizePaymentResult } from './lib/models/payment-result.model';
 export type { CheckoutOptions, CheckoutSuccessBehavior } from './lib/models/checkout-options.model';
 export type { CheckoutViewState } from './lib/components/checkout/checkout-view-state';
 export { formatTransactionReference } from './lib/components/checkout/checkout-view-state';
+export {
+  DEFAULT_CHECKOUT_MAX_WIDTH,
+  MAX_CHECKOUT_WIDTH,
+  MIN_CHECKOUT_WIDTH,
+  resolveCheckoutMaxWidth,
+} from './lib/layout/checkout-layout';
 export type {
   CapturePayPalOrderResponse,
   CreatePaymentRequest,

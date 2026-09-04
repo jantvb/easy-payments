@@ -1,6 +1,6 @@
 # Easy Payments
 
-Easy Payments is an Angular library that renders a checkout method list (Apple Pay, Google Pay, Samsung Pay, PayPal, Klarna, Affirm, and card) behind a single component and a single configuration API.
+Easy Payments is an Angular library that renders a checkout method list (Apple Pay, Google Pay, PayPal, Klarna, Affirm, and card) behind a single component and a single configuration API.
 
 The public API is designed so mock/demo payments and real Stripe card payments use the same inputs, outputs, and result types.
 
@@ -14,7 +14,7 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 - **Real Google Pay TEST** — official `pay.js` + `PaymentsClient` + `createButton`, tokenized through Stripe `PAYMENT_GATEWAY`.
 - NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay charges.
 - **Mock mode still does not process real payments.**
-- Real Apple Pay, Samsung Pay, Klarna, and Affirm are **not** implemented yet.
+- Real Apple Pay, Klarna, and Affirm are **not** implemented yet.
 
 Angular never accepts Stripe secret keys or PayPal Client Secrets.
 
@@ -610,13 +610,33 @@ Automated unit tests never call Stripe’s network.
 
 `methods = ['paypal', 'apple-pay', 'card']` renders in that order. Omitted or unavailable methods are hidden.
 
+## Checkout width
+
+Easy Payments is fluid within its parent (`width: 100%`). Use `[maxWidth]` to control how wide the checkout may grow:
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  [maxWidth]="1000"
+  theme="system">
+</easy-payments>
+```
+
+- Default max width: **640px** (polished 3×2 method grid for six methods)
+- Library clamps to **320–1200px** (invalid / missing values fall back to 640)
+- Payment-method columns reorganize from the **component container width** (CSS container queries), not the browser viewport — so sidebars, modals, and CMS embeds layout correctly
+- At ~880px+ container width, six methods can sit on one row when each tile stays usable
+
+Do not micro-manage tile columns; only set overall checkout size.
+
 ## Themes
 
 `light` · `dark` · `system` (`prefers-color-scheme`, live updates).
 
 ## Third-Party Trademarks
 
-Apple Pay, Google Pay, Samsung Pay, PayPal, Klarna, Affirm, Stripe, Visa, Mastercard, American Express, Discover, and related marks are trademarks of their respective owners. Easy Payments does **not** claim ownership of these marks.
+Apple Pay, Google Pay, PayPal, Klarna, Affirm, Stripe, Visa, Mastercard, American Express, Discover, and related marks are trademarks of their respective owners. Easy Payments does **not** claim ownership of these marks.
 
 Official provider artwork is used only to identify supported payment options in the checkout selector and must follow each provider’s current brand guidelines. Downloading or installing Easy Payments does **not** grant unrestricted trademark rights.
 
@@ -624,7 +644,7 @@ Consumers are responsible for:
 
 - Merchant / partner onboarding with each payment provider before production use
 - Complying with that provider’s branding, button, and checkout requirements
-- Obtaining any additional official assets required by the provider (for example Samsung Developer branding packs)
+- Obtaining any additional official assets required by the provider
 
 Current asset approach:
 
@@ -636,7 +656,6 @@ Current asset approach:
 | PayPal | PayPal-hosted assets (`paypalobjects.com`) |
 | Klarna | Klarna-hosted badge CDN |
 | Affirm | Affirm-hosted CDN logos |
-| Samsung Pay | Text fallback until an official Samsung mark is supplied |
 
 See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 
@@ -660,9 +679,9 @@ See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 2. ~~PayPal~~ (Phase 3)
 3. ~~Google Pay~~ (Phase 4 — TEST via Stripe gateway)
 4. Apple Pay
-5. Samsung Pay
-6. Klarna
-7. Affirm
+5. Klarna
+6. Affirm
+7. Samsung Pay — under consideration for a future release
 
 ## Building & testing
 

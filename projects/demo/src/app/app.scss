@@ -265,7 +265,8 @@ h2 {
 }
 
 .checkout-stage__surface {
-  max-width: 520px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 

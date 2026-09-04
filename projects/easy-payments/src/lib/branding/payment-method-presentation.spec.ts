@@ -50,20 +50,12 @@ describe('payment method presentation', () => {
     expect(dark.markUrl).not.toBe(light.markUrl);
   });
 
-  it('falls back to text for Samsung Pay', () => {
-    const samsung = getPaymentMethodPresentation('samsung-pay', 'light');
-    expect(samsung.source).toBe('text-fallback');
-    expect(samsung.markUrl).toBeNull();
-    expect(samsung.label).toBe('Samsung Pay');
-  });
-
   it('lists presentations for every supported method', () => {
     const list = listPaymentMethodPresentations('light');
     expect(list.map((entry) => entry.method)).toEqual([
       'card',
       'apple-pay',
       'google-pay',
-      'samsung-pay',
       'paypal',
       'klarna',
       'affirm',
