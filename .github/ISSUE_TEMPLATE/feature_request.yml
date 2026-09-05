@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Related provider (if any)
+      options:
+        - none / general API
+        - Stripe
+        - PayPal
+        - Apple Pay
+        - Google Pay
+        - Klarna
+        - Affirm
+        - other / new provider
+  - type: textarea
+    id: api
+    attributes:
+      label: API idea (optional)
+      description: Inputs, outputs, or config shape you would like.
+    validations:
+      required: false

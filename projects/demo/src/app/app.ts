@@ -133,7 +133,11 @@ export class App {
     const clientId = environment.paypalClientId?.trim() ?? '';
     const createUrl = environment.paypalCreateOrderUrl?.trim() ?? '';
     const captureUrl = environment.paypalCaptureOrderUrl?.trim() ?? '';
-    return !!clientId && !clientId.includes('REPLACE') && !!createUrl && !!captureUrl;
+    const isPlaceholder =
+      !clientId ||
+      /REPLACE|YOUR_|EXAMPLE|XXXX/i.test(clientId) ||
+      clientId.length < 10;
+    return !isPlaceholder && !!createUrl && !!captureUrl;
   });
 
   readonly realProvidersReady = computed(

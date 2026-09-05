@@ -13,7 +13,8 @@
     "server:install": "npm --prefix server install",
     "server:build": "npm --prefix server run build",
     "server:start": "npm --prefix server run start:dev",
-    "server:test": "npm --prefix server test"
+    "server:test": "npm --prefix server test",
+    "docs:screenshots": "node scripts/capture-docs-screenshots.cjs"
   },
   "prettier": {
     "printWidth": 100,
@@ -53,6 +54,7 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "ng-packagr": "^22.1.1",
+    "playwright": "^1.63.0",
     "typescript": "~6.0.3"
   }
 }

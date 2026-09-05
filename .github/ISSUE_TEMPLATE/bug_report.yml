@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a problem with Easy Payments
+labels: ["bug"]
+body:
+  - type: input
+    id: ep_version
+    attributes:
+      label: Easy Payments version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: angular_version
+    attributes:
+      label: Angular version
+      placeholder: 22.1.5
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 131
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11 / macOS / iOS / Android
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: Payment method
+      multiple: true
+      options:
+        - card
+        - paypal
+        - apple-pay
+        - google-pay
+        - klarna
+        - affirm
+        - n/a (library / docs)
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce. Do not include secret keys.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

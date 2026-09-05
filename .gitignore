@@ -14,7 +14,7 @@
 npm-debug.log
 yarn-error.log
 
-# Environment / secrets (never commit real Stripe keys)
+# Environment / secrets (never commit real Stripe / PayPal credentials)
 .env
 .env.local
 .env.*.local
@@ -22,6 +22,17 @@ server/.env
 **/.env
 !**/.env.example
 
+# Private keys / certificates / local tunnel tooling
+*.pem
+*.p12
+*.pfx
+*.key
+!**/assets/**/*.svg
+cloudflared*.yml
+cloudflared*.yaml
+.cloudflared/
+**/credentials.json
+**/service-account*.json
 # IDEs and editors
 .idea/
 .project
