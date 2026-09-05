@@ -159,10 +159,10 @@ Money settles to **your** Stripe / PayPal (and related) merchant accounts.
 ## Installation
 
 ```bash
-npm install @easypaymentsjs/angular @stripe/stripe-js
+npm install @easy-payments/angular @stripe/stripe-js
 ```
 
-> Package name: **`@easypaymentsjs/angular`**. Until npm publish of 1.0.0, install from a local `npm pack` of `dist/easy-payments` or a `file:` path.
+> Package name: **`@easy-payments/angular`**. Until npm publish of 1.0.0, install from a local `npm pack` of `dist/easy-payments` or a `file:` path.
 
 Peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-js` `^8.0.0`.
 
@@ -178,7 +178,7 @@ Peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-j
 6. Handle `(success)` / `(cancel)` / `(error)` / `(successContinue)`
 
 ```ts
-import { provideEasyPayments } from '@easypaymentsjs/angular';
+import { provideEasyPayments } from '@easy-payments/angular';
 
 provideEasyPayments({
   providers: {

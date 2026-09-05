@@ -2,7 +2,7 @@
 
 Complete public API for the Angular `<easy-payments>` component and related exports.
 
-Package: `@easypaymentsjs/angular`  
+Package: `@easy-payments/angular`  
 Peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-js` `^8.0.0`
 
 ---
@@ -273,7 +273,7 @@ interface EasyPaymentsConfig {
 
 ## Notable public exports
 
-From `@easypaymentsjs/angular` (see `public-api.ts`):
+From `@easy-payments/angular` (see `public-api.ts`):
 
 - `EasyPaymentsComponent`
 - `provideEasyPayments`, `EasyPaymentsConfigService`

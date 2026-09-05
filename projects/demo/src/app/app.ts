@@ -15,7 +15,7 @@ import {
   PAYMENT_METHOD_LABELS,
   isAnyStripeBnplReturnAttempt,
   type EasyPaymentsAppearance,
-} from '@easypaymentsjs/angular';
+} from '@easy-payments/angular';
 import { environment } from '../environments/environment';
 import {
   persistDemoMode,
