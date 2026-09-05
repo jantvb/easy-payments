@@ -8,6 +8,8 @@
 | [Backend](./backend.md) | Contract + NestJS reference |
 | [Demo](./demo.md) | Run the Angular playground |
 | [Security](./security.md) | Frontend vs backend secrets, pricing |
+| [Release branch](./release-branch.md) | `release/1.0.0`, GitHub visibility limits, protection |
+| [npm README images](./npm-readme-images.md) | Absolute URLs required before npm publish |
 
 ## Providers
 

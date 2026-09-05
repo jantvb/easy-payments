@@ -17,7 +17,7 @@ Easy Payments gives Angular apps one consistent checkout for multiple payment me
 | **Methods** | Card · PayPal · Apple Pay · Google Pay · Klarna · Affirm |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-desktop.png" alt="Easy Payments checkout — desktop viewport" width="640" />
+  <img src="docs/assets/easy-payments-desktop.png" alt="Easy Payments checkout — desktop viewport" width="640" />
 </p>
 
 <p align="center">
@@ -48,27 +48,65 @@ v1.0.0 does **not** support Angular 19, Angular 23+, or non-Angular frameworks.
 
 Screenshots are **real captures** of the local demo using browser viewport emulation (not physical device claims).
 
-| Desktop | Mobile |
-|:-------:|:------:|
-| ![Desktop](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-desktop.png) | ![Mobile](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-mobile.png) |
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Desktop</strong><br />
+      <img src="docs/assets/easy-payments-desktop.png" alt="Desktop viewport" width="420" />
+    </td>
+    <td align="center" width="50%">
+      <strong>Mobile</strong><br />
+      <img src="docs/assets/easy-payments-mobile.png" alt="Mobile viewport" width="220" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Tablet</strong><br />
+      <img src="docs/assets/easy-payments-tablet.png" alt="Tablet viewport" width="360" />
+    </td>
+    <td align="center">
+      <strong>iPad viewport</strong><br />
+      <img src="docs/assets/easy-payments-ipad.png" alt="iPad viewport" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Light</strong><br />
+      <img src="docs/assets/easy-payments-light.png" alt="Light theme" width="360" />
+    </td>
+    <td align="center">
+      <strong>Dark</strong><br />
+      <img src="docs/assets/easy-payments-dark.png" alt="Dark theme" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Default appearance</strong><br />
+      <img src="docs/assets/easy-payments-default.png" alt="Default appearance" width="360" />
+    </td>
+    <td align="center">
+      <strong>Transparent appearance</strong><br />
+      <img src="docs/assets/easy-payments-transparent.png" alt="Transparent appearance" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Success</strong><br />
+      <img src="docs/assets/easy-payments-success.png" alt="Success confirmation" width="360" />
+    </td>
+    <td align="center">
+      <strong>Custom method order</strong><br />
+      <img src="docs/assets/easy-payments-method-order.png" alt="Custom payment method order" width="360" />
+    </td>
+  </tr>
+</table>
 
-| Tablet | iPad viewport |
-|:------:|:-------------:|
-| ![Tablet](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-tablet.png) | ![iPad](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-ipad.png) |
+<p align="center">
+  <strong>Laptop</strong><br />
+  <img src="docs/assets/easy-payments-laptop.png" alt="Laptop viewport" width="480" />
+</p>
 
-| Light | Dark |
-|:-----:|:----:|
-| ![Light](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-light.png) | ![Dark](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-dark.png) |
-
-| Default appearance | Transparent appearance |
-|:------------------:|:----------------------:|
-| ![Default](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-default.png) | ![Transparent](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-transparent.png) |
-
-| Success | Custom method order |
-|:-------:|:-------------------:|
-| ![Success](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-success.png) | ![Method order](https://raw.githubusercontent.com/jantvb/easy-payments/master/docs/assets/easy-payments-method-order.png) |
-
-Laptop viewport capture: [`docs/assets/easy-payments-laptop.png`](docs/assets/easy-payments-laptop.png).
+> **npm note:** Relative image paths work on GitHub for the branch/tag you are viewing. Before `npm publish`, switch README screenshots to stable absolute URLs on the `v1.0.0` tag (see [docs/npm-readme-images.md](docs/npm-readme-images.md)). Do not publish until that step is done.
 
 ---
 
@@ -204,10 +242,13 @@ This repo’s [`server/`](server) NestJS app is a **reference example**, not a p
 
 | Area | Path |
 |------|------|
-| Library | [`projects/easy-payments`](https://github.com/jantvb/easy-payments/tree/master/projects/easy-payments) |
-| Angular demo | [`projects/demo`](https://github.com/jantvb/easy-payments/tree/master/projects/demo) |
-| Reference backend | [`server`](https://github.com/jantvb/easy-payments/tree/master/server) |
-| Documentation | [`docs`](https://github.com/jantvb/easy-payments/tree/master/docs) |
+| Library | [`projects/easy-payments`](projects/easy-payments) |
+| Angular demo | [`projects/demo`](projects/demo) |
+| Reference backend | [`server`](server) |
+| Documentation | [`docs`](docs) |
+| Issues | [GitHub Issues](https://github.com/jantvb/easy-payments/issues) |
+
+Public-facing release branch: **`release/1.0.0`** (see [docs/release-branch.md](docs/release-branch.md)).
 
 ---
 
