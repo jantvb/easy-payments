@@ -18,3 +18,4 @@ First stable public release of **Easy Payments**.
 - Normalized `PaymentResult` / `PaymentError` events
 - Angular demo playground (`projects/demo`)
 - NestJS reference backend (`server/`)
+- Optional project support via PayPal (`https://paypal.me/JoseVicente07`)
