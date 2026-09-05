@@ -1,6 +1,6 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
 import { provideHttpClient, withXhr } from '@angular/common/http';
-import { provideEasyPayments } from 'easy-payments';
+import { provideEasyPayments } from '@easy-payments/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [
