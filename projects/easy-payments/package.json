@@ -1,5 +1,5 @@
 {
-  "name": "@easypaymentsjs/angular",
+  "name": "@easy-payments/angular",
   "version": "1.0.0",
   "description": "A unified payment experience for Angular — Card, PayPal, Apple Pay, Google Pay, Klarna, and Affirm.",
   "license": "MIT",

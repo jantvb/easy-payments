@@ -31,10 +31,10 @@ You mainly:
 ## Installation
 
 ```bash
-npm install @easypaymentsjs/angular @stripe/stripe-js
+npm install @easy-payments/angular @stripe/stripe-js
 ```
 
-> The npm package name is `@easypaymentsjs/angular`. Until you publish v1.0.0, install from a packed build (`npm pack` of `dist/easy-payments`) or a local path.
+> The npm package name is `@easy-payments/angular`. Until you publish v1.0.0, install from a packed build (`npm pack` of `dist/easy-payments`) or a local path.
 
 Peer dependencies:
 
@@ -50,7 +50,7 @@ Peer dependencies:
 ```ts
 import { ApplicationConfig } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
-import { provideEasyPayments } from '@easypaymentsjs/angular';
+import { provideEasyPayments } from '@easy-payments/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -88,7 +88,7 @@ import {
   PaymentMethod,
   PaymentProduct,
   PaymentResult,
-} from '@easypaymentsjs/angular';
+} from '@easy-payments/angular';
 
 @Component({
   selector: 'app-checkout',
