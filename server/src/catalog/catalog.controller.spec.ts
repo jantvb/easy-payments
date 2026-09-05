@@ -12,11 +12,11 @@ describe('CatalogController', () => {
     controller = module.get(CatalogController);
   });
 
-  it('returns premium-plan with trusted unit amount 99.99', () => {
+  it('returns premium-plan with catalog unit amount 99.00', () => {
     expect(controller.getProduct('premium-plan')).toEqual(
       expect.objectContaining({
         id: 'premium-plan',
-        unitAmount: 99.99,
+        unitAmount: 99,
         currency: 'USD',
         name: 'Premium Plan',
       }),

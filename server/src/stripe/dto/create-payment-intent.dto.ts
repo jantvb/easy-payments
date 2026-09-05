@@ -16,9 +16,9 @@ import { Type, Transform } from 'class-transformer';
 /**
  * Matches the Angular easy-payments CreatePaymentRequest contract for Stripe.
  *
- * Trusted pricing: the demo server resolves unit amount from productId via the
- * server-side catalog. A client-supplied `amount` is accepted for backwards
- * compatibility with older demos but is IGNORED when the product is in the catalog.
+ * Pricing: the demo server resolves the unit amount from productId via the
+ * server-side catalog, and lets the playground override it with `amount` so any
+ * price can be exercised. Safe only because this server refuses non-test keys.
  */
 export class CreatePaymentIntentDto {
   @IsIn(['stripe'])

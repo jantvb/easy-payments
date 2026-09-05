@@ -70,6 +70,10 @@
               Affirm:
               {{ stripeConfigReady() ? 'configured via Stripe' : 'needs Stripe' }}
             </li>
+            <li>
+              Apple Pay:
+              {{ stripeConfigReady() ? 'configured via Stripe (tile only if ECE available)' : 'needs Stripe' }}
+            </li>
           </ul>
         }
         @if (modeMessage()) {
@@ -79,15 +83,13 @@
 
       <section>
         <h2>Product</h2>
-        @if (productFieldsLocked()) {
-          <p class="hint">
-            Real / Test Providers uses the NestJS trusted catalog. Displayed price matches the
-            charged amount (<code>premium-plan</code> → $99.99 USD). Amount/name/currency are
-            locked; quantity still applies to the trusted unit price.
-          </p>
-        } @else {
-          <p class="hint">Demo Mode: amounts are editable because no real payment is processed.</p>
-        }
+        <p class="hint">
+          Editable in every mode. In Real / Test Providers the NestJS catalog seeds these fields
+          (<code>premium-plan</code> → $99.00 USD) and the amount you set here is what the backend
+          charges for Stripe flows (card, Apple Pay, Google Pay). PayPal, Klarna and Affirm always
+          use the catalog price, since the library never sends them a browser amount.
+          Affirm also requires a checkout total of at least ~$35 before its tile appears.
+        </p>
         <label class="field">
           <span>Name</span>
           <input
@@ -156,6 +158,63 @@
             </label>
           }
         </fieldset>
+      </section>
+
+      <section>
+        <h2>Appearance</h2>
+        <p class="hint">
+          Public <code>[appearance]</code> input. Transparent removes the built-in checkout shell
+          so a merchant parent background can show through.
+        </p>
+        <fieldset class="choice-group">
+          <legend class="visually-hidden">Appearance</legend>
+          <label class="choice">
+            <input
+              type="radio"
+              name="appearance"
+              value="default"
+              [checked]="appearance() === 'default'"
+              (change)="setAppearance('default')"
+            />
+            <span>Default</span>
+          </label>
+          <label class="choice">
+            <input
+              type="radio"
+              name="appearance"
+              value="transparent"
+              [checked]="appearance() === 'transparent'"
+              (change)="setAppearance('transparent')"
+            />
+            <span>Transparent</span>
+          </label>
+        </fieldset>
+        @if (appearance() === 'transparent') {
+          <p class="hint">Preview parent background (demo only):</p>
+          <fieldset class="choice-group">
+            <legend class="visually-hidden">Transparent preview backdrop</legend>
+            <label class="choice">
+              <input
+                type="radio"
+                name="transparent-backdrop"
+                value="light"
+                [checked]="transparentPreviewBackdrop() === 'light'"
+                (change)="setTransparentPreviewBackdrop('light')"
+              />
+              <span>Light gradient</span>
+            </label>
+            <label class="choice">
+              <input
+                type="radio"
+                name="transparent-backdrop"
+                value="dark"
+                [checked]="transparentPreviewBackdrop() === 'dark'"
+                (change)="setTransparentPreviewBackdrop('dark')"
+              />
+              <span>Dark gradient</span>
+            </label>
+          </fieldset>
+        }
       </section>
 
       <section>
@@ -275,7 +334,16 @@
         }
       </div>
 
-      <div class="checkout-stage">
+      <div
+        class="checkout-stage"
+        [class.checkout-stage--transparent-demo]="appearance() === 'transparent'"
+        [class.checkout-stage--backdrop-light]="
+          appearance() === 'transparent' && transparentPreviewBackdrop() === 'light'
+        "
+        [class.checkout-stage--backdrop-dark]="
+          appearance() === 'transparent' && transparentPreviewBackdrop() === 'dark'
+        "
+      >
         <div class="checkout-stage__surface">
           @if (!checkoutReady()) {
             <p class="checkout-boot" role="status">
@@ -290,6 +358,7 @@
               [product]="product()"
               [methods]="methods()"
               [theme]="theme()"
+              [appearance]="appearance()"
               [maxWidth]="checkoutMaxWidth()"
               (success)="onPaymentSuccess($event)"
               (cancel)="onPaymentCancel($event)"

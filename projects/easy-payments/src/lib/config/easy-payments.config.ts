@@ -12,10 +12,22 @@ export interface PayPalProviderConfig {
   intent?: 'capture' | 'authorize';
 }
 
+/**
+ * Apple Pay via Stripe (Express Checkout Element).
+ * Opt in with `providers.applePay: {}` (or with optional display fields).
+ * No Apple Merchant ID / certificates in Angular — Stripe registers domains
+ * and handles merchant validation. Requires Stripe publishableKey + createPaymentUrl.
+ */
 export interface ApplePayProviderConfig {
-  merchantId: string;
+  /** Display name shown in the Apple Pay sheet (optional). */
   merchantName?: string;
+  /** ISO 3166-1 alpha-2 country for Payment Request / wallet (default US). */
   countryCode?: string;
+  /**
+   * @deprecated Not used for Stripe Apple Pay. Stripe creates/manages the Merchant ID.
+   * Kept optional for backward compatibility; ignored at runtime.
+   */
+  merchantId?: string;
 }
 
 export interface GooglePayProviderConfig {
@@ -103,7 +115,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<keyof EasyPaymentsProviderConfig, st
 export const PROVIDER_REQUIRED_FIELD_LABEL: Record<keyof EasyPaymentsProviderConfig, string> = {
   stripe: 'publishableKey missing',
   paypal: 'clientId missing',
-  applePay: 'merchantId missing',
+  applePay: 'configuration missing (requires Stripe publishableKey + createPaymentUrl)',
   googlePay: 'configuration missing (requires Stripe publishableKey for gateway)',
   klarna: 'configuration missing (requires Stripe publishableKey + klarnaCreatePaymentUrl)',
   affirm: 'configuration missing (requires Stripe publishableKey + affirmCreatePaymentUrl)',

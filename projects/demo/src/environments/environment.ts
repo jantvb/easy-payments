@@ -16,12 +16,12 @@ export const environment = {
    * Stripe publishable TEST key only (pk_test_...).
    * Never use sk_test_... or sk_live_... in Angular.
    */
-  stripePublishableKey: 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  stripePublishableKey: 'pk_test_xxxxxxxxx',
   /**
    * PayPal Sandbox Client ID only.
    * Never put PAYPAL_CLIENT_SECRET in Angular.
    */
-  paypalClientId: 'YOUR_PAYPAL_SANDBOX_CLIENT_ID_HERE',
+  paypalClientId: 'YOUR_PAYPAL_CLIENT_ID',
   /**
    * NestJS demo endpoint that creates a Stripe PaymentIntent.
    */

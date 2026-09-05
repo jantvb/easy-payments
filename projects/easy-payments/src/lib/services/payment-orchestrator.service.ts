@@ -19,6 +19,11 @@ export interface AvailablePaymentMethod {
   method: PaymentMethod;
   isMock: boolean;
   available: boolean;
+  /**
+   * Optional readiness detail (Apple Pay real ECE).
+   * `checking` = waiting for Express Checkout `ready` (tile hidden).
+   */
+  status?: 'checking' | 'available' | 'unavailable' | 'error' | 'indeterminate';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -96,9 +101,20 @@ export class PaymentOrchestratorService {
 
       try {
         const available = await adapter.isAvailable(context);
-        results.push({ method, isMock: adapter.isMock, available });
+        const status =
+          typeof (adapter as { getAvailabilityStatus?: () => string }).getAvailabilityStatus ===
+          'function'
+            ? ((
+                adapter as unknown as {
+                  getAvailabilityStatus: () => AvailablePaymentMethod['status'];
+                }
+              ).getAvailabilityStatus() ?? undefined)
+            : available
+              ? ('available' as const)
+              : ('unavailable' as const);
+        results.push({ method, isMock: adapter.isMock, available, status });
       } catch {
-        results.push({ method, isMock: adapter.isMock, available: false });
+        results.push({ method, isMock: adapter.isMock, available: false, status: 'error' });
       }
     }
 

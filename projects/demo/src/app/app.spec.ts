@@ -84,17 +84,25 @@ describe('App', () => {
 
   async function settle(fixture: ReturnType<typeof TestBed.createComponent<App>>): Promise<void> {
     fixture.detectChanges();
-    const deadline = Date.now() + 3000;
+    const deadline = Date.now() + 5000;
 
     while (!fixture.componentInstance.checkoutReady() && Date.now() < deadline) {
+      // Flush catalog before whenStable — pending HttpClientTesting requests can
+      // otherwise stall whenStable and prevent the flush loop from progressing.
       await flushCatalogIfPending();
-      await Promise.resolve();
-      await fixture.whenStable();
       fixture.detectChanges();
+      await Promise.resolve();
+      if (fixture.componentInstance.checkoutReady()) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
     }
 
     await flushCatalogIfPending();
     expect(fixture.componentInstance.checkoutReady()).toBeTrue();
+    // Avoid fixture.whenStable() here: Real mode mounts Stripe ECE for Apple Pay
+    // availability and can keep the zone unstable indefinitely in Karma.
+    fixture.detectChanges();
   }
 
   it('should create the demo playground', async () => {
@@ -156,27 +164,29 @@ describe('App', () => {
     expect(host.style.maxWidth).toBe('1100px');
   });
 
-  it('locks product pricing to trusted catalog values in Real mode', () => {
+  it('keeps product pricing editable in Real mode', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
 
-    app.productAmount.set('1');
-    expect(app.product().amount).toBe(1);
+    expect(app.product().amount).toBe(99);
 
     app.mode.set('real');
     app.trustedCatalogProduct.set({
       id: 'premium-plan',
       name: 'Premium Plan',
       description: 'One year subscription',
-      unitAmount: 99.99,
+      unitAmount: 99,
       currency: 'USD',
     });
 
-    expect(app.productFieldsLocked()).toBeTrue();
-    expect(app.product().amount).toBe(99.99);
+    expect(app.productFieldsLocked()).toBeFalse();
+    expect(app.product().id).toBe('premium-plan');
+    expect(app.product().amount).toBe(99);
     expect(app.product().currency).toBe('USD');
-    app.productAmount.set('0.01');
-    expect(app.product().amount).toBe(99.99);
+
+    // Edits in Real mode reach the product the checkout renders and charges.
+    app.productAmount.set('2.5');
+    expect(app.product().amount).toBe(2.5);
   });
 
   it('persists Real mode when selected', async () => {

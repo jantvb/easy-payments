@@ -93,7 +93,7 @@ describe('StripeService', () => {
     ).rejects.toThrow('Failed to create Stripe PaymentIntent.');
   });
 
-  it('uses trusted catalog price and ignores client amount', async () => {
+  it('falls back to the catalog price when the client amount is below the demo minimum', async () => {
     createMock.mockResolvedValue({
       id: 'pi_trusted',
       client_secret: 'pi_trusted_secret',
@@ -114,8 +114,36 @@ describe('StripeService', () => {
 
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: 9999,
+        amount: 9900,
         currency: 'usd',
+      }),
+    );
+  });
+
+  it('charges the playground amount when it is within the demo bounds', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_custom',
+      client_secret: 'pi_custom_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const service = module.get(StripeService);
+    await service.createPaymentIntent({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 3,
+      currency: 'USD',
+      amount: 2.5,
+    });
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 750,
+        currency: 'usd',
+        metadata: expect.objectContaining({ unitAmount: '2.5', catalogUnitAmount: '99' }),
       }),
     );
   });
@@ -198,7 +226,7 @@ describe('StripeService', () => {
 
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: 9999,
+        amount: 9900,
         currency: 'usd',
         payment_method_types: ['klarna'],
         metadata: expect.objectContaining({
@@ -251,7 +279,7 @@ describe('StripeService', () => {
 
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: 9999,
+        amount: 9900,
         currency: 'usd',
         payment_method_types: ['affirm'],
         metadata: expect.objectContaining({
@@ -272,14 +300,30 @@ describe('StripeService', () => {
       providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
     }).compile();
 
-    // Spy catalog via unknown product path isn't enough — use quantity that stays above
-    // catalog unit but we need a small product. Reject unsupported currency instead:
+    const service = module.get(StripeService);
+    // basic-plan is $29.99 — below Affirm's ~$35 presentment minimum.
+    await expect(
+      service.createAffirmPaymentIntent({
+        provider: 'affirm',
+        productId: 'basic-plan',
+        quantity: 1,
+        currency: 'USD',
+      }),
+    ).rejects.toThrow(/minimum of about \$35/);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects Affirm presentment currencies outside USD / CAD', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
     const service = module.get(StripeService);
     await expect(
       service.createAffirmPaymentIntent({
         provider: 'affirm',
         productId: 'premium-plan',
-        quantity: 1,
+        quantity: 40,
         currency: 'EUR',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);

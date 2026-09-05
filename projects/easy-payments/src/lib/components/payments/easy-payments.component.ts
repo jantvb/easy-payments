@@ -2,6 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  NgZone,
   computed,
   effect,
   inject,
@@ -9,6 +11,7 @@ import {
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import {
   CheckoutOptions,
@@ -17,13 +20,17 @@ import {
   PaymentProduct,
   PaymentResult,
   PaymentTheme,
+  ResolvedPaymentTheme,
 } from '../../models';
+import type { EasyPaymentsAppearance } from '../../models/easy-payments-appearance.model';
 import { PaymentError, normalizeError } from '../../errors/payment-error';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { ThemeService } from '../../themes/theme.service';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
 import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
+import { ApplePayAdapter } from '../../adapters/apple-pay/apple-pay.adapter';
+import { ApplePayPaymentComponent } from '../payment-methods/apple-pay-payment.component';
 import { KlarnaPaymentComponent } from '../payment-methods/klarna-payment.component';
 import { AffirmPaymentComponent } from '../payment-methods/affirm-payment.component';
 import { CheckoutProductSummaryComponent } from '../checkout/checkout-product-summary.component';
@@ -52,6 +59,7 @@ import {
     StripeCardPaymentComponent,
     PayPalPaymentComponent,
     GooglePayPaymentComponent,
+    ApplePayPaymentComponent,
     KlarnaPaymentComponent,
     AffirmPaymentComponent,
     CheckoutOutcomeComponent,
@@ -62,7 +70,9 @@ import {
   host: {
     '[class.ep-theme-light]': 'resolvedTheme() === "light"',
     '[class.ep-theme-dark]': 'resolvedTheme() === "dark"',
+    '[class.ep-appearance-transparent]': 'appearance() === "transparent"',
     '[attr.data-theme]': 'resolvedTheme()',
+    '[attr.data-appearance]': 'appearance()',
     '[style.--ep-checkout-max-width]': 'checkoutMaxWidthCss()',
     '[style.max-width.px]': 'effectiveMaxWidth()',
     role: 'region',
@@ -73,13 +83,26 @@ export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
   private readonly themeService = inject(ThemeService);
   private readonly stripeRedirectRecovery = inject(StripeRedirectRecoveryService);
+  private readonly applePayAdapter = inject(ApplePayAdapter);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
   private destroyed = false;
+  /** True while this component owns the availability ECE mount (Minimal-style host). */
+  private applePayBootstrapOwned = false;
+  private applePayBootstrapGeneration = 0;
+
+  private readonly applePayBootstrapHost =
+    viewChild<ElementRef<HTMLElement>>('applePayBootstrapHost');
 
   readonly product = input.required<PaymentProduct>();
   readonly methods = input<PaymentMethod[]>(['apple-pay', 'google-pay', 'paypal', 'card']);
   readonly checkout = input<CheckoutOptions>();
   readonly theme = input<PaymentTheme>('system');
+  /**
+   * Outer shell style. `default` draws the built-in card chrome;
+   * `transparent` removes it so a merchant parent background shows through.
+   */
+  readonly appearance = input<EasyPaymentsAppearance>('default');
   /**
    * Maximum checkout width in pixels. The component stays fluid (`width: 100%`)
    * up to this cap. Values are clamped to library-safe limits (320–1200).
@@ -174,6 +197,10 @@ export class EasyPaymentsComponent {
     this.visibleMethods().some((entry) => entry.method === 'google-pay' && !entry.isMock),
   );
 
+  readonly hasRealApplePayMethod = computed(() =>
+    this.visibleMethods().some((entry) => entry.method === 'apple-pay' && !entry.isMock),
+  );
+
   readonly hasRealKlarnaMethod = computed(() =>
     this.visibleMethods().some((entry) => entry.method === 'klarna' && !entry.isMock),
   );
@@ -199,6 +226,9 @@ export class EasyPaymentsComponent {
     if (entry.method === 'google-pay' && !entry.isMock) {
       return false;
     }
+    if (entry.method === 'apple-pay' && !entry.isMock) {
+      return false;
+    }
     if (entry.method === 'klarna' && !entry.isMock) {
       return false;
     }
@@ -211,6 +241,51 @@ export class EasyPaymentsComponent {
   readonly showStripePanel = computed(() => this.hasRealCardMethod());
   readonly showPayPalPanel = computed(() => this.hasRealPayPalMethod());
   readonly showGooglePayPanel = computed(() => this.hasRealGooglePayMethod());
+
+  /**
+   * Dedicated Minimal-ECE-style host: mounts while Apple Pay availability is unknown.
+   * Independent of tile/panel visibility so Stripe can fire `ready` on iOS Safari.
+   */
+  readonly showApplePayBootstrap = computed(() => {
+    if (!this.methods().includes('apple-pay')) {
+      return false;
+    }
+    // Reactive — recomputes when ApplePayAdapter finishes initialize().
+    if (!this.applePayAdapter.configured()) {
+      return false;
+    }
+    const entry = this.availableMethods().find((e) => e.method === 'apple-pay');
+    if (entry?.isMock) {
+      return false;
+    }
+    if (entry?.available === true || entry?.status === 'available') {
+      return false;
+    }
+    // Only stop after Stripe ready said applePay is not available (or load error).
+    if (entry?.status === 'unavailable' || entry?.status === 'error') {
+      return false;
+    }
+    return true;
+  });
+
+  /**
+   * Payment panel after Stripe reports Apple Pay available.
+   * Only mount when selected so ECE is not remounted into a clipped inactive panel.
+   */
+  /**
+   * Real Apple Pay renders Stripe's own button inside the methods list, so it is an
+   * express action rather than a selectable tile. Mock Apple Pay keeps the tile + panel.
+   */
+  readonly applePayExpressInList = computed(() => this.hasRealApplePayMethod());
+
+  readonly showApplePayPanel = computed(
+    () =>
+      this.showCheckoutForm() &&
+      this.hasRealApplePayMethod() &&
+      !this.applePayExpressInList() &&
+      this.selectedMethod() === 'apple-pay',
+  );
+
   readonly showKlarnaPanel = computed(() => this.hasRealKlarnaMethod());
   readonly showAffirmPanel = computed(() => this.hasRealAffirmMethod());
 
@@ -240,6 +315,13 @@ export class EasyPaymentsComponent {
       this.hasRealGooglePayMethod(),
   );
 
+  readonly applePayPanelActive = computed(
+    () =>
+      this.showCheckoutForm() &&
+      this.selectedMethod() === 'apple-pay' &&
+      this.hasRealApplePayMethod(),
+  );
+
   readonly klarnaPanelActive = computed(
     () =>
       this.showCheckoutForm() &&
@@ -257,6 +339,22 @@ export class EasyPaymentsComponent {
   constructor() {
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
+      this.applePayAdapter.setAvailabilityListener(null);
+    });
+
+    // Stripe ECE `ready` often fires outside NgZone — re-enter so tile filtering updates.
+    this.applePayAdapter.setAvailabilityListener(() => {
+      this.ngZone.run(() => {
+        if (this.destroyed) {
+          return;
+        }
+        const product = untracked(() => this.product());
+        const methods = untracked(() => this.methods());
+        const checkout = untracked(() => this.checkout());
+        void this.orchestrator.refreshAvailability(methods, product, checkout).catch(() => {
+          // Availability refresh errors are non-fatal for checkout UI.
+        });
+      });
     });
 
     // Avoid flashing fresh checkout when Stripe redirects back from Klarna/Affirm.
@@ -276,6 +374,14 @@ export class EasyPaymentsComponent {
       this.themeService.setTheme(this.theme());
     });
 
+    // Merchant removed apple-pay from allowed methods — drop any preserved ECE ready state.
+    effect(() => {
+      const allowsApplePay = this.methods().includes('apple-pay');
+      if (!allowsApplePay) {
+        untracked(() => this.applePayAdapter.clearAvailability());
+      }
+    });
+
     effect(() => {
       const product = this.product();
       const methods = this.methods();
@@ -290,7 +396,11 @@ export class EasyPaymentsComponent {
     });
 
     effect(() => {
-      const visible = this.visibleMethods();
+      const express = this.applePayExpressInList();
+      // Express methods own their own button and are never the selected tile.
+      const visible = this.visibleMethods().filter(
+        (entry) => !(express && entry.method === 'apple-pay'),
+      );
       const current = untracked(() => this.selectedMethod());
       const state = untracked(() => this.viewState());
 
@@ -310,6 +420,99 @@ export class EasyPaymentsComponent {
         this.selectedMethod.set(visible[0].method);
       }
     });
+
+    // Mount Apple Pay ECE once on an in-flow visible host (Minimal ECE parity).
+    effect((onCleanup) => {
+      const show = this.showApplePayBootstrap();
+      const hostRef = this.applePayBootstrapHost();
+      const product = this.product();
+
+      if (!show || !hostRef) {
+        return;
+      }
+
+      // Depend on the value of the session key, never on object identity: a remount
+      // before Stripe reports `ready` (~500ms) permanently keeps availability at
+      // `checking`, which is exactly what hides the tile.
+      const sessionKey = [
+        product.id,
+        product.quantity ?? 1,
+        product.currency,
+        product.amount,
+      ].join('|');
+      const host = hostRef.nativeElement;
+
+      if (
+        this.applePayBootstrapOwned &&
+        this.applePayBootstrapSessionKey === sessionKey &&
+        this.applePayBootstrapHostElement === host
+      ) {
+        return;
+      }
+
+      const generation = ++this.applePayBootstrapGeneration;
+
+      untracked(() => {
+        void this.mountApplePayBootstrap(
+          host,
+          this.product(),
+          this.checkout(),
+          this.resolvedTheme(),
+          generation,
+          sessionKey,
+        );
+      });
+
+      onCleanup(() => {
+        if (generation !== this.applePayBootstrapGeneration) {
+          return;
+        }
+        if (this.applePayBootstrapOwned) {
+          this.applePayAdapter.unmountExpressCheckout({ preserveAvailability: true });
+          this.applePayBootstrapOwned = false;
+          this.applePayBootstrapSessionKey = null;
+          this.applePayBootstrapHostElement = null;
+        }
+      });
+    });
+  }
+
+  /**
+   * Minimal-ECE-parity availability mount. Tile appears only after ready + applePay:true.
+   */
+  private applePayBootstrapSessionKey: string | null = null;
+  private applePayBootstrapHostElement: HTMLElement | null = null;
+
+  private async mountApplePayBootstrap(
+    host: HTMLElement,
+    product: PaymentProduct,
+    checkout: CheckoutOptions | undefined,
+    theme: ResolvedPaymentTheme,
+    generation: number,
+    sessionKey: string,
+  ): Promise<void> {
+    try {
+      this.applePayBootstrapOwned = true;
+      this.applePayBootstrapSessionKey = sessionKey;
+      this.applePayBootstrapHostElement = host;
+      await this.applePayAdapter.mountExpressCheckout(host, {
+        product,
+        checkout,
+        theme,
+        onSuccess: () => undefined,
+        onCancel: () => undefined,
+        onError: () => undefined,
+      });
+      if (this.destroyed || generation !== this.applePayBootstrapGeneration) {
+        return;
+      }
+    } catch {
+      if (generation === this.applePayBootstrapGeneration) {
+        this.applePayBootstrapOwned = false;
+        this.applePayBootstrapSessionKey = null;
+        this.applePayBootstrapHostElement = null;
+      }
+    }
   }
 
   /**
@@ -385,6 +588,10 @@ export class EasyPaymentsComponent {
     if (this.methodsLocked()) {
       return;
     }
+    if (method === 'apple-pay' && this.applePayExpressInList()) {
+      // The express button owns the interaction; there is no tile to select.
+      return;
+    }
     this.selectedMethod.set(method);
   }
 
@@ -429,6 +636,18 @@ export class EasyPaymentsComponent {
   }
 
   onGooglePayError(error: PaymentError): void {
+    this.handlePaymentError(error);
+  }
+
+  onApplePaySuccess(result: PaymentResult): void {
+    this.handleSuccess(result);
+  }
+
+  onApplePayCancel(result: PaymentResult): void {
+    this.handleCancelled(result);
+  }
+
+  onApplePayError(error: PaymentError): void {
     this.handlePaymentError(error);
   }
 

@@ -88,6 +88,14 @@
   width: 100%;
 }
 
+:host(.ep-appearance-transparent) .ep-checkout {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .ep-checkout__header {
   display: flex;
   flex-direction: column;
@@ -142,6 +150,32 @@
   white-space: nowrap;
   border: 0;
   pointer-events: none;
+}
+
+/**
+ * In-flow availability host (visible, not fixed under the iOS Safari toolbar).
+ * Sized to match the compact Express Checkout buttonHeight used in production.
+ */
+.ep-apay-bootstrap {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  min-height: 44px;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow: visible;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+}
+
+.ep-apay-bootstrap__host {
+  display: block;
+  width: 100%;
+  min-width: 140px;
+  max-width: 320px;
+  min-height: 44px;
+  height: 44px;
 }
 
 .ep-checkout__empty {

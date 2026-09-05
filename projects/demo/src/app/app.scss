@@ -264,6 +264,24 @@ h2 {
   border: 1px solid #e2e8f0;
 }
 
+.checkout-stage--transparent-demo {
+  padding: 28px;
+}
+
+.checkout-stage--backdrop-light {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(14, 165, 233, 0.18), transparent 45%),
+    linear-gradient(145deg, #f0f9ff 0%, #e0f2fe 40%, #f8fafc 100%);
+  border-color: #bae6fd;
+}
+
+.checkout-stage--backdrop-dark {
+  background:
+    radial-gradient(circle at 80% 10%, rgba(96, 165, 250, 0.22), transparent 42%),
+    linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0b1220 100%);
+  border-color: #334155;
+}
+
 .checkout-stage__surface {
   width: 100%;
   max-width: none;

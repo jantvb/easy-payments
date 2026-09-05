@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { getCatalogProduct } from '../catalog/product-catalog';
+import { getCatalogProduct, resolveUnitAmount } from '../catalog/product-catalog';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { CreateKlarnaPaymentIntentDto } from './dto/create-klarna-payment-intent.dto';
 import { CreateAffirmPaymentIntentDto } from './dto/create-affirm-payment-intent.dto';
@@ -75,16 +75,10 @@ export class StripeService {
       );
     }
 
-    // Trusted price: ignore any client-supplied amount.
-    if (typeof dto.amount === 'number' && dto.amount !== catalogProduct.unitAmount) {
-      this.logger.warn(
-        `Ignoring client amount ${dto.amount} for ${dto.productId}; using catalog ${catalogProduct.unitAmount}.`,
-      );
-    }
-
-    const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
+    const unitAmount = resolveUnitAmount(catalogProduct, dto.amount);
+    const unitAmountCents = Math.round(unitAmount * 100);
     if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
-      throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');
+      throw new BadRequestException('Amount is too small for Stripe (minimum ~0.50).');
     }
 
     const totalAmount = unitAmountCents * dto.quantity;
@@ -103,7 +97,8 @@ export class StripeService {
       productId: dto.productId,
       quantity: String(dto.quantity),
       source: 'easy-payments-demo',
-      trustedUnitAmount: String(catalogProduct.unitAmount),
+      unitAmount: String(unitAmount),
+      catalogUnitAmount: String(catalogProduct.unitAmount),
     };
 
     if (dto.metadata) {
@@ -183,6 +178,7 @@ export class StripeService {
       );
     }
 
+    // Klarna requests carry no client amount by contract: catalog price only.
     const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
     if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
       throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');
@@ -290,6 +286,7 @@ export class StripeService {
       );
     }
 
+    // Affirm requests carry no client amount by contract: catalog price only.
     const unitAmountCents = Math.round(catalogProduct.unitAmount * 100);
     if (!Number.isFinite(unitAmountCents) || unitAmountCents < 50) {
       throw new BadRequestException('Catalog amount is too small for Stripe (minimum ~0.50).');

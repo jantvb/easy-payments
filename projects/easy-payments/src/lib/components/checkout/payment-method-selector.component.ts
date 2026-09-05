@@ -2,10 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  TemplateRef,
+  computed,
   input,
   output,
   viewChildren,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { PaymentMethod, ResolvedPaymentTheme } from '../../models';
 import { AvailablePaymentMethod } from '../../services/payment-orchestrator.service';
 import { PaymentMethodTileComponent } from './payment-method-tile.component';
@@ -13,7 +16,7 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
 @Component({
   selector: 'easy-payment-method-selector',
   standalone: true,
-  imports: [PaymentMethodTileComponent],
+  imports: [PaymentMethodTileComponent, NgTemplateOutlet],
   template: `
     <div class="ep-selector">
       <p class="ep-selector__label" id="ep-payment-methods-label">Payment methods</p>
@@ -24,14 +27,20 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
         (keydown)="onKeydown($event)"
       >
         @for (entry of methods(); track entry.method) {
-          <easy-payment-method-tile
-            [method]="entry.method"
-            [theme]="theme()"
-            [isMock]="entry.isMock"
-            [selected]="entry.method === selected()"
-            [disabled]="disabled()"
-            (select)="onTileSelect(entry.method)"
-          />
+          @if (expressTemplates()[entry.method]; as expressTemplate) {
+            <div class="ep-selector__express">
+              <ng-container [ngTemplateOutlet]="expressTemplate" />
+            </div>
+          } @else {
+            <easy-payment-method-tile
+              [method]="entry.method"
+              [theme]="theme()"
+              [isMock]="entry.isMock"
+              [selected]="entry.method === selected()"
+              [disabled]="disabled()"
+              (select)="onTileSelect(entry.method)"
+            />
+          }
         }
       </div>
     </div>
@@ -63,6 +72,31 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
         grid-template-columns: minmax(0, 1fr);
       }
 
+      /*
+        Express slot (Apple Pay ECE): same cell footprint as a tile so the method
+        keeps list proportions, but renders Stripe's own button (not a fake tile).
+      */
+      .ep-selector__express {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        height: 88px;
+        min-height: 88px;
+        padding: 12px 10px;
+        border-radius: var(--ep-radius-md, 10px);
+        border: 1px solid var(--ep-border, #e2e8f0);
+        background: var(--ep-surface, #ffffff);
+      }
+
+      .ep-selector__express > * {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+      }
+
       /* ~2 usable tiles (≥ ~112px each + gap + padding) */
       @container ep-checkout (min-width: 360px) {
         .ep-selector__grid {
@@ -92,9 +126,17 @@ export class PaymentMethodSelectorComponent {
   readonly selected = input<PaymentMethod | null>(null);
   readonly theme = input<ResolvedPaymentTheme>('light');
   readonly disabled = input(false);
+  /** Methods that render their own provider button in place of a selectable tile. */
+  readonly expressTemplates = input<Partial<Record<PaymentMethod, TemplateRef<unknown>>>>({});
   readonly methodSelect = output<PaymentMethod>();
 
   private readonly tiles = viewChildren(PaymentMethodTileComponent, { read: ElementRef });
+
+  /** Express slots are not radio options, so they stay out of keyboard navigation. */
+  private readonly selectableMethods = computed(() => {
+    const express = this.expressTemplates();
+    return this.methods().filter((entry) => !express[entry.method]);
+  });
 
   onTileSelect(method: PaymentMethod): void {
     if (this.disabled()) {
@@ -107,7 +149,7 @@ export class PaymentMethodSelectorComponent {
     if (this.disabled()) {
       return;
     }
-    const items = this.methods();
+    const items = this.selectableMethods();
     if (items.length === 0) {
       return;
     }

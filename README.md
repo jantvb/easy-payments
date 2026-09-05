@@ -6,20 +6,32 @@ The public API is designed so mock/demo payments and real Stripe card payments u
 
 ## Current status
 
-**Phase 6 — Real Affirm (via Stripe Payment Element) + Klarna + Google Pay TEST + PayPal Sandbox + Stripe card TEST.**
+**Phase 7 — Real Apple Pay (via Stripe Express Checkout Element) + Affirm + Klarna + Google Pay TEST + PayPal Sandbox + Stripe card TEST.**
 
 - Library foundation remains intact (ordering, themes, mocks, validation, events).
 - **Real Stripe card** — Payment Element + PaymentIntent.
 - **Real PayPal** — official Buttons + Orders v2 create/capture.
 - **Real Google Pay TEST** — official `pay.js` + `PaymentsClient` + `createButton`, tokenized through Stripe `PAYMENT_GATEWAY`.
+- **Real Apple Pay** — Stripe Express Checkout Element (Apple Pay only) + PaymentIntent. No Apple Merchant ID / certificates in Angular.
 - **Real Klarna** — Stripe Payment Element + Klarna-only PaymentIntent (`payment_method_types: ['klarna']`). No direct Klarna SDK.
 - **Real Affirm** — Stripe Payment Element + Affirm-only PaymentIntent (`payment_method_types: ['affirm']`). No Affirm.js / Affirm API secrets in Angular.
 - Shared Stripe redirect recovery for Klarna + Affirm (`ep_method` + `retrievePaymentIntent`).
-- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay/Klarna/Affirm charges.
+- NestJS demo backend provides trusted catalog pricing for Stripe/PayPal/Google Pay/Klarna/Affirm/Apple Pay charges.
 - **Mock mode still does not process real payments.**
-- Real Apple Pay is **not** implemented yet.
+- Wallet tiles in Real / Test mode appear only when official capability checks succeed (Apple: Express Checkout Element `ready.availablePaymentMethods.applePay`; Google: `isReadyToPay()`).
 
-Angular never accepts Stripe secret keys, PayPal Client Secrets, Klarna API secrets, or Affirm API secrets.
+Angular never accepts Stripe secret keys, PayPal Client Secrets, Klarna API secrets, Affirm API secrets, or Apple merchant certificates.
+
+### Support matrix
+
+| Method | Status |
+| --- | --- |
+| Card | Real via Stripe |
+| PayPal | Real via PayPal |
+| Apple Pay | Real via Stripe when available |
+| Google Pay | Real via Stripe when available |
+| Klarna | Real via Stripe |
+| Affirm | Real via Stripe |
 
 ## Installation
 
@@ -82,7 +94,7 @@ product = {
   id: 'premium-plan',
   name: 'Premium Plan',
   description: 'One year subscription',
-  amount: 99.99,
+  amount: 99,
   currency: 'USD',
   quantity: 1,
 };
@@ -196,13 +208,15 @@ methods: PaymentMethod[] = ['affirm', 'card'];
 
 Enable **Affirm** in the Stripe Dashboard (TEST → Settings → Payment methods). Complete any Affirm onboarding Stripe requires. Angular reuses `pk_test_...`; Nest uses `sk_test_...`. No Affirm public/private API keys in the browser.
 
-Demo product `premium-plan` ($99.99 USD) is within Affirm’s typical US presentment range (~$35–$30,000).
+Demo product `premium-plan` is $99.00 USD, within Affirm’s typical US presentment range (~$35–$30,000). Lowering the playground amount below ~$35 hides the Affirm tile (see AffirmAdapter eligibility).
 
 ## Backend contract (provider-aware)
 
 | Provider | Create | Capture / confirm |
 | --- | --- | --- |
-| Stripe | `POST /api/payments/create` | Payment Element confirms client-side |
+| Stripe (card) | `POST /api/payments/create` | Payment Element confirms client-side |
+| Apple Pay (via Stripe) | `POST /api/payments/create` | Express Checkout Element confirms client-side |
+| Google Pay (via Stripe) | `POST /api/payments/create` | Google Pay button + Stripe confirm |
 | PayPal | `POST /api/payments/paypal/create` | `POST /api/payments/paypal/capture` |
 | Klarna (via Stripe) | `POST /api/payments/klarna/create` | Payment Element confirms client-side |
 | Affirm (via Stripe) | `POST /api/payments/affirm/create` | Payment Element confirms client-side |
@@ -213,9 +227,9 @@ This scales cleanly to future providers without forcing unrelated frontend conve
 
 The browser may send `productId` + `quantity` (+ optional currency hint). The NestJS demo resolves:
 
-`premium-plan` → **99.99 USD** (unit)
+`premium-plan` → **99.00 USD** (unit)
 
-Changing the displayed amount in DevTools does **not** change the charged amount.
+The demo backend lets the playground override that unit price via `amount` (bounded to 0.50–999,999) so any price can be exercised; it is safe only because the server refuses non-`sk_test_` keys. PayPal, Klarna and Affirm always use the catalog price, since the library never sends them a browser amount. **Production backends must delete `resolveUnitAmount` and always charge the catalog price.**
 
 ## Stripe integration
 
@@ -262,12 +276,12 @@ The browser is not trusted for the final charge amount. Easy Payments sends prod
   productId: 'premium-plan',
   quantity: 1,
   currency: 'USD',
-  amount: 99.99, // unit amount for local demos — production must re-price server-side
+  amount: 99, // unit amount for local demos — production must re-price server-side
   metadata?: Record<string, string>
 }
 ```
 
-`amount` may still be sent for display/back-compat. **The NestJS demo ignores it** and uses the trusted catalog price for `productId`. Production merchants must also re-price server-side.
+`amount` is the browser's requested unit price. **The NestJS demo honours it within 0.50–999,999** so the playground can test any price, and falls back to the catalog price otherwise. Production merchants must re-price server-side and ignore this field.
 
 ### Expected backend response
 
@@ -494,6 +508,90 @@ paypalCaptureOrderUrl: 'http://localhost:3000/api/payments/paypal/capture',
 - Follow [PayPal brand guidelines](https://www.paypal.com/us/webapps/mpp/logo-center) for Buttons
 - NestJS in this repo is a **reference** backend — merchants may implement the same contract on any stack
 
+## Apple Pay integration (via Stripe)
+
+### Architecture decision
+
+| Approach | Complexity | Credentials | Fit |
+| --- | --- | --- | --- |
+| Direct Apple Pay on the Web | High | Apple Developer account, Merchant ID, Merchant Identity cert, Payment Processing cert, merchant validation backend, processor for the token | Heavy for library consumers |
+| **Stripe Express Checkout Element (selected)** | Low | Stripe keys + Payment Method Domain registration | Matches Google Pay / Klarna simplicity |
+| Hybrid Apple UI + Stripe token | Medium | Still needs Apple merchant validation + Stripe | No benefit over Stripe ECE |
+
+**SELECTED:** Stripe Express Checkout Element with **Apple Pay only** when the `apple-pay` method is selected.
+
+**Why:** Stripe handles Apple merchant validation and Merchant ID. Consumers reuse `pk_test_...` / `sk_test_...`. Official Apple Pay button. Capability via the **real** Express Checkout Element `ready` event (`availablePaymentMethods.applePay`) — one ECE instance for availability and payment (no PaymentIntent on mount, no UA sniffing, no hidden probe). Trusted catalog via existing `POST /api/payments/create`. ECE is scoped so Google Pay is not duplicated inside the Apple Pay panel.
+
+Docs: [Stripe Apple Pay (web)](https://docs.stripe.com/apple-pay?platform=web), [Express Checkout Element](https://docs.stripe.com/elements/express-checkout-element), [Payment method domains](https://docs.stripe.com/payments/payment-methods/pmd-registration).
+
+### What merchants must configure
+
+1. Stripe account with card / Apple Pay eligible.
+2. Register **every web domain** that shows Apple Pay: Stripe Dashboard → **Settings → Payment methods → Domains** (or Payment Method Domains API). Stripe registers with Apple for you — **do not** follow Apple’s merchant validation / CSR flow.
+3. HTTPS in production (and typically for real device testing via tunnel). `localhost` may work in Stripe TEST depending on browser/device.
+4. Same Angular `publishableKey` + Nest `STRIPE_SECRET_KEY` as card/Google Pay.
+5. Opt in: `providers.applePay: {}` (optional `merchantName`, `countryCode`). **No Apple Merchant ID required.**
+
+### Runtime visibility
+
+| Mode | Behavior |
+| --- | --- |
+| Demo | Mock Apple Pay may appear (no real capability check) |
+| Real / Test | Official Apple Pay button renders **inline** in the payment-method list after the Express Checkout Element fires `ready` with `availablePaymentMethods.applePay === true` (one ECE lifecycle; no PaymentIntent on mount, no user-agent sniffing, no hidden probe). |
+
+If unavailable → **omit** the tile (not “Unavailable”). Windows Chrome typically has no Apple Pay — that is expected.
+
+Google Pay remains independent (`isReadyToPay()`). Both can show together.
+
+### Configure Angular
+
+```ts
+provideEasyPayments({
+  enableMockMode: false,
+  providers: {
+    stripe: { publishableKey: environment.stripePublishableKey },
+    applePay: {
+      merchantName: 'Your Store',
+      countryCode: 'US',
+    },
+  },
+  backend: {
+    createPaymentUrl: '/api/payments/create',
+  },
+});
+```
+
+```ts
+methods: PaymentMethod[] = ['card', 'paypal', 'apple-pay', 'google-pay', 'klarna', 'affirm'];
+```
+
+### Flow
+
+1. Capability check (no PaymentIntent).
+2. Customer selects **Apple Pay** → official Express Checkout Apple Pay button.
+3. On authorize → Nest creates trusted PaymentIntent (`card`) → `stripe.confirmPayment` with Elements.
+4. Success → generic confirmation **Paid with Apple Pay** (`method: 'apple-pay'`, `provider: 'applePay'`, `metadata.processor: 'stripe'`).
+
+### Manual testing
+
+**Windows Chrome:** Real mode → Apple Pay tile absent; other methods work.
+
+**Mac Safari / supported browser:**
+
+1. Add a card to Wallet / Apple Pay.
+2. Register domain (or use Stripe TEST + localhost if supported in your environment).
+3. Real / Test Providers → select Apple Pay → Buy with Apple Pay → authorize.
+4. Stripe TEST: use a **real card in Wallet**; Stripe does not charge it for test keys (see Stripe Apple Pay test docs). You cannot add Stripe test card numbers to Wallet.
+5. Cancel sheet → cancelled. Continue → fresh attempt.
+
+**iPhone:** Serve the demo over HTTPS (e.g. tunnel to your Nest/Angular host). Same domain must be registered. Open in Safari (or supported iOS browser per Stripe’s matrix).
+
+### Production
+
+- Register live domains in Stripe live mode.
+- Verify payments with Stripe webhooks / server-side PaymentIntent status (browser success is UX only).
+- Keep Card Payment Element wallets disabled (`applePay: 'never'`) so Apple Pay stays first-class via the dedicated tile.
+
 ## Google Pay integration
 
 ### Architecture decision
@@ -560,7 +658,7 @@ PaymentIntents are created **only on button click**, never on theme changes or m
 
 ### Trusted pricing
 
-Real / Test Providers mode loads Nest catalog (`premium-plan` → **99.99 USD**).
+Real / Test Providers mode seeds the form from the Nest catalog (`premium-plan` → **99.00 USD**) and stays editable.
 
 Displayed checkout total = Google Pay sheet total = Stripe charge total.
 
@@ -745,7 +843,7 @@ Presence of `providers.affirm` (even `{}`) opts Affirm in. Runtime also requires
 3. Demo env: `pk_test_...` + `affirmCreatePaymentUrl`.
 4. **Real / Test Providers** → **Affirm**.
 5. Complete Affirm sandbox. If prompted for SSN last-four, Stripe/Affirm docs suggest **`0000`** or **`5678`**.
-6. Expect: Processing → Payment successful (Paid with Affirm, $99.99 USD).
+6. Expect: Processing → Payment successful (Paid with Affirm, at whatever total you set above ~$35 USD).
 7. Cancellation: close Affirm window → PaymentIntent often returns to `requires_payment_method` → error/retry (not silent checkout).
 8. Production must verify final state with Stripe webhooks — browser success is not an accounting system.
 
@@ -822,6 +920,41 @@ Easy Payments is fluid within its parent (`width: 100%`). Use `[maxWidth]` to co
 
 Do not micro-manage tile columns; only set overall checkout size.
 
+## Appearance
+
+Optional outer shell style. Independent of `theme`.
+
+| Value | Behavior |
+| --- | --- |
+| `default` *(omitted)* | Built-in Easy Payments card: surface, border, radius, padding, shadow |
+| `transparent` | Removes that outer shell so a merchant parent background shows through |
+
+```html
+<!-- Backward compatible — same as appearance="default" -->
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  [maxWidth]="640"
+  theme="system">
+</easy-payments>
+
+<!-- Opt-in: blend into the merchant's own card / modal / page -->
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  [maxWidth]="640"
+  theme="system"
+  appearance="transparent"
+  (success)="onPaymentSuccess($event)"
+  (cancel)="onPaymentCancel($event)"
+  (error)="onPaymentError($event)">
+</easy-payments>
+```
+
+- `appearance` and `theme` are separate: any theme works with either appearance
+- Transparent mode does **not** strip internal payment UI (method tiles, Stripe fields, official wallet buttons, outcomes)
+- Existing integrations that omit `appearance` keep the current built-in container
+
 ## Themes
 
 `light` · `dark` · `system` (`prefers-color-scheme`, live updates).
@@ -872,7 +1005,7 @@ See `projects/easy-payments/src/lib/assets/payment-methods/SOURCES.md`.
 3. ~~Google Pay~~ (Phase 4 — TEST via Stripe gateway)
 4. ~~Klarna~~ (Phase 5 — via Stripe Payment Element)
 5. ~~Affirm~~ (Phase 6 — via Stripe Payment Element)
-6. Apple Pay
+6. ~~Apple Pay~~ (Phase 7 — via Stripe Express Checkout Element)
 7. Samsung Pay — under consideration for a future release
 
 ## Building & testing

@@ -76,3 +76,7 @@ export type { ProductValidationResult } from './lib/validators/product.validator
 
 export { PaymentOrchestratorService } from './lib/services/payment-orchestrator.service';
 export type { AvailablePaymentMethod } from './lib/services/payment-orchestrator.service';
+
+export { ApplePayAdapter } from './lib/adapters/apple-pay/apple-pay.adapter';
+export type { ApplePayAvailabilityState } from './lib/adapters/apple-pay/apple-pay.types';
+export type { EasyPaymentsAppearance } from './lib/models/easy-payments-appearance.model';

@@ -15,17 +15,46 @@
 
     <easy-checkout-product-summary [product]="product()" />
 
+    <!--
+      IN-FLOW Minimal-ECE host (not fixed under Safari chrome).
+      Stripe only fires ready+applePay on iPhone when this host is on-screen.
+      When ready succeeds, the Apple Pay tile appears in the list below and this host is removed.
+    -->
+    @if (showApplePayBootstrap()) {
+      <div class="ep-apay-bootstrap" aria-hidden="true">
+        <div #applePayBootstrapHost class="ep-apay-bootstrap__host"></div>
+      </div>
+    }
+
     @if (visibleMethods().length === 0) {
       <p class="ep-checkout__empty" role="status">
         No payment methods are available for this configuration.
       </p>
     } @else {
+      <!--
+        Apple Pay renders Stripe's own button in its list position: tapping it opens
+        the Apple Pay sheet directly instead of selecting a tile and a second panel.
+      -->
+      <ng-template #applePayExpress>
+        <easy-apple-pay-payment
+          [product]="product()"
+          [checkout]="checkout()"
+          [resolvedTheme]="resolvedTheme()"
+          [compact]="true"
+          (success)="onApplePaySuccess($event)"
+          (cancel)="onApplePayCancel($event)"
+          (error)="onApplePayError($event)"
+          (busyChange)="onProviderBusy($event)"
+        />
+      </ng-template>
+
       <section class="ep-checkout__methods" aria-label="Payment method selection">
         <easy-payment-method-selector
           [methods]="visibleMethods()"
           [selected]="selectedMethod()"
           [theme]="resolvedTheme()"
           [disabled]="methodsLocked()"
+          [expressTemplates]="applePayExpressInList() ? { 'apple-pay': applePayExpress } : {}"
           (methodSelect)="selectMethod($event)"
         />
       </section>
@@ -94,6 +123,26 @@
             (success)="onGooglePaySuccess($event)"
             (cancel)="onGooglePayCancel($event)"
             (error)="onGooglePayError($event)"
+            (busyChange)="onProviderBusy($event)"
+          />
+        </div>
+      }
+    }
+
+    @if (showApplePayPanel()) {
+      @for (key of [providerMountKey()]; track key) {
+        <div
+          class="ep-checkout__panel"
+          [class.ep-checkout__panel--inactive]="!applePayPanelActive()"
+          [attr.aria-hidden]="!applePayPanelActive()"
+        >
+          <easy-apple-pay-payment
+            [product]="product()"
+            [checkout]="checkout()"
+            [resolvedTheme]="resolvedTheme()"
+            (success)="onApplePaySuccess($event)"
+            (cancel)="onApplePayCancel($event)"
+            (error)="onApplePayError($event)"
             (busyChange)="onProviderBusy($event)"
           />
         </div>

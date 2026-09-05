@@ -14,6 +14,7 @@ import {
   PaymentTheme,
   PAYMENT_METHOD_LABELS,
   isAnyStripeBnplReturnAttempt,
+  type EasyPaymentsAppearance,
 } from 'easy-payments';
 import { environment } from '../environments/environment';
 import {
@@ -30,6 +31,9 @@ interface MethodRow {
 /** Demo = all mocks. Real = every configured TEST/Sandbox provider becomes live. */
 type DemoMode = PersistedDemoMode;
 
+/** Preview backdrop shown behind checkout when appearance is transparent. */
+type TransparentPreviewBackdrop = 'light' | 'dark';
+
 /** Mirrors NestJS CatalogProduct — display must match charged amount in Real mode. */
 interface TrustedCatalogProduct {
   id: string;
@@ -43,7 +47,7 @@ const DEFAULT_PRODUCT: PaymentProduct = {
   id: 'premium-plan',
   name: 'Premium Plan',
   description: 'One year subscription',
-  amount: 99.99,
+  amount: 99,
   currency: 'USD',
   quantity: 1,
 };
@@ -76,6 +80,9 @@ export class App {
   readonly productCurrency = signal(DEFAULT_PRODUCT.currency);
   readonly productQuantity = signal(String(DEFAULT_PRODUCT.quantity ?? 1));
   readonly theme = signal<PaymentTheme>('system');
+  readonly appearance = signal<EasyPaymentsAppearance>('default');
+  /** Demo-only: parent backdrop so transparent appearance is visible. */
+  readonly transparentPreviewBackdrop = signal<TransparentPreviewBackdrop>('light');
   /** Demo-only control for <easy-payments [maxWidth]>. */
   readonly checkoutMaxWidth = signal(640);
   readonly methodRows = signal<MethodRow[]>(DEFAULT_METHODS.map((row) => ({ ...row })));
@@ -93,22 +100,12 @@ export class App {
   readonly trustedCatalogProduct = signal<TrustedCatalogProduct | null>(null);
 
   readonly product = computed<PaymentProduct>(() => {
-    const trusted = this.trustedCatalogProduct();
     const quantity = Number(this.productQuantity());
 
-    if (this.mode() === 'real' && trusted) {
-      return {
-        id: trusted.id,
-        name: trusted.name,
-        description: trusted.description,
-        amount: trusted.unitAmount,
-        currency: trusted.currency,
-        quantity: Number.isFinite(quantity) && quantity >= 1 ? quantity : 1,
-      };
-    }
-
+    // The catalog seeds the form when Real mode loads; from there the form wins so
+    // the price shown in the checkout is the price the backend is asked to charge.
     return {
-      id: 'premium-plan',
+      id: this.trustedCatalogProduct()?.id ?? 'premium-plan',
       name: this.productName(),
       description: this.productDescription(),
       amount: Number(this.productAmount()),
@@ -142,7 +139,11 @@ export class App {
     () => this.stripeConfigReady() || this.paypalConfigReady(),
   );
 
-  readonly productFieldsLocked = computed(() => this.mode() === 'real');
+  /**
+   * The playground stays editable in Real / Test Providers: the demo backend honours
+   * the requested amount for Stripe-based flows (card, Apple Pay, Google Pay).
+   */
+  readonly productFieldsLocked = computed(() => false);
 
   readonly returningFromProvider = computed(
     () => typeof window !== 'undefined' && isAnyStripeBnplReturnAttempt(),
@@ -213,6 +214,14 @@ export class App {
     this.theme.set(theme);
   }
 
+  setAppearance(appearance: EasyPaymentsAppearance): void {
+    this.appearance.set(appearance);
+  }
+
+  setTransparentPreviewBackdrop(backdrop: TransparentPreviewBackdrop): void {
+    this.transparentPreviewBackdrop.set(backdrop);
+  }
+
   setCheckoutMaxWidth(value: number | string): void {
     const numeric = typeof value === 'number' ? value : Number(value);
     this.checkoutMaxWidth.set(Number.isFinite(numeric) ? numeric : 640);
@@ -265,6 +274,12 @@ export class App {
               },
               googlePay: {
                 environment: 'TEST' as const,
+                merchantName: 'Easy Payments Demo',
+                countryCode: 'US',
+              },
+              // Apple Pay via Stripe Express Checkout Element (same pk_test / sk_test).
+              // Tile only appears when Express Checkout availablepaymentmethodschange reports Apple Pay.
+              applePay: {
                 merchantName: 'Easy Payments Demo',
                 countryCode: 'US',
               },

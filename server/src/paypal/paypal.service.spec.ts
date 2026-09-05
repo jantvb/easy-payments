@@ -96,7 +96,7 @@ describe('PayPalService', () => {
     expect(createCall[0]).toContain('/v2/checkout/orders');
     const body = JSON.parse(createCall[1].body as string);
     expect(body.intent).toBe('CAPTURE');
-    expect(body.purchase_units[0].amount.value).toBe('199.98');
+    expect(body.purchase_units[0].amount.value).toBe('198.00');
     expect(body.purchase_units[0].amount.currency_code).toBe('USD');
   });
 

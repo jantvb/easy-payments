@@ -73,7 +73,9 @@ export class EasyPaymentsConfigValidator {
       }
       case 'applePay': {
         const cfg = providerConfig as EasyPaymentsProviderConfig['applePay'];
-        if (!cfg?.merchantId?.trim()) {
+        // Presence of the applePay config object opts in.
+        // Stripe publishableKey + createPaymentUrl are enforced by ApplePayAdapter.
+        if (!cfg || typeof cfg !== 'object') {
           return { provider, status: 'invalid', message: required };
         }
         break;

@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { signal } from '@angular/core';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { MockPaymentController } from '../../adapters/mock/mock-payment.controller';
 import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
@@ -7,6 +8,8 @@ import { BrowserGuard } from '../../utils/browser-guard';
 import { PaymentError } from '../../errors/payment-error';
 import { PaymentResult } from '../../models';
 import { FakeBrowserGuard, SAMPLE_PRODUCT } from '../../testing/test-doubles';
+import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
+import { ApplePayAdapter } from '../../adapters/apple-pay/apple-pay.adapter';
 import { EasyPaymentsComponent } from './easy-payments.component';
 
 async function render(fixture: ComponentFixture<EasyPaymentsComponent>): Promise<void> {
@@ -161,6 +164,181 @@ describe('EasyPaymentsComponent', () => {
     expect(fixture.nativeElement.style.maxWidth).toBe('640px');
   });
 
+  it('keeps a Minimal-style Apple Pay bootstrap host while availability is unknown', async () => {
+    const applePay = TestBed.inject(ApplePayAdapter);
+    const configured = signal(true);
+    spyOn(applePay, 'isConfigured').and.returnValue(true);
+    Object.defineProperty(applePay, 'configured', {
+      configurable: true,
+      get: () => configured.asReadonly(),
+    });
+    spyOn(applePay, 'mountExpressCheckout').and.returnValue(Promise.resolve());
+    spyOn(applePay, 'unmountExpressCheckout');
+
+    fixture.componentRef.setInput('methods', ['card', 'apple-pay']);
+    await render(fixture);
+
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    (
+      orchestrator as unknown as {
+        _availableMethods: { set: (value: unknown) => void };
+      }
+    )._availableMethods.set([
+      { method: 'card', isMock: true, available: true, status: 'available' },
+      { method: 'apple-pay', isMock: false, available: false, status: 'checking' },
+    ]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.showApplePayBootstrap()).toBeTrue();
+    expect(fixture.componentInstance.hasRealApplePayMethod()).toBeFalse();
+    expect(tileLabels(fixture).some((label) => label.startsWith('Apple Pay'))).toBeFalse();
+
+    const bootstrap = fixture.nativeElement.querySelector(
+      '.ep-apay-bootstrap__host',
+    ) as HTMLElement | null;
+    expect(bootstrap).toBeTruthy();
+  });
+
+  it('renders the Apple Pay express button in its list position once available', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'apple-pay', 'paypal']);
+    await render(fixture);
+
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    (
+      orchestrator as unknown as {
+        _availableMethods: { set: (value: unknown) => void };
+      }
+    )._availableMethods.set([
+      { method: 'card', isMock: true, available: true, status: 'available' },
+      { method: 'apple-pay', isMock: false, available: true, status: 'available' },
+      { method: 'paypal', isMock: true, available: true, status: 'available' },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.hasRealApplePayMethod()).toBeTrue();
+    expect(fixture.componentInstance.showApplePayBootstrap()).toBeFalse();
+    expect(fixture.componentInstance.applePayExpressInList()).toBeTrue();
+
+    // Apple Pay is no longer a selectable tile: Stripe's own button takes that cell.
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual([
+      'Card',
+      'PayPal',
+    ]);
+
+    const cells = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '.ep-selector__grid > easy-payment-method-tile, .ep-selector__grid > .ep-selector__express',
+      ),
+    );
+    expect(cells.length).toBe(3);
+    expect(cells[1].classList.contains('ep-selector__express')).toBeTrue();
+    expect(cells[1].querySelector('easy-apple-pay-payment')).toBeTruthy();
+
+    // Selecting it is a no-op; the express button owns the interaction.
+    fixture.componentInstance.selectMethod('apple-pay');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selectedMethod()).toBe('card');
+    expect(fixture.componentInstance.showApplePayPanel()).toBeFalse();
+  });
+
+  it('hides Apple Pay when Stripe availability is false (no empty grid cell)', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'apple-pay', 'paypal']);
+    await render(fixture);
+
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    (
+      orchestrator as unknown as {
+        _availableMethods: { set: (value: unknown) => void };
+      }
+    )._availableMethods.set([
+      { method: 'card', isMock: true, available: true, status: 'available' },
+      { method: 'apple-pay', isMock: false, available: false, status: 'unavailable' },
+      { method: 'paypal', isMock: true, available: true, status: 'available' },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.hasRealApplePayMethod()).toBeFalse();
+    expect(fixture.componentInstance.applePayExpressInList()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.ep-selector__express')).toBeNull();
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual([
+      'Card',
+      'PayPal',
+    ]);
+  });
+
+  it('does not show Apple Pay when merchant methods omit it even if runtime says available (TEST D)', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    await render(fixture);
+
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    (
+      orchestrator as unknown as {
+        _availableMethods: { set: (value: unknown) => void };
+      }
+    )._availableMethods.set([
+      { method: 'card', isMock: true, available: true, status: 'available' },
+      { method: 'apple-pay', isMock: false, available: true, status: 'available' },
+      { method: 'paypal', isMock: true, available: true, status: 'available' },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.methods().includes('apple-pay')).toBeFalse();
+    expect(fixture.componentInstance.hasRealApplePayMethod()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.ep-selector__express')).toBeNull();
+    expect(fixture.nativeElement.querySelector('easy-apple-pay-payment')).toBeNull();
+  });
+
+  it('preserves merchant method order after runtime filtering (TEST I)', async () => {
+    fixture.componentRef.setInput('methods', ['paypal', 'card', 'apple-pay', 'klarna']);
+    await render(fixture);
+
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    (
+      orchestrator as unknown as {
+        _availableMethods: { set: (value: unknown) => void };
+      }
+    )._availableMethods.set([
+      { method: 'paypal', isMock: true, available: true, status: 'available' },
+      { method: 'card', isMock: true, available: true, status: 'available' },
+      { method: 'apple-pay', isMock: false, available: true, status: 'available' },
+      { method: 'klarna', isMock: true, available: true, status: 'available' },
+    ]);
+    fixture.detectChanges();
+
+    const cells = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '.ep-selector__grid > easy-payment-method-tile, .ep-selector__grid > .ep-selector__express',
+      ),
+    );
+    expect(cells.length).toBe(4);
+    expect(cells[0].tagName.toLowerCase()).toBe('easy-payment-method-tile');
+    expect(cells[1].tagName.toLowerCase()).toBe('easy-payment-method-tile');
+    expect(cells[2].classList.contains('ep-selector__express')).toBeTrue();
+    expect(cells[3].tagName.toLowerCase()).toBe('easy-payment-method-tile');
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual([
+      'PayPal',
+      'Card',
+      'Klarna',
+    ]);
+  });
+
+  it('clears Apple Pay availability when merchant removes apple-pay from methods', async () => {
+    const applePay = TestBed.inject(ApplePayAdapter);
+    const clearSpy = spyOn(applePay, 'clearAvailability').and.callThrough();
+
+    fixture.componentRef.setInput('methods', ['card', 'apple-pay']);
+    await render(fixture);
+    clearSpy.calls.reset();
+
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(clearSpy).toHaveBeenCalled();
+  });
+
   it('clamps and applies maxWidth on the host', async () => {
     fixture.componentRef.setInput('methods', ['card', 'paypal']);
     fixture.componentRef.setInput('maxWidth', 200);
@@ -180,6 +358,56 @@ describe('EasyPaymentsComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.effectiveMaxWidth()).toBe(900);
     expect(fixture.nativeElement.style.maxWidth).toBe('900px');
+  });
+
+  it('defaults to appearance=default and stays backward compatible', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    await render(fixture);
+
+    expect(fixture.componentInstance.appearance()).toBe('default');
+    expect(fixture.nativeElement.classList.contains('ep-appearance-transparent')).toBeFalse();
+    expect(fixture.nativeElement.getAttribute('data-appearance')).toBe('default');
+
+    const shell = fixture.nativeElement.querySelector('.ep-checkout') as HTMLElement;
+    expect(shell).toBeTruthy();
+    const style = getComputedStyle(shell);
+    expect(style.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(style.borderTopWidth).not.toBe('0px');
+  });
+
+  it('applies transparent appearance by removing outer shell chrome only', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('theme', 'light');
+    await render(fixture);
+
+    expect(fixture.componentInstance.appearance()).toBe('transparent');
+    expect(fixture.nativeElement.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(fixture.nativeElement.getAttribute('data-appearance')).toBe('transparent');
+    expect(fixture.nativeElement.classList.contains('ep-theme-light')).toBeTrue();
+
+    const shell = fixture.nativeElement.querySelector('.ep-checkout') as HTMLElement;
+    const style = getComputedStyle(shell);
+    expect(style.backgroundColor === 'rgba(0, 0, 0, 0)' || style.backgroundColor === 'transparent').toBeTrue();
+    expect(style.borderTopWidth).toBe('0px');
+    expect(style.boxShadow === 'none' || style.boxShadow === '').toBeTrue();
+    expect(style.paddingTop).toBe('0px');
+
+    // Internal payment methods still render.
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual(['Card', 'PayPal']);
+    expect(fixture.componentInstance.effectiveMaxWidth()).toBe(640);
+  });
+
+  it('keeps theme and appearance independent', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'dark');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    await render(fixture);
+
+    expect(fixture.nativeElement.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(fixture.nativeElement.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(fixture.nativeElement.getAttribute('data-theme')).toBe('dark');
+    expect(fixture.nativeElement.getAttribute('data-appearance')).toBe('transparent');
   });
 
   it('keeps selected and unselected tiles the same size', async () => {

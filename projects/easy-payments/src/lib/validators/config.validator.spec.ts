@@ -12,8 +12,9 @@ describe('EasyPaymentsConfigValidator', () => {
             stripe: { publishableKey: 'pk_test_secret_value' },
             paypal: { clientId: 'paypal-client' },
             googlePay: { merchantId: 'merchant-123' },
-            applePay: { merchantId: '   ' },
+            applePay: { merchantName: 'Demo' },
             klarna: {},
+            affirm: {},
           },
         }),
       ],
@@ -25,12 +26,11 @@ describe('EasyPaymentsConfigValidator', () => {
     expect(summary).toContain('Stripe: configured (demo mode)');
     expect(summary).toContain('PayPal: configured (demo mode)');
     expect(summary).toContain('Google Pay: configured (demo mode)');
-    expect(summary).toContain('Apple Pay: merchantId missing (demo mode)');
+    expect(summary).toContain('Apple Pay: configured (demo mode)');
     expect(summary).toContain('Klarna: configured (demo mode)');
-    expect(summary).toContain('Affirm: configuration missing (requires Stripe publishableKey + affirmCreatePaymentUrl) (demo mode)');
+    expect(summary).toContain('Affirm: configured (demo mode)');
     expect(summary.join(' ')).not.toContain('pk_test_secret_value');
   });
-
   it('rejects Stripe secret keys in frontend configuration', () => {
     TestBed.configureTestingModule({
       providers: [
