@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
   EasyPaymentsComponent,
@@ -65,6 +65,7 @@ const DEFAULT_METHODS: MethodRow[] = [
   selector: 'app-root',
   imports: [EasyPaymentsComponent],
   templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.scss',
 })
 export class App {

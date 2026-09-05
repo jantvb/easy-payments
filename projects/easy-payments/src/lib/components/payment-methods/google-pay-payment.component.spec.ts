@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { PaymentProduct, ResolvedPaymentTheme } from '../../models';
@@ -8,6 +8,7 @@ import { GooglePayPaymentComponent } from './google-pay-payment.component';
 @Component({
   standalone: true,
   imports: [GooglePayPaymentComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <easy-google-pay-payment
       [product]="product()"

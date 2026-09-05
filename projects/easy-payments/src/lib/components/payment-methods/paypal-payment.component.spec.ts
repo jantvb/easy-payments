@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
@@ -9,6 +9,7 @@ import { PayPalPaymentComponent } from './paypal-payment.component';
 @Component({
   standalone: true,
   imports: [PayPalPaymentComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <easy-paypal-payment
       [product]="product()"

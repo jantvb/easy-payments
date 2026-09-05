@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { PLATFORM_ID } from '@angular/core';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { BackendService } from '../../services/backend.service';
@@ -37,7 +37,7 @@ describe('PayPalAdapter', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         { provide: PLATFORM_ID, useValue: 'browser' },
         provideEasyPayments({
           enableMockMode: false,
@@ -71,7 +71,7 @@ describe('PayPalAdapter', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         { provide: PLATFORM_ID, useValue: 'browser' },
         provideEasyPayments({
           enableMockMode: false,

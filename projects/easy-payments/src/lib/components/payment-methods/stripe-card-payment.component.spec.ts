@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { StripeCardPaymentComponent } from './stripe-card-payment.component';
@@ -8,6 +8,7 @@ import { PaymentProduct, ResolvedPaymentTheme } from '../../models';
 @Component({
   standalone: true,
   imports: [StripeCardPaymentComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <easy-stripe-card-payment
       [product]="product()"

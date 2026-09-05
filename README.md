@@ -45,6 +45,20 @@ Demo: `http://localhost:4200/`.
 
 Peer dependency for real Stripe: `@stripe/stripe-js` (already installed in this workspace).
 
+### Angular compatibility
+
+Declared peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`.
+
+Smoke-tested after packing `dist/easy-payments` (`npm pack`) into fresh apps:
+
+| Consumer `@angular/core` | Build with `<easy-payments>` |
+| --- | --- |
+| **20.3.30** | Pass |
+| **21.2.22** | Pass |
+| **22.1.5** | Pass |
+
+The workspace builds the library with **Angular 22**. Always run `npm run build:lib` before consuming from `dist/`.
+
 ## Quick start (mock)
 
 ```ts

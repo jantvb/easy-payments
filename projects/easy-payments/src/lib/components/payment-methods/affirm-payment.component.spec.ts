@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { AffirmPaymentComponent } from './affirm-payment.component';
@@ -14,6 +14,7 @@ import {
 @Component({
   standalone: true,
   imports: [AffirmPaymentComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <easy-affirm-payment
       [product]="product()"

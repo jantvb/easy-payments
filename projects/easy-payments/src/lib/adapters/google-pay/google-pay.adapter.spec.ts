@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { PLATFORM_ID } from '@angular/core';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { BackendService } from '../../services/backend.service';
 import { StripeSdkLoader } from '../stripe/stripe-sdk.loader';
@@ -52,7 +52,7 @@ describe('GooglePayAdapter', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         { provide: PLATFORM_ID, useValue: 'browser' },
         provideEasyPayments({
           enableMockMode: false,

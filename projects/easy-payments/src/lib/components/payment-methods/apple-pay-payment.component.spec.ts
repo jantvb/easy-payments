@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { PaymentProduct, ResolvedPaymentTheme } from '../../models';
@@ -8,6 +8,7 @@ import { ApplePayPaymentComponent } from './apple-pay-payment.component';
 @Component({
   standalone: true,
   imports: [ApplePayPaymentComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <easy-apple-pay-payment
       [product]="product()"

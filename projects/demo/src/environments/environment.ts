@@ -16,7 +16,7 @@ export const environment = {
    * Stripe publishable TEST key only (pk_test_...).
    * Never use sk_test_... or sk_live_... in Angular.
    */
-  stripePublishableKey: 'pk_test_xxxxxxxxx',
+  stripePublishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY',
   /**
    * PayPal Sandbox Client ID only.
    * Never put PAYPAL_CLIENT_SECRET in Angular.
