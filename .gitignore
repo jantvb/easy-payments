@@ -22,6 +22,9 @@ server/.env
 **/.env
 !**/.env.example
 
+# Angular demo local credentials (fileReplacements → environment.local.ts)
+projects/demo/src/environments/environment.local.ts
+
 # Private keys / certificates / local tunnel tooling
 *.pem
 *.p12

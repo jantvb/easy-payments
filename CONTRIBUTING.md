@@ -13,12 +13,34 @@ Thanks for helping improve Easy Payments.
 Consumers: **`>=20.3.0 <23.0.0`** (validated on 20, 21, 22).  
 This workspace builds with **Angular 22.1.5**.
 
+License: **MIT**.
+
 ## Setup
 
 ```bash
 npm install
 npm run build:lib
 ```
+
+### Local credentials (do not commit)
+
+**NestJS**
+
+```bash
+cd server
+cp .env.example .env
+# edit server/.env with YOUR test secrets (gitignored)
+```
+
+**Angular demo**
+
+```bash
+cp projects/demo/src/environments/environment.local.example.ts ^
+   projects/demo/src/environments/environment.local.ts
+# edit environment.local.ts with pk_test_... / PayPal Client ID only
+```
+
+Tracked `environment.ts` stays placeholders-only. Development serve uses `fileReplacements` → `environment.local.ts`.
 
 ### Demo
 
@@ -33,7 +55,6 @@ http://localhost:4200
 ```bash
 cd server
 npm install
-cp .env.example .env   # TEST secrets only
 npm run start:dev
 ```
 
@@ -56,7 +77,7 @@ npm run server:build
 - Match existing TypeScript / Angular style
 - Add or update tests when behavior changes
 - Update docs under `docs/` when public API or contracts change
-- Never commit secrets (`.env`, live keys, private keys)
+- Never commit secrets (`.env`, `environment.local.ts`, live keys, private keys)
 
 ## Issues
 

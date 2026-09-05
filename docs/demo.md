@@ -54,13 +54,26 @@ Root scripts also include:
 
 ## Frontend env (browser-safe only)
 
-Copy [`projects/demo/src/environments/environment.example.ts`](../projects/demo/src/environments/environment.example.ts) into `environment.ts` and set:
+### Public / tracked
 
-- `stripePublishableKey` — `YOUR_STRIPE_PUBLISHABLE_KEY` (replace with `pk_test_...`)
-- `paypalClientId` — `YOUR_PAYPAL_CLIENT_ID`
-- Backend URLs — usually `http://localhost:3000/api/...`
+- [`environment.ts`](../projects/demo/src/environments/environment.ts) — placeholders only (`YOUR_*`)
+- [`environment.example.ts`](../projects/demo/src/environments/environment.example.ts) — same placeholders for docs
+- [`environment.local.example.ts`](../projects/demo/src/environments/environment.local.example.ts) — template for local overrides
 
-Never put `sk_...` or PayPal Client Secret here.
+### Local (gitignored)
+
+```bash
+cp projects/demo/src/environments/environment.local.example.ts ^
+   projects/demo/src/environments/environment.local.ts
+```
+
+Edit `environment.local.ts` with your TEST `pk_test_...` and PayPal Sandbox Client ID.
+
+`ng serve` / `demo:build:development` uses Angular `fileReplacements` to load `environment.local.ts` instead of the public placeholders.
+
+Production demo builds and unit tests keep using the tracked placeholder `environment.ts`.
+
+Never put `sk_...` or PayPal Client Secret in Angular.
 
 ---
 

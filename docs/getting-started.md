@@ -167,6 +167,12 @@ The `methods` array controls **which** methods are allowed and their **visual or
 ```bash
 npm install
 npm run build:lib
+
+# Optional: local TEST credentials (gitignored)
+cp projects/demo/src/environments/environment.local.example.ts ^
+   projects/demo/src/environments/environment.local.ts
+# edit environment.local.ts — YOUR_* → pk_test_... / PayPal Client ID
+
 npm start
 ```
 
@@ -177,7 +183,7 @@ Backend (Real / Test Providers):
 ```bash
 cd server
 npm install
-cp .env.example .env   # fill TEST secrets
+cp .env.example .env   # fill YOUR_* with TEST secrets (gitignored)
 npm run start:dev
 ```
 

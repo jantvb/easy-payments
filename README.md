@@ -6,6 +6,7 @@ Easy Payments gives Angular apps one consistent checkout for multiple payment me
 
 ![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-0A7EA4)
 ![Angular 20.3+ · 21 · 22](https://img.shields.io/badge/Angular-≥20.3%20·%2021%20·%2022-DD0031)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 | | |
 |---|---|
@@ -326,4 +327,4 @@ See [CHANGELOG.md](CHANGELOG.md) for **1.0.0**.
 
 ## License
 
-**LICENSE_DECISION_REQUIRED** — no `LICENSE` file is present yet. Do not assume an open-source license until one is added.
+MIT © 2026 Jose Vicente — see [LICENSE](LICENSE).
