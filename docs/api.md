@@ -60,7 +60,7 @@ Standalone component. Selector: `easy-payments`.
 | `error` | `PaymentError` | Payment or configuration failure | Show merchant error UI |
 | `successContinue` | `PaymentResult` | Customer clicks **Continue** on the built-in success screen | Only when `successBehavior` is `confirmation` |
 
-> There is **no** public `busyChange` output in v1.0.0. Processing state is handled inside the component UI.
+> There is **no** public `busyChange` output on `<easy-payments>` in v1.0.0. Processing locks the checkout UI internally; use the visible processing screen and the events above. See [payment-flow.md](./payment-flow.md).
 
 ---
 
