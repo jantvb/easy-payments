@@ -130,9 +130,19 @@ Alternate outcomes: **Processing → Error**, or **Provider flow → Cancelled**
       <img src="docs/assets/easy-payments-success.png" alt="Payment successful" width="360" />
     </td>
   </tr>
+  <tr>
+    <td align="center">
+      <strong>Error</strong><br />
+      <img src="docs/assets/easy-payments-error.png" alt="Payment failed" width="360" />
+    </td>
+    <td align="center">
+      <strong>Cancelled</strong><br />
+      <img src="docs/assets/easy-payments-cancelled.png" alt="Payment cancelled" width="360" />
+    </td>
+  </tr>
 </table>
 
-Full states (error, cancelled, redirects, `successBehavior`, events): **[docs/payment-flow.md](docs/payment-flow.md)**
+Full states (redirects, `successBehavior`, events): **[docs/payment-flow.md](docs/payment-flow.md)**
 
 ---
 
@@ -349,7 +359,7 @@ Do not use live credentials for basic integration testing.
 
 **Can I inspect the source / demo / backend?** Yes — links above.  
 
-**How can I support the project?** See Support below (PayPal URL pending).
+**How can I support the project?** Optional contributions via [PayPal](https://paypal.me/JoseVicente07) — not required to use the library.
 
 ---
 
@@ -365,24 +375,13 @@ Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Support Easy Payments
 
-If Easy Payments saves you development time or helps your project, you can support its continued development.
+Easy Payments is open source and free to use.
 
-Support helps with:
+If Easy Payments saves you development time or helps your project, you can support its continued development with an optional contribution.
 
-- maintenance
-- Angular compatibility
-- provider compatibility
-- testing
-- documentation
-- future payment integrations
+[Support Easy Payments via PayPal](https://paypal.me/JoseVicente07)
 
-<!-- When you have a real PayPal donation/support URL, replace the line below with:
-[Support via PayPal](YOUR_REAL_PAYPAL_SUPPORT_URL)
-and optionally add .github/FUNDING.yml with:
-custom: ["YOUR_REAL_PAYPAL_SUPPORT_URL"]
-Do not use an email address as the URL. -->
-
-**PAYPAL_SUPPORT_URL_REQUIRED**
+This is an optional way to support the open-source project. It is **not** a license fee, subscription, or related to merchant payments processed through Easy Payments.
 
 ---
 
