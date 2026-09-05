@@ -17,7 +17,7 @@ Easy Payments gives Angular apps one consistent checkout for multiple payment me
 | **Methods** | Card · PayPal · Apple Pay · Google Pay · Klarna · Affirm |
 
 <p align="center">
-  <img src="docs/assets/easy-payments-desktop.png" alt="Easy Payments checkout — desktop viewport" width="640" />
+  <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-desktop.png" alt="Easy Payments checkout — desktop viewport" width="640" />
 </p>
 
 <p align="center">
@@ -53,61 +53,61 @@ Screenshots are **real captures** of the local demo using browser viewport emula
   <tr>
     <td align="center" width="50%">
       <strong>Desktop</strong><br />
-      <img src="docs/assets/easy-payments-desktop.png" alt="Desktop viewport" width="420" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-desktop.png" alt="Desktop viewport" width="420" />
     </td>
     <td align="center" width="50%">
       <strong>Mobile</strong><br />
-      <img src="docs/assets/easy-payments-mobile.png" alt="Mobile viewport" width="220" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-mobile.png" alt="Mobile viewport" width="220" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <strong>Tablet</strong><br />
-      <img src="docs/assets/easy-payments-tablet.png" alt="Tablet viewport" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-tablet.png" alt="Tablet viewport" width="360" />
     </td>
     <td align="center">
       <strong>iPad viewport</strong><br />
-      <img src="docs/assets/easy-payments-ipad.png" alt="iPad viewport" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-ipad.png" alt="iPad viewport" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <strong>Light</strong><br />
-      <img src="docs/assets/easy-payments-light.png" alt="Light theme" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-light.png" alt="Light theme" width="360" />
     </td>
     <td align="center">
       <strong>Dark</strong><br />
-      <img src="docs/assets/easy-payments-dark.png" alt="Dark theme" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-dark.png" alt="Dark theme" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <strong>Default appearance</strong><br />
-      <img src="docs/assets/easy-payments-default.png" alt="Default appearance" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-default.png" alt="Default appearance" width="360" />
     </td>
     <td align="center">
       <strong>Transparent appearance</strong><br />
-      <img src="docs/assets/easy-payments-transparent.png" alt="Transparent appearance" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-transparent.png" alt="Transparent appearance" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <strong>Success</strong><br />
-      <img src="docs/assets/easy-payments-success.png" alt="Success confirmation" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-success.png" alt="Success confirmation" width="360" />
     </td>
     <td align="center">
       <strong>Custom method order</strong><br />
-      <img src="docs/assets/easy-payments-method-order.png" alt="Custom payment method order" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-method-order.png" alt="Custom payment method order" width="360" />
     </td>
   </tr>
 </table>
 
 <p align="center">
   <strong>Laptop</strong><br />
-  <img src="docs/assets/easy-payments-laptop.png" alt="Laptop viewport" width="480" />
+  <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-laptop.png" alt="Laptop viewport" width="480" />
 </p>
 
-> **npm note:** Relative image paths work on GitHub for the branch/tag you are viewing. Before `npm publish`, switch README screenshots to stable absolute URLs on the `v1.0.0` tag (see [docs/npm-readme-images.md](docs/npm-readme-images.md)). Do not publish until that step is done.
+> **npm note:** Screenshot `src` values use immutable absolute URLs on the `v1.0.0` tag (`raw.githubusercontent.com/.../v1.0.0/docs/assets/...`) so images render on npm after publish. See [docs/npm-readme-images.md](docs/npm-readme-images.md).
 
 ---
 
@@ -123,21 +123,21 @@ Alternate outcomes: **Processing → Error**, or **Provider flow → Cancelled**
   <tr>
     <td align="center" width="50%">
       <strong>Processing</strong><br />
-      <img src="docs/assets/easy-payments-processing.png" alt="Processing payment" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-processing.png" alt="Processing payment" width="360" />
     </td>
     <td align="center" width="50%">
       <strong>Success</strong><br />
-      <img src="docs/assets/easy-payments-success.png" alt="Payment successful" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-success.png" alt="Payment successful" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <strong>Error</strong><br />
-      <img src="docs/assets/easy-payments-error.png" alt="Payment failed" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-error.png" alt="Payment failed" width="360" />
     </td>
     <td align="center">
       <strong>Cancelled</strong><br />
-      <img src="docs/assets/easy-payments-cancelled.png" alt="Payment cancelled" width="360" />
+      <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-cancelled.png" alt="Payment cancelled" width="360" />
     </td>
   </tr>
 </table>
