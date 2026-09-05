@@ -4,7 +4,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "paths": {
-      "@easy-payments/angular": [
+      "@easypaymentsjs/angular": [
         "./projects/easy-payments/src/public-api.ts"
       ]
     },
