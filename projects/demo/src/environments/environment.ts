@@ -2,13 +2,14 @@
  * Demo environment — DO NOT put Stripe or PayPal secrets here.
  *
  * For Real / Test Providers mode:
- * 1. Set stripePublishableKey (pk_test_...) and/or paypalClientId (Sandbox Client ID).
- * 2. Keep backend URLs pointing at the NestJS demo server.
- * 3. Put secrets only in server/.env:
+ * 1. Copy values from environment.example.ts and paste your TEST keys.
+ * 2. Set stripePublishableKey (pk_test_...) and/or paypalClientId (Sandbox Client ID).
+ * 3. Keep backend URLs pointing at the NestJS demo server.
+ * 4. Put secrets only in server/.env:
  *    - STRIPE_SECRET_KEY=sk_test_...
  *    - PAYPAL_CLIENT_SECRET=...
  *
- * Leave keys empty to use Demo/Mock mode only.
+ * Leave placeholder keys to use Demo/Mock mode only.
  */
 export const environment = {
   production: false,
@@ -16,12 +17,12 @@ export const environment = {
    * Stripe publishable TEST key only (pk_test_...).
    * Never use sk_test_... or sk_live_... in Angular.
    */
-  stripePublishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY',
+  stripePublishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEYE',
   /**
    * PayPal Sandbox Client ID only.
    * Never put PAYPAL_CLIENT_SECRET in Angular.
    */
-  paypalClientId: 'YOUR_PAYPAL_CLIENT_ID',
+  paypalClientId: 'YOUR_PAYPAL_SANDBOX_CLIENT_ID',
   /**
    * NestJS demo endpoint that creates a Stripe PaymentIntent.
    */

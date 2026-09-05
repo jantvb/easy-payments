@@ -1,6 +1,27 @@
 {
   "name": "easy-payments",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "description": "A unified payment experience for Angular — Card, PayPal, Apple Pay, Google Pay, Klarna, and Affirm.",
+  "author": "jantvb",
+  "keywords": [
+    "angular",
+    "payments",
+    "stripe",
+    "paypal",
+    "apple-pay",
+    "google-pay",
+    "klarna",
+    "affirm",
+    "checkout"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jantvb/easy-payments.git"
+  },
+  "homepage": "https://github.com/jantvb/easy-payments#readme",
+  "bugs": {
+    "url": "https://github.com/jantvb/easy-payments/issues"
+  },
   "peerDependencies": {
     "@angular/common": ">=20.3.0 <23.0.0",
     "@angular/core": ">=20.3.0 <23.0.0",
