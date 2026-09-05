@@ -23,6 +23,7 @@ Easy Payments gives Angular apps one consistent checkout for multiple payment me
 <p align="center">
   <a href="docs/getting-started.md">Getting Started</a> ·
   <a href="docs/api.md">API</a> ·
+  <a href="docs/payment-flow.md">Payment flow</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
   <a href="projects/demo">Demo source</a> ·
   <a href="https://github.com/jantvb/easy-payments/issues">Issues</a>
@@ -107,6 +108,31 @@ Screenshots are **real captures** of the local demo using browser viewport emula
 </p>
 
 > **npm note:** Relative image paths work on GitHub for the branch/tag you are viewing. Before `npm publish`, switch README screenshots to stable absolute URLs on the `v1.0.0` tag (see [docs/npm-readme-images.md](docs/npm-readme-images.md)). Do not publish until that step is done.
+
+---
+
+## Payment Experience
+
+Customers move through a consistent journey even when providers differ mid-flow:
+
+**Checkout → Provider interaction → Processing → Success**
+
+Alternate outcomes: **Processing → Error**, or **Provider flow → Cancelled**.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Processing</strong><br />
+      <img src="docs/assets/easy-payments-processing.png" alt="Processing payment" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <strong>Success</strong><br />
+      <img src="docs/assets/easy-payments-success.png" alt="Payment successful" width="360" />
+    </td>
+  </tr>
+</table>
+
+Full states (error, cancelled, redirects, `successBehavior`, events): **[docs/payment-flow.md](docs/payment-flow.md)**
 
 ---
 
