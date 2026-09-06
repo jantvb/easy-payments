@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1
+
+Documentation and npm discoverability patch. **No runtime or public API changes.**
+
+- Improved npm package description for search discoverability
+- Expanded package keywords (Angular, Stripe, PayPal, wallets, checkout, ecommerce)
+- README search/installation polish (title, intro, install near the top)
+- Removed obsolete pre-publish installation notes
+
+Published npm package remains: `@easy-payments/angular`.
+
 ## 1.0.0
 
 First stable public release of **Easy Payments**.

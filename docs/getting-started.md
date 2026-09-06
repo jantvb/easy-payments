@@ -34,7 +34,7 @@ You mainly:
 npm install @easy-payments/angular @stripe/stripe-js
 ```
 
-> The npm package name is `@easy-payments/angular`. Until you publish v1.0.0, install from a packed build (`npm pack` of `dist/easy-payments`) or a local path.
+> The npm package name is `@easy-payments/angular`.
 
 Peer dependencies:
 

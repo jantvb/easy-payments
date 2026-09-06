@@ -1,16 +1,20 @@
-# Easy Payments
+# Easy Payments for Angular
 
-### A unified payment experience for Angular.
+Angular payments and checkout library for Stripe, PayPal, Apple Pay, Google Pay, Klarna, and Affirm.
 
-Easy Payments gives Angular apps one consistent checkout for multiple payment methods — simple on the outside, powerful on the inside.
+`@easy-payments/angular` provides a unified Angular payment component for card payments, digital wallets, PayPal, Klarna, and Affirm with one consistent API.
 
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-0A7EA4)
+```bash
+npm install @easy-payments/angular @stripe/stripe-js
+```
+
+![Version 1.0.1](https://img.shields.io/badge/version-1.0.1-0A7EA4)
 ![Angular 20.3+ · 21 · 22](https://img.shields.io/badge/Angular-≥20.3%20·%2021%20·%2022-DD0031)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 | | |
 |---|---|
-| **Version** | 1.0.0 (first stable public release) |
+| **Version** | 1.0.1 |
 | **Framework** | Angular |
 | **Compatibility** | Angular **20.3+**, **21**, **22** (`>=20.3.0 <23.0.0`) |
 | **Workspace** | Built with Angular **22.1.5** |
@@ -35,13 +39,13 @@ Easy Payments gives Angular apps one consistent checkout for multiple payment me
 
 | Easy Payments | Angular |
 |---------------|---------|
-| **1.0.0** | `>=20.3.0 <23.0.0` |
+| **1.0.x** | `>=20.3.0 <23.0.0` |
 
 - **Workspace / build:** Angular **22.1.5**
 - **Consumer peers:** `>=20.3.0 <23.0.0`
 - **Validated** with packed installs into fresh apps on Angular **20**, **21**, and **22**
 
-v1.0.0 does **not** support Angular 19, Angular 23+, or non-Angular frameworks.
+v1.0.x does **not** support Angular 19, Angular 23+, or non-Angular frameworks.
 
 ---
 
@@ -162,7 +166,7 @@ Money settles to **your** Stripe / PayPal (and related) merchant accounts.
 npm install @easy-payments/angular @stripe/stripe-js
 ```
 
-> Package name: **`@easy-payments/angular`**. Until npm publish of 1.0.0, install from a local `npm pack` of `dist/easy-payments` or a `file:` path.
+> Package name: **`@easy-payments/angular`**.
 
 Peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-js` `^8.0.0`.
 
@@ -387,7 +391,7 @@ This is an optional way to support the open-source project. It is **not** a lice
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for **1.0.0**.
+See [CHANGELOG.md](CHANGELOG.md) for **1.0.1**.
 
 ---
 
