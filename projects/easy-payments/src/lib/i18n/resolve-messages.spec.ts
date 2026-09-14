@@ -4,6 +4,9 @@ import { ES_TRANSLATIONS } from './es';
 import { PT_TRANSLATIONS } from './pt';
 import { interpolate } from './translations.types';
 import {
+  toAffirmPreferredLocale,
+  toGooglePayButtonLocale,
+  toKlarnaPreferredLocale,
   toPayPalSdkLocale,
   toStripeBnplLocale,
   toStripeElementsLocale,
@@ -18,10 +21,23 @@ describe('resolveMessages', () => {
   it('returns Spanish dictionary for es', () => {
     expect(resolveMessages('es').successTitle).toBe(ES_TRANSLATIONS.successTitle);
     expect(resolveMessages('es').payWithCard).toBe(ES_TRANSLATIONS.payWithCard);
+    expect(resolveMessages('es').checkoutTitle).toBe(ES_TRANSLATIONS.checkoutTitle);
+    expect(resolveMessages('es').checkoutSubtitle).toBe(ES_TRANSLATIONS.checkoutSubtitle);
   });
 
   it('returns Portuguese dictionary for pt', () => {
     expect(resolveMessages('pt').successTitle).toBe(PT_TRANSLATIONS.successTitle);
+    expect(resolveMessages('pt').checkoutTitle).toBe(PT_TRANSLATIONS.checkoutTitle);
+    expect(resolveMessages('pt').checkoutSubtitle).toBe(PT_TRANSLATIONS.checkoutSubtitle);
+  });
+
+  it('includes checkout heading keys for all supported locales', () => {
+    for (const locale of ['en', 'es', 'pt'] as const) {
+      const messages = resolveMessages(locale);
+      expect(messages.checkoutTitle.trim().length).toBeGreaterThan(0);
+      expect(messages.checkoutSubtitle.trim().length).toBeGreaterThan(0);
+      expect(messages.noPaymentMethodsAvailable.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it('applies partial custom overrides with locale fallback for remaining keys', () => {
@@ -65,6 +81,27 @@ describe('provider-locale mappers', () => {
     expect(toStripeBnplLocale('en')).toBe('en-US');
     expect(toStripeBnplLocale('es')).toBe('es-ES');
     expect(toStripeBnplLocale('pt')).toBe('pt-BR');
+  });
+
+  it('maps Google Pay buttonLocale values', () => {
+    expect(toGooglePayButtonLocale('en')).toBe('en');
+    expect(toGooglePayButtonLocale('es')).toBe('es');
+    expect(toGooglePayButtonLocale('pt')).toBe('pt');
+  });
+
+  it('maps Klarna preferred_locale using purchase country', () => {
+    expect(toKlarnaPreferredLocale('en', 'US')).toBe('en-US');
+    expect(toKlarnaPreferredLocale('es', 'US')).toBe('es-US');
+    expect(toKlarnaPreferredLocale('pt', 'US')).toBe('en-US');
+    expect(toKlarnaPreferredLocale('pt', 'BR')).toBe('pt-BR');
+    expect(toKlarnaPreferredLocale('es', 'ES')).toBe('es-ES');
+  });
+
+  it('maps Affirm preferred_locale to officially supported Affirm page languages', () => {
+    expect(toAffirmPreferredLocale('en', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('es', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('pt', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('en', 'CA')).toBe('en_CA');
   });
 });
 

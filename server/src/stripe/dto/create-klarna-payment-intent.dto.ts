@@ -40,6 +40,18 @@ export class CreateKlarnaPaymentIntentDto {
   @MaxLength(500)
   description?: string;
 
+  /**
+   * Optional Stripe Klarna preferred_locale (e.g. es-US).
+   * Localization hint only — never affects trusted catalog pricing.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  @Matches(/^[a-z]{2}-[A-Z]{2}$/, {
+    message: 'preferredLocale must look like es-US or en-US',
+  })
+  preferredLocale?: string;
+
   @IsOptional()
   @IsObject()
   @ValidateIf((_, value) => value !== undefined)

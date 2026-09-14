@@ -29,6 +29,7 @@ import {
   EasyPaymentsI18nService,
   EN_TRANSLATIONS,
   interpolate,
+  localizePaymentError,
   toStripeElementsLocale,
   type EasyPaymentsResolvedLocale,
 } from '../../i18n';
@@ -308,7 +309,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
           method: 'card',
           provider: 'stripe',
         });
-        this.inlineError.set(paymentError.message);
+        this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
         this.error.emit(paymentError);
       }
     } catch (err) {
@@ -325,7 +326,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     } finally {
       this.busyChange.emit(false);
@@ -356,7 +357,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'stripe',
       });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
       return;
     }
@@ -428,7 +429,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
       this.lastMountedLocale = null;
       const paymentError = normalizeError(err, { method: 'card', provider: 'stripe' });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }

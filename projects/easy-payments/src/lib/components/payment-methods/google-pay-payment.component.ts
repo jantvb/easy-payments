@@ -30,6 +30,9 @@ import {
   EasyPaymentsI18nService,
   EN_TRANSLATIONS,
   interpolate,
+  localizePaymentError,
+  toGooglePayButtonLocale,
+  type EasyPaymentsResolvedLocale,
 } from '../../i18n';
 
 @Component({
@@ -172,6 +175,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly viewReady = signal(false);
   private renderKey: string | null = null;
   private lastTheme: ResolvedPaymentTheme | null = null;
+  private lastButtonLocale: string | null = null;
   private renderGeneration = 0;
 
   readonly amountLabel = computed(() =>
@@ -199,12 +203,13 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
       const product = this.product();
       const checkout = this.checkout();
       const theme = this.resolvedTheme();
+      const locale = this.i18n?.effectiveLocale() ?? 'en';
       const ready = this.viewReady();
       if (!ready) {
         return;
       }
       untracked(() => {
-        void this.ensureButton(product, checkout, theme);
+        void this.ensureButton(product, checkout, theme, locale);
       });
     });
 
@@ -238,6 +243,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
     product: PaymentProduct,
     checkout: CheckoutOptions | undefined,
     theme: ResolvedPaymentTheme,
+    locale: EasyPaymentsResolvedLocale,
   ): Promise<void> {
     const validation = validatePaymentProduct(product);
     if (!validation.valid) {
@@ -248,20 +254,23 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'googlePay',
       });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
       return;
     }
 
-    const nextKey = buildGooglePayRenderKey(product);
+    const buttonLocale = toGooglePayButtonLocale(locale);
+    const nextKey = `${buildGooglePayRenderKey(product)}|${buttonLocale}`;
     const themeChanged = this.lastTheme !== theme;
-    if (nextKey === this.renderKey && !themeChanged && this.uiState() === 'ready') {
+    const localeChanged = this.lastButtonLocale !== buttonLocale;
+    if (nextKey === this.renderKey && !themeChanged && !localeChanged && this.uiState() === 'ready') {
       return;
     }
 
     const generation = ++this.renderGeneration;
     this.renderKey = nextKey;
     this.lastTheme = theme;
+    this.lastButtonLocale = buttonLocale;
     this.uiState.set('initializing');
     this.inlineError.set(null);
 
@@ -284,6 +293,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
       const host = this.host().nativeElement;
       await this.googlePayAdapter.renderOfficialButton(host, {
         theme,
+        buttonLocale,
         onClick: () => this.onGooglePayClick(product, checkout, generation),
       });
 
@@ -299,7 +309,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
       this.renderKey = null;
       const paymentError = mapGooglePayError(err, 'SDK_LOAD_FAILED', 'Failed to initialize Google Pay.');
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }
@@ -343,7 +353,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'googlePay',
       });
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     } catch (err) {
       if (generation !== this.renderGeneration) {
@@ -363,7 +373,7 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }

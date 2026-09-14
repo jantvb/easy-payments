@@ -12,7 +12,7 @@ import {
 import { PaymentError } from '../../errors/payment-error';
 import { PaymentMethod, PAYMENT_METHOD_LABELS, PaymentProduct, PaymentResult } from '../../models';
 import { formatMoney } from '../../utils/format-money';
-import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS, localizePaymentError } from '../../i18n';
 import { CheckoutViewState, formatTransactionReference } from './checkout-view-state';
 
 @Component({
@@ -372,18 +372,19 @@ export class CheckoutOutcomeComponent {
   });
 
   readonly safeErrorMessage = computed(() => {
-    const message = this.paymentError()?.message?.trim();
-    if (!message) {
+    if (this.state() !== 'error') {
       return null;
     }
-    // Avoid dumping raw JSON-looking / overly technical payloads into customer UI.
-    if (message.startsWith('{') || message.startsWith('[') || message.length > 180) {
+    const code = this.paymentError()?.code;
+    if (!code) {
       return null;
     }
-    if (message === this.msgs().errorBody) {
+    const localized = localizePaymentError(code, this.msgs());
+    // Avoid repeating the same sentence as the generic error body.
+    if (localized === this.msgs().errorBody) {
       return null;
     }
-    return message;
+    return localized;
   });
 
   onAction(): void {

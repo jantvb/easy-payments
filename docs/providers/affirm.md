@@ -1,33 +1,74 @@
 # Affirm
 
-Affirm is integrated **via Stripe** (Affirm-only PaymentIntent). No Affirm private API keys in Angular.
+Affirm in Easy Payments is **Stripe-backed** (Affirm-only PaymentIntent + Stripe Payment Element).  
+You do **not** configure Affirm’s direct JS SDK secrets in Angular for this integration.
 
-## Configuration
+## What you need
+
+- Stripe account with Affirm enabled  
+- Stripe publishable + secret keys  
+- `providers.affirm` (+ Stripe)  
+- `backend.affirmCreatePaymentUrl`  
+
+## Frontend configuration
 
 ```ts
 providers: {
-  stripe: { publishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY' },
+  stripe: { publishableKey: 'pk_test_...' },
   affirm: {
     purchaseCountry: 'US', // optional
-    locale: 'en-US',       // optional
+    // locale: 'en_US',    // optional explicit Stripe Affirm preferred_locale
   },
 },
 backend: {
-  affirmCreatePaymentUrl: 'https://your-backend-domain.example/api/payments/affirm/create',
+  affirmCreatePaymentUrl: '/api/payments/affirm/create',
 }
 ```
 
-## Eligibility
+## Backend configuration
 
-Provider and Stripe rules apply (currency, country, amount). Easy Payments also hides Affirm when the checkout total is below about **$35** (major units), matching Stripe Affirm presentment guidance.
+Create an Affirm-only PaymentIntent with trusted catalog pricing. Optional:
 
-The demo playground defaults to **$99** so Affirm can appear during local testing — that price is a demo choice, not a product requirement.
+```ts
+payment_method_options: {
+  affirm: { preferred_locale: 'en_US' },
+}
+```
 
-## Flow
+Return `{ provider: 'affirm', clientSecret }`.
 
-Similar to Klarna: redirect / return recovery through Stripe, then normalized `success` / `cancel` / `error` events.
+Demo route: `POST /api/payments/affirm/create`.
 
-## Demo
+Affirm presentment typically supports USD/CAD with amount bounds (about $35–$30,000 in Stripe’s Affirm docs). The demo server enforces those bounds.
 
-Reference route: `POST /api/payments/affirm/create`  
-See [backend.md](../backend.md).
+## Dashboard / provider setup
+
+1. Enable Affirm in Stripe Dashboard.  
+2. Confirm your business country / financing package.  
+3. Register domains when Stripe requires them.
+
+Official docs:
+
+- [Stripe Affirm](https://docs.stripe.com/payments/affirm)  
+- [PaymentIntents Affirm options](https://docs.stripe.com/api/payment_intents/create#create_payment_intent-payment_method_options-affirm)
+
+## Localization
+
+| UI | Controllable? |
+|----|---------------|
+| Easy Payments chrome | Yes |
+| Stripe Payment Element | Yes — Elements `locale` |
+| Affirm authorization page | Limited — Affirm’s documented page languages for US/CA are primarily English (and French for Canada). Easy Payments does **not** invent unsupported Affirm locales for `es` / `pt`. |
+
+## Testing
+
+- Stripe Test mode  
+- Amounts within Affirm eligibility  
+- Redirect return recovery via Stripe helpers  
+
+## Common problems
+
+| Symptom | Check |
+|---------|-------|
+| Affirm unavailable | Amount too low/high, currency not USD/CAD, Affirm not enabled |
+| Spanish Easy Payments UI but English Affirm page | Expected for US Affirm page languages unless Affirm/Stripe supports another locale for your market |

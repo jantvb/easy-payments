@@ -191,30 +191,100 @@ npm install @easy-payments/angular @stripe/stripe-js
 ### 2. `app.config.ts` — provide Easy Payments
 
 ```ts
+// Angular application-level configuration type.
 import { ApplicationConfig } from '@angular/core';
+
+// Registers Angular HttpClient.
+// Easy Payments uses HTTP to communicate with the merchant backend.
 import { provideHttpClient } from '@angular/common/http';
+
+// Main Easy Payments provider.
+// This configures payment providers and backend endpoints globally.
 import { provideEasyPayments } from '@easy-payments/angular';
 
+// Angular application configuration.
 export const appConfig: ApplicationConfig = {
   providers: [
+    // Makes Angular HttpClient available to Easy Payments and the application.
     provideHttpClient(),
+
+    // Configures Easy Payments globally.
     provideEasyPayments({
       providers: {
-        stripe: { publishableKey: 'pk_test_...' },
-        paypal: { clientId: 'YOUR_PAYPAL_CLIENT_ID', currency: 'USD', intent: 'capture' },
+        // Stripe browser configuration.
+        // Use your Stripe PUBLISHABLE key here (pk_test_... or pk_live_...).
+        // Never put a Stripe secret key (sk_...) in Angular/browser code.
+        stripe: {
+          publishableKey: 'pk_test_...',
+        },
+
+        // PayPal browser configuration.
+        // The Client ID is obtained from the PayPal Developer Dashboard.
+        // The PayPal Client Secret must remain on your backend.
+        paypal: {
+          clientId: 'YOUR_PAYPAL_CLIENT_ID',
+
+          // Currency used by the PayPal checkout.
+          currency: 'USD',
+
+          // 'capture' means the PayPal order is captured after approval.
+          // 'authorize' is also supported by the config type when you need authorize-only.
+          intent: 'capture',
+        },
+
+        // Apple Pay is handled through the existing Stripe Express Checkout Element integration.
+        // applePay: {} does NOT mean "Apple Pay needs no setup."
+        // It means: enable Apple Pay in Easy Payments; there are currently no additional
+        // Apple Pay-specific frontend credentials required here (no Apple Merchant ID /
+        // certificates in Angular). It still uses stripe.publishableKey + createPaymentUrl.
+        // HTTPS, a compatible Apple Pay device/Wallet, and Stripe Payment Method Domain
+        // registration are still required. See docs/providers/apple-pay.md.
         applePay: {},
-        googlePay: { environment: 'TEST' },
-        klarna: { purchaseCountry: 'US' },
-        affirm: { purchaseCountry: 'US' },
+
+        // Google Pay configuration (official Google Pay Web button + Stripe confirm).
+        // TEST is for development/testing.
+        // PRODUCTION requires additional Google Pay merchant setup (e.g. merchantId).
+        googlePay: {
+          environment: 'TEST',
+        },
+
+        // Klarna is integrated through Stripe (not a separate Klarna SDK in Angular).
+        // purchaseCountry helps determine purchase context / eligibility.
+        klarna: {
+          purchaseCountry: 'US',
+        },
+
+        // Affirm is integrated through Stripe (not a separate Affirm SDK in Angular).
+        // purchaseCountry is used for Affirm eligibility/configuration.
+        affirm: {
+          purchaseCountry: 'US',
+        },
       },
+
+      // Backend endpoints owned by YOUR application/server.
+      // Easy Payments calls these endpoints from the frontend.
+      // Secret provider credentials remain on the server.
       backend: {
+        // Creates the Stripe PaymentIntent used by card / Apple Pay / Google Pay flows.
         createPaymentUrl: '/api/payments/create',
+
+        // Creates a PayPal order on the merchant backend.
         paypalCreateOrderUrl: '/api/payments/paypal/create',
+
+        // Captures an approved PayPal order on the merchant backend.
         paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+
+        // Creates the Klarna-only Stripe PaymentIntent on the merchant backend.
         klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+
+        // Creates the Affirm-only Stripe PaymentIntent on the merchant backend.
         affirmCreatePaymentUrl: '/api/payments/affirm/create',
       },
-      // enableMockMode: true, // demo only — never in production
+
+      // Optional demo/development mode.
+      // Uncomment only when intentionally testing without real provider transactions.
+      // Never enable mock mode in production.
+      // enableMockMode: true,
     }),
   ],
 };
@@ -224,14 +294,14 @@ export const appConfig: ApplicationConfig = {
 
 | Field | Notes |
 |-------|--------|
-| `providers.stripe?` | `{ publishableKey }` |
-| `providers.paypal?` | `{ clientId, currency?, intent? }` |
-| `providers.applePay?` | `{}` (or optional display fields) |
+| `providers.stripe?` | `{ publishableKey }` — publishable key only |
+| `providers.paypal?` | `{ clientId, currency?, intent? }` — Client ID only in Angular |
+| `providers.applePay?` | `{}` enables Apple Pay via **existing Stripe** config; optional `merchantName` / `countryCode`. Not “zero setup” — HTTPS, Wallet, and Stripe Payment Method Domains still required |
 | `providers.googlePay?` | `{ merchantId?, merchantName?, environment?, countryCode? }` |
-| `providers.klarna?` | `{ purchaseCountry?, locale? }` |
-| `providers.affirm?` | `{ purchaseCountry?, locale? }` |
+| `providers.klarna?` | `{ purchaseCountry?, locale? }` — Stripe-backed |
+| `providers.affirm?` | `{ purchaseCountry?, locale? }` — Stripe-backed |
 | `backend?` | `createPaymentUrl?`, `paypalCreateOrderUrl?`, `paypalCaptureOrderUrl?`, `klarnaCreatePaymentUrl?`, `affirmCreatePaymentUrl?` |
-| `enableMockMode?` | When `true`, all providers use mocks |
+| `enableMockMode?` | When `true`, all providers use mocks (never in production) |
 
 Never put Stripe secret keys or PayPal Client Secrets in Angular.
 
@@ -414,7 +484,7 @@ Checkout is fluid up to `[maxWidth]`. The payment method grid reflows from the *
 |----------|----------|---------|-------|
 | **Stripe** | `pk_test_` / `pk_live_` | `sk_test_` / `sk_live_` | Card + wallets + Klarna + Affirm |
 | **PayPal** | Client ID | Client Secret | Create + capture URLs |
-| **Apple Pay** | `applePay: {}` + Stripe | Stripe secret via create URL | Stripe ECE; capability-based |
+| **Apple Pay** | `applePay: {}` + Stripe publishable key | Stripe secret via create URL | Opt-in via Easy Payments; uses Stripe ECE. Empty `{}` = no extra Apple Pay frontend credentials — HTTPS / Wallet / Payment Method Domains still required |
 | **Google Pay** | `googlePay` + Stripe | Stripe secret via create URL | `TEST` / `PRODUCTION` |
 | **Klarna** | `klarna` + Stripe | Stripe + `klarnaCreatePaymentUrl` | Redirect + return recovery |
 | **Affirm** | `affirm` + Stripe | Stripe + `affirmCreatePaymentUrl` | ~$35 min in library; eligibility varies |

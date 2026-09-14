@@ -940,4 +940,126 @@ describe('EasyPaymentsComponent', () => {
       expect(fixture.componentInstance.viewState()).toBe('error');
     });
   });
+
+  describe('checkout heading localization', () => {
+    it('renders English title and subtitle for locale=en', async () => {
+      fixture.componentRef.setInput('locale', 'en');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('renders Spanish title and subtitle for locale=es', async () => {
+      fixture.componentRef.setInput('locale', 'es');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Completa tu compra');
+      expect(text).toContain('Elige tu método de pago preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).not.toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('renders Portuguese title and subtitle for locale=pt', async () => {
+      fixture.componentRef.setInput('locale', 'pt');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Finalize sua compra');
+      expect(text).toContain('Escolha seu método de pagamento preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('switches checkout headings at runtime en → es → pt → en without reload', async () => {
+      fixture.componentRef.setInput('methods', ['card']);
+      fixture.componentRef.setInput('locale', 'en');
+      await render(fixture);
+
+      let text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+
+      fixture.componentRef.setInput('locale', 'es');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Completa tu compra');
+      expect(text).toContain('Elige tu método de pago preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+
+      fixture.componentRef.setInput('locale', 'pt');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Finalize sua compra');
+      expect(text).toContain('Escolha seu método de pagamento preferido');
+      expect(text).not.toContain('Completa tu compra');
+      expect(text).toContain('Premium Plan');
+
+      fixture.componentRef.setInput('locale', 'en');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).not.toContain('Finalize sua compra');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('does not leak English provider diagnostics into Spanish error UI', async () => {
+      fixture.componentRef.setInput('locale', 'es');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      fixture.componentInstance.onKlarnaError(
+        new PaymentError({
+          code: 'PAYMENT_FAILED',
+          message: 'Klarna payment was not completed. Please try again.',
+          method: 'klarna',
+          provider: 'klarna',
+        }),
+      );
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Pago fallido');
+      expect(text).toContain('No pudimos completar su pago.');
+      expect(text).toContain('Intentar de nuevo');
+      expect(text).not.toContain('Klarna payment was not completed');
+      expect(text).not.toContain('Please try again.');
+    });
+
+    it('shows a localized specific detail for card declined without English leakage', async () => {
+      fixture.componentRef.setInput('locale', 'es');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      fixture.componentInstance.onStripeError(
+        new PaymentError({
+          code: 'CARD_DECLINED',
+          message: 'Your card was declined.',
+          method: 'card',
+          provider: 'stripe',
+        }),
+      );
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Pago fallido');
+      expect(text).toContain('Su tarjeta fue rechazada');
+      expect(text).not.toContain('Your card was declined');
+    });
+  });
 });

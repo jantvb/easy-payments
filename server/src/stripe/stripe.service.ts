@@ -216,6 +216,16 @@ export class StripeService {
         metadata: safeMetadata,
         // Klarna-only PaymentIntent — keeps Card/Google Pay flows isolated.
         payment_method_types: ['klarna'],
+        ...(dto.preferredLocale
+          ? {
+              payment_method_options: {
+                klarna: {
+                  preferred_locale:
+                    dto.preferredLocale as Stripe.PaymentIntentCreateParams.PaymentMethodOptions.Klarna['preferred_locale'],
+                },
+              },
+            }
+          : {}),
       });
 
       if (!intent.client_secret) {
@@ -335,6 +345,15 @@ export class StripeService {
         metadata: safeMetadata,
         // Affirm-only PaymentIntent — keeps Card/Klarna/Google Pay flows isolated.
         payment_method_types: ['affirm'],
+        ...(dto.preferredLocale
+          ? {
+              payment_method_options: {
+                affirm: {
+                  preferred_locale: dto.preferredLocale,
+                },
+              },
+            }
+          : {}),
       });
 
       if (!intent.client_secret) {

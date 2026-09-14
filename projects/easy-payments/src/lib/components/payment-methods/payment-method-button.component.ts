@@ -1,10 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
+  inject,
   input,
   output,
 } from '@angular/core';
 import { PaymentMethod, PAYMENT_METHOD_LABELS } from '../../models';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS, interpolate } from '../../i18n';
 
 @Component({
   selector: 'easy-payment-method-button',
@@ -20,11 +23,11 @@ import { PaymentMethod, PAYMENT_METHOD_LABELS } from '../../models';
       (click)="clicked.emit()"
     >
       @if (isMock()) {
-        <span class="ep-mock-badge" aria-hidden="true">Demo</span>
+        <span class="ep-mock-badge" aria-hidden="true">{{ msgs().demoBadge }}</span>
       }
       @if (loading()) {
         <span class="ep-loading" aria-hidden="true"></span>
-        <span class="visually-hidden">Processing payment</span>
+        <span class="visually-hidden">{{ msgs().processingPayment }}</span>
       } @else {
         <ng-content />
       }
@@ -49,6 +52,8 @@ import { PaymentMethod, PAYMENT_METHOD_LABELS } from '../../models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentMethodButtonComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
   readonly method = input.required<PaymentMethod>();
   readonly isMock = input(false);
   readonly disabled = input(false);
@@ -57,8 +62,15 @@ export class PaymentMethodButtonComponent {
 
   readonly clicked = output<void>();
 
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
+
   ariaLabel(): string {
-    const methodLabel = this.customLabel() ?? PAYMENT_METHOD_LABELS[this.method()];
-    return this.isMock() ? `${methodLabel} (Demo mode)` : `Pay with ${methodLabel}`;
+    const methodLabel =
+      this.customLabel() ??
+      (this.method() === 'card' ? this.msgs().methodCard : PAYMENT_METHOD_LABELS[this.method()]);
+    if (this.isMock()) {
+      return `${methodLabel} (${this.msgs().demoModeAria})`;
+    }
+    return interpolate(this.msgs().payWithMethod, { method: methodLabel });
   }
 }

@@ -40,6 +40,18 @@ export class CreateAffirmPaymentIntentDto {
   @MaxLength(500)
   description?: string;
 
+  /**
+   * Optional Stripe Affirm preferred_locale (e.g. en_US).
+   * Localization hint only — never affects trusted catalog pricing.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  @Matches(/^[a-z]{2}(_[A-Z]{2})?$/, {
+    message: 'preferredLocale must look like en_US',
+  })
+  preferredLocale?: string;
+
   @IsOptional()
   @IsObject()
   @ValidateIf((_, value) => value !== undefined)

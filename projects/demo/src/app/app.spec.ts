@@ -9,6 +9,12 @@ import {
   persistDemoMode,
   readPersistedDemoMode,
 } from './demo-mode-persistence';
+import {
+  clearPersistedDemoLocale,
+  DEMO_LOCALE_STORAGE_KEY,
+  persistDemoLocale,
+  readPersistedDemoLocale,
+} from './demo-locale-persistence';
 
 describe('demo-mode-persistence', () => {
   let memory: Record<string, string>;
@@ -48,9 +54,54 @@ describe('demo-mode-persistence', () => {
   });
 });
 
+describe('demo-locale-persistence', () => {
+  let memory: Record<string, string>;
+  let storage: Storage;
+
+  beforeEach(() => {
+    memory = {};
+    storage = {
+      getItem: (key: string) => (key in memory ? memory[key] : null),
+      setItem: (key: string, value: string) => {
+        memory[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete memory[key];
+      },
+      clear: () => {
+        memory = {};
+      },
+      key: () => null,
+      length: 0,
+    };
+  });
+
+  it('returns null when unset', () => {
+    expect(readPersistedDemoLocale(storage)).toBeNull();
+  });
+
+  it('persists and restores es', () => {
+    persistDemoLocale('es', storage);
+    expect(storage.getItem(DEMO_LOCALE_STORAGE_KEY)).toBe('es');
+    expect(readPersistedDemoLocale(storage)).toBe('es');
+  });
+
+  it('ignores invalid values', () => {
+    storage.setItem(DEMO_LOCALE_STORAGE_KEY, 'fr');
+    expect(readPersistedDemoLocale(storage)).toBeNull();
+  });
+
+  it('clears persisted locale', () => {
+    persistDemoLocale('pt', storage);
+    clearPersistedDemoLocale(storage);
+    expect(readPersistedDemoLocale(storage)).toBeNull();
+  });
+});
+
 describe('App', () => {
   beforeEach(async () => {
     clearPersistedDemoMode();
+    clearPersistedDemoLocale();
     history.replaceState({}, '', '/');
 
     await TestBed.configureTestingModule({
@@ -65,6 +116,7 @@ describe('App', () => {
 
   afterEach(() => {
     clearPersistedDemoMode();
+    clearPersistedDemoLocale();
     history.replaceState({}, '', '/');
   });
 

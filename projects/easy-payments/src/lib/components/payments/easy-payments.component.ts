@@ -148,6 +148,11 @@ export class EasyPaymentsComponent {
   readonly paymentMethodSelectionAria = computed(
     () => this.i18n.messages().paymentMethodSelectionAria,
   );
+  readonly checkoutTitle = computed(() => this.i18n.messages().checkoutTitle);
+  readonly checkoutSubtitle = computed(() => this.i18n.messages().checkoutSubtitle);
+  readonly noPaymentMethodsAvailable = computed(
+    () => this.i18n.messages().noPaymentMethodsAvailable,
+  );
 
   readonly resolvedTheme = this.themeService.resolvedTheme;
   readonly availableMethods = this.orchestrator.availableMethods;
@@ -467,11 +472,13 @@ export class EasyPaymentsComponent {
       // Depend on the value of the session key, never on object identity: a remount
       // before Stripe reports `ready` (~500ms) permanently keeps availability at
       // `checking`, which is exactly what hides the tile.
+      const elementsLocale = toStripeElementsLocale(this.i18n.effectiveLocale());
       const sessionKey = [
         product.id,
         product.quantity ?? 1,
         product.currency,
         product.amount,
+        elementsLocale,
       ].join('|');
       const host = hostRef.nativeElement;
 
