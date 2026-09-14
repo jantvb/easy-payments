@@ -206,6 +206,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
   async createPaymentSession(
     product: PaymentProduct,
     _checkout?: CheckoutOptions,
+    preferredLocale?: string,
   ): Promise<KlarnaSessionResult> {
     if (!this.configService.getSnapshot().backend?.klarnaCreatePaymentUrl?.trim()) {
       throw new PaymentError({
@@ -220,6 +221,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
       productId: product.id,
       quantity: product.quantity ?? 1,
       currency: product.currency,
+      ...(preferredLocale?.trim() ? { preferredLocale: preferredLocale.trim() } : {}),
     });
     this.assertValidKlarnaResponse(response);
 

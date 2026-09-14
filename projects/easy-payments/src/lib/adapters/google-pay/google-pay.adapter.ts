@@ -167,6 +167,8 @@ export class GooglePayAdapter extends BaseProviderAdapter {
     options: {
       theme: ResolvedPaymentTheme;
       onClick: () => void | Promise<void>;
+      /** ISO 639-1 button locale (en / es / pt). Affects button text only. */
+      buttonLocale?: string;
     },
   ): Promise<void> {
     const client = await this.ensurePaymentsClient();
@@ -180,6 +182,7 @@ export class GooglePayAdapter extends BaseProviderAdapter {
       buttonColor: options.theme === 'dark' ? 'white' : 'black',
       buttonType: 'pay',
       buttonSizeMode: 'fill',
+      ...(options.buttonLocale ? { buttonLocale: options.buttonLocale } : {}),
     };
 
     const button = client.createButton(buttonOptions);

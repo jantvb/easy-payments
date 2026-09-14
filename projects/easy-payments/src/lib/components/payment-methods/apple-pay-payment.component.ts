@@ -30,6 +30,7 @@ import {
   EasyPaymentsI18nService,
   EN_TRANSLATIONS,
   interpolate,
+  localizePaymentError,
   toStripeElementsLocale,
 } from '../../i18n';
 
@@ -289,7 +290,7 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'applePay',
       });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
       return;
     }
@@ -367,7 +368,7 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
       this.renderKey = null;
       const paymentError = mapApplePayError(err, 'SDK_LOAD_FAILED', 'Failed to initialize Apple Pay.');
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }
@@ -404,7 +405,7 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.uiState.set('ready');
-    this.inlineError.set(paymentError.message);
+    this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
     this.error.emit(paymentError);
   }
 }

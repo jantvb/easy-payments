@@ -4,6 +4,9 @@ import { ES_TRANSLATIONS } from './es';
 import { PT_TRANSLATIONS } from './pt';
 import { interpolate } from './translations.types';
 import {
+  toAffirmPreferredLocale,
+  toGooglePayButtonLocale,
+  toKlarnaPreferredLocale,
   toPayPalSdkLocale,
   toStripeBnplLocale,
   toStripeElementsLocale,
@@ -78,6 +81,27 @@ describe('provider-locale mappers', () => {
     expect(toStripeBnplLocale('en')).toBe('en-US');
     expect(toStripeBnplLocale('es')).toBe('es-ES');
     expect(toStripeBnplLocale('pt')).toBe('pt-BR');
+  });
+
+  it('maps Google Pay buttonLocale values', () => {
+    expect(toGooglePayButtonLocale('en')).toBe('en');
+    expect(toGooglePayButtonLocale('es')).toBe('es');
+    expect(toGooglePayButtonLocale('pt')).toBe('pt');
+  });
+
+  it('maps Klarna preferred_locale using purchase country', () => {
+    expect(toKlarnaPreferredLocale('en', 'US')).toBe('en-US');
+    expect(toKlarnaPreferredLocale('es', 'US')).toBe('es-US');
+    expect(toKlarnaPreferredLocale('pt', 'US')).toBe('en-US');
+    expect(toKlarnaPreferredLocale('pt', 'BR')).toBe('pt-BR');
+    expect(toKlarnaPreferredLocale('es', 'ES')).toBe('es-ES');
+  });
+
+  it('maps Affirm preferred_locale to officially supported Affirm page languages', () => {
+    expect(toAffirmPreferredLocale('en', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('es', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('pt', 'US')).toBe('en_US');
+    expect(toAffirmPreferredLocale('en', 'CA')).toBe('en_CA');
   });
 });
 

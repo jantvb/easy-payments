@@ -56,6 +56,16 @@ describe('toKlarnaCreatePaymentRequest', () => {
     expect(Object.keys(body)).not.toContain('amount');
     expect(Object.keys(body)).not.toContain('metadata');
   });
+
+  it('includes preferredLocale when provided', () => {
+    const body = toKlarnaCreatePaymentRequest({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      preferredLocale: 'es-US',
+    });
+    expect(body.preferredLocale).toBe('es-US');
+  });
 });
 
 describe('toAffirmCreatePaymentRequest', () => {
@@ -74,5 +84,15 @@ describe('toAffirmCreatePaymentRequest', () => {
     });
     expect(Object.keys(body)).not.toContain('amount');
     expect(Object.keys(body)).not.toContain('metadata');
+  });
+
+  it('includes preferredLocale when provided', () => {
+    const body = toAffirmCreatePaymentRequest({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      preferredLocale: 'en_US',
+    });
+    expect(body.preferredLocale).toBe('en_US');
   });
 });

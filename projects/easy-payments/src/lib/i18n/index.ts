@@ -16,10 +16,14 @@ export type {
 export { interpolate } from './translations.types';
 export { getDictionary, resolveMessages } from './resolve-messages';
 export {
+  toAffirmPreferredLocale,
+  toGooglePayButtonLocale,
+  toKlarnaPreferredLocale,
   toPayPalSdkLocale,
   toStripeBnplLocale,
   toStripeElementsLocale,
 } from './provider-locale';
+export { localizePaymentError } from './localize-payment-error';
 export { EasyPaymentsI18nService } from './easy-payments-i18n.service';
 export { EN_TRANSLATIONS } from './en';
 export { ES_TRANSLATIONS } from './es';

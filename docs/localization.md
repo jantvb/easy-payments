@@ -35,50 +35,55 @@ With `locale="auto"` (or when the input is omitted):
    - anything else → **`en`**
 3. On SSR / environments without `navigator`, fall back to **`en`**
 
-You can also force a locale at runtime:
-
-```html
-<easy-payments [product]="product" [locale]="selectedLocale" ... />
-```
-
-```ts
-selectedLocale: 'auto' | 'en' | 'es' | 'pt' = 'auto';
-```
-
 ---
 
 ## What Easy Payments localizes
 
 Easy Payments-owned UI strings, including:
 
+- Checkout title / subtitle  
 - Payment method labels and selection chrome  
-- Order summary / totals copy  
+- Order summary / totals copy (not merchant product name/description)  
 - Processing, success, error, and cancelled screens  
+- Localized **normalized** error details (by `PaymentError.code`)  
 - Pay / continue / try-again style actions  
 - Method panel helper text owned by the library  
 
 English is the canonical dictionary. Spanish and Portuguese implement the same key set.
 
+Merchant-provided `product.name` / `product.description` are **never** auto-translated.
+
+Technical `PaymentError.message` strings may remain English for developer diagnostics. Customer-facing checkout uses localized copy derived from the error **code**, not the raw provider sentence.
+
 ---
 
-## Provider limitations
+## Provider locale mapping
 
-Easy Payments maps the effective locale into provider SDK options where supported:
+Easy Payments maps the effective locale into **official** provider options where supported:
 
-| Surface | Mapping (approximate) |
-|---------|------------------------|
-| Stripe Elements | `en` → `en`, `es` → `es`, `pt` → `pt-BR` |
-| PayPal JS SDK | `en` → `en_US`, `es` → `es_ES`, `pt` → `pt_BR` |
-| Klarna / Affirm (Stripe BNPL hints) | `en-US` / `es-ES` / `pt-BR` |
+| Surface | Mapping | What it affects |
+|---------|---------|-----------------|
+| Stripe Elements / Payment Element / Express Checkout | `en` → `en`, `es` → `es`, `pt` → `pt-BR` | Stripe-owned Elements chrome |
+| Google Pay official button | `en` / `es` / `pt` → `buttonLocale` | Google Pay **button** text only |
+| PayPal JS SDK | `en` → `en_US`, `es` → `es_ES`, `pt` → `pt_BR` | PayPal Buttons UI (SDK reload on change) |
+| Klarna (Stripe) | `payment_method_options.klarna.preferred_locale` e.g. `es-US` | Klarna-hosted page **when Stripe accepts** that language+country pair |
+| Affirm (Stripe) | `payment_method_options.affirm.preferred_locale` e.g. `en_US` | Affirm page languages officially supported for the market (US typically English) |
 
-**Not fully controlled by Easy Payments:**
+Optional merchant overrides:
 
-- Apple Pay / Google Pay system wallet sheets (OS / wallet language)  
-- Bank or issuer UIs during 3-D Secure  
-- Provider-hosted redirect pages that ignore or override locale hints  
-- Optional `providers.klarna.locale` / `providers.affirm.locale` config values when set explicitly for purchase context  
+- `providers.klarna.locale` / `providers.affirm.locale` — if set, used as the Stripe preferred locale instead of the auto mapping from `[locale]`.
 
-Treat provider-owned UI as best-effort. Library chrome follows `[locale]`; wallet and bank sheets may still appear in another language.
+### What Easy Payments cannot officially force
+
+Do **not** expect Easy Payments to hack provider iframes, wallet sheets, or undocumented APIs.
+
+| Surface | Behavior |
+|---------|----------|
+| Apple Pay system wallet sheet | Follows Apple / device / Wallet language. Stripe Elements locale may affect ECE **button** chrome, not the OS sheet. |
+| Google Pay payment sheet | Follows Google account / browser / OS language. `buttonLocale` does not control the sheet. |
+| Bank / issuer 3-D Secure | Issuer-owned. |
+| Klarna / Affirm hosted UI | Controlled only via Stripe’s official preferred_locale (and validated against country). Unsupported combos fall back to Stripe/Klarna/Affirm defaults. |
+| Provider trademarks | Left as brand names (PayPal, Apple Pay, …). |
 
 ---
 
@@ -100,21 +105,6 @@ readonly translations: EasyPaymentsTranslationOverrides = {
 };
 ```
 
-```html
-<easy-payments
-  [product]="product"
-  locale="es"
-  [translations]="translations"
-  (success)="onSuccess($event)"
-  (cancel)="onCancel($event)"
-  (error)="onError($event)"
-/>
-```
-
-Some strings support `{{token}}` placeholders (for example method names or amounts). Prefer overriding whole phrases; keep tokens intact when the base string uses them.
-
-Public types: `EasyPaymentsLocale`, `EasyPaymentsTranslations`, `EasyPaymentsTranslationOverrides` from `@easy-payments/angular`.
-
 ---
 
 ## Currency formatting (no conversion)
@@ -123,9 +113,7 @@ Checkout amounts are formatted with `Intl.NumberFormat` using the active locale 
 
 - `product.amount` is **not** changed  
 - `product.currency` is **not** converted  
-- Example: `amount: 99`, `currency: 'USD'` remains a **USD** charge; Spanish locale may show `$99.00` / `US$99.00` style formatting depending on the runtime, but it is still USD  
-
-There is **no** FX / currency conversion in Easy Payments. Your backend remains the source of truth for the charged amount and currency.
+- There is **no** FX / currency conversion in Easy Payments  
 
 Reminder: `amount` uses **major currency units** (`99` = $99.00 USD), not cents.
 
@@ -134,6 +122,6 @@ Reminder: `amount` uses **major currency units** (`99` = $99.00 USD), not cents.
 ## Related
 
 - [Getting Started](./getting-started.md)  
+- [Provider Setup](./providers/stripe.md) (and sibling provider guides)  
 - [API Reference](./api.md)  
-- [Configuration](./configuration.md)  
 - [CHANGELOG](../CHANGELOG.md) (`1.1.0`)

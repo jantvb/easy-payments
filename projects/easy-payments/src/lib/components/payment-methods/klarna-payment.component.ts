@@ -34,9 +34,12 @@ import {
   EasyPaymentsI18nService,
   EN_TRANSLATIONS,
   interpolate,
+  localizePaymentError,
+  toKlarnaPreferredLocale,
   toStripeElementsLocale,
   type EasyPaymentsResolvedLocale,
 } from '../../i18n';
+import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 
 @Component({
@@ -183,6 +186,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
 })
 export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly klarnaAdapter = inject(KlarnaAdapter);
+  private readonly configService = inject(EasyPaymentsConfigService);
   private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
 
   readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
@@ -314,7 +318,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.emitErrorOnce(paymentError);
     } finally {
       this.busyChange.emit(false);
@@ -345,7 +349,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'klarna',
       });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.emitErrorOnce(paymentError);
       return;
     }
@@ -354,7 +358,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
     // Skip creating a new PaymentIntent while return query params are still present.
     if (!this.returnHandled && isKlarnaReturnAttempt()) {
       this.returnHandled = true;
-      this.sessionKey = buildKlarnaSessionKey(product, checkout);
+      this.sessionKey = this.buildSessionKey(product, checkout, locale);
       this.uiState.set('processing');
       return;
     }
@@ -363,7 +367,8 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const nextKey = buildKlarnaSessionKey(product, checkout);
+    const preferredLocale = this.resolvePreferredLocale(locale);
+    const nextKey = this.buildSessionKey(product, checkout, locale);
     const elementsLocale = toStripeElementsLocale(locale);
 
     // Same checkout identity (including in-flight): never create another PaymentIntent.
@@ -399,7 +404,11 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       this.uiState.set('loading-session');
-      const session = await this.klarnaAdapter.createPaymentSession(product, checkout);
+      const session = await this.klarnaAdapter.createPaymentSession(
+        product,
+        checkout,
+        preferredLocale,
+      );
       if (generation !== this.initGeneration) {
         return;
       }
@@ -429,7 +438,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
       this.lastMountedLocale = null;
       const paymentError = normalizeError(err, { method: 'klarna', provider: 'klarna' });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.emitErrorOnce(paymentError);
     }
   }
@@ -459,7 +468,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
       method: 'klarna',
       provider: 'klarna',
     });
-    this.inlineError.set(paymentError.message);
+    this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
     this.error.emit(paymentError);
   }
 
@@ -469,5 +478,22 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
     }
     this.terminalEmitted = true;
     this.error.emit(paymentError);
+  }
+
+  private resolvePreferredLocale(locale: EasyPaymentsResolvedLocale): string {
+    const klarna = this.configService.getSnapshot().providers?.klarna;
+    const configured = klarna?.locale?.trim();
+    if (configured) {
+      return configured;
+    }
+    return toKlarnaPreferredLocale(locale, klarna?.purchaseCountry ?? 'US');
+  }
+
+  private buildSessionKey(
+    product: PaymentProduct,
+    checkout: CheckoutOptions | undefined,
+    locale: EasyPaymentsResolvedLocale,
+  ): string {
+    return `${buildKlarnaSessionKey(product, checkout)}|${this.resolvePreferredLocale(locale)}`;
   }
 }

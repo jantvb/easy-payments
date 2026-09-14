@@ -50,6 +50,11 @@ export interface KlarnaCreatePaymentRequest {
   productId: string;
   quantity: number;
   currency: string;
+  /**
+   * Optional Stripe Klarna preferred_locale (e.g. `es-US`).
+   * Localization hint only — never affects pricing.
+   */
+  preferredLocale?: string;
 }
 
 /**
@@ -60,13 +65,19 @@ export function toKlarnaCreatePaymentRequest(input: {
   productId: string;
   quantity: number;
   currency: string;
+  preferredLocale?: string;
 }): KlarnaCreatePaymentRequest {
-  return {
+  const body: KlarnaCreatePaymentRequest = {
     provider: 'klarna',
     productId: input.productId.trim(),
     quantity: input.quantity,
     currency: input.currency.trim().toUpperCase(),
   };
+  const preferredLocale = input.preferredLocale?.trim();
+  if (preferredLocale) {
+    body.preferredLocale = preferredLocale;
+  }
+  return body;
 }
 
 /**
@@ -119,6 +130,11 @@ export interface AffirmCreatePaymentRequest {
   productId: string;
   quantity: number;
   currency: string;
+  /**
+   * Optional Stripe Affirm preferred_locale (e.g. `en_US`).
+   * Localization hint only — never affects pricing.
+   */
+  preferredLocale?: string;
 }
 
 /**
@@ -129,13 +145,19 @@ export function toAffirmCreatePaymentRequest(input: {
   productId: string;
   quantity: number;
   currency: string;
+  preferredLocale?: string;
 }): AffirmCreatePaymentRequest {
-  return {
+  const body: AffirmCreatePaymentRequest = {
     provider: 'affirm',
     productId: input.productId.trim(),
     quantity: input.quantity,
     currency: input.currency.trim().toUpperCase(),
   };
+  const preferredLocale = input.preferredLocale?.trim();
+  if (preferredLocale) {
+    body.preferredLocale = preferredLocale;
+  }
+  return body;
 }
 
 /**

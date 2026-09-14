@@ -132,8 +132,15 @@ describe('GooglePayAdapter', () => {
     await adapter.renderOfficialButton(host, {
       theme: 'light',
       onClick: () => undefined,
+      buttonLocale: 'es',
     });
     expect(paymentsClient.createButton).toHaveBeenCalledTimes(1);
+    expect(paymentsClient.createButton).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        buttonLocale: 'es',
+        buttonType: 'pay',
+      }),
+    );
     expect(host.querySelector('button')).toBeTruthy();
   });
 

@@ -30,6 +30,16 @@ export interface EasyPaymentsTranslations {
   errorTitle: string;
   errorBody: string;
   errorTryAgain: string;
+  errorDetailCardDeclined: string;
+  errorDetailNetwork: string;
+  errorDetailConfig: string;
+  errorDetailUnavailable: string;
+  errorDetailAuthRequired: string;
+  errorDetailAuthFailed: string;
+  errorDetailSdkLoad: string;
+  errorDetailBackend: string;
+  errorDetailProductInvalid: string;
+  errorDetailCancelled: string;
   cancelledTitle: string;
   cancelledBody: string;
   cancelledReturn: string;

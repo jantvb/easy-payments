@@ -28,6 +28,7 @@ npm install @easy-payments/angular @stripe/stripe-js
 <p align="center">
   <a href="docs/getting-started.md">Getting Started</a> ·
   <a href="docs/localization.md">Localization</a> ·
+  <a href="docs/providers/stripe.md">Provider Setup</a> ·
   <a href="docs/api.md">API</a> ·
   <a href="docs/payment-flow.md">Payment flow</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
@@ -374,6 +375,25 @@ Locale changes **how** amounts are displayed (`Intl` number/currency formatting)
 Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
 **View complete example:** [`projects/demo`](projects/demo) · **Library source:** [`projects/easy-payments`](projects/easy-payments) · **Reference backend:** [`server`](server)
+
+---
+
+## Provider Setup
+
+Configure each provider with the matching guide. Start with Stripe if you use card / wallets / Klarna / Affirm.
+
+| Provider | Guide | SAFE FOR FRONTEND | SERVER ONLY |
+|----------|-------|-------------------|-------------|
+| Stripe | [docs/providers/stripe.md](docs/providers/stripe.md) | `pk_test_` / `pk_live_` | `sk_*` |
+| Apple Pay | [docs/providers/apple-pay.md](docs/providers/apple-pay.md) | Stripe publishable key | Stripe secret |
+| Google Pay | [docs/providers/google-pay.md](docs/providers/google-pay.md) | Stripe publishable key, Google merchant display fields | Stripe secret, production Google merchant secrets as required |
+| Klarna | [docs/providers/klarna.md](docs/providers/klarna.md) | Stripe publishable key | Stripe secret |
+| Affirm | [docs/providers/affirm.md](docs/providers/affirm.md) | Stripe publishable key | Stripe secret |
+| PayPal | [docs/providers/paypal.md](docs/providers/paypal.md) | PayPal Client ID | PayPal Client Secret |
+
+**Payment Method Domains:** register the checkout **hostname** (not a URL path) in Stripe so Apple Pay and related methods can appear. Temporary HTTPS tunnels need their public frontend hostname registered — and re-registered when the tunnel name changes. Details: [Stripe PMD docs](https://docs.stripe.com/payments/payment-methods/pmd-registration) and [docs/providers/stripe.md](docs/providers/stripe.md).
+
+Localization behavior and hard limits (wallet sheets, Klarna/Affirm hosted pages): **[docs/localization.md](docs/localization.md)**.
 
 ---
 

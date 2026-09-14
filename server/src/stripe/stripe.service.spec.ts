@@ -242,6 +242,35 @@ describe('StripeService', () => {
     });
   });
 
+  it('forwards Klarna preferred_locale when provided', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_klarna_es',
+      client_secret: 'pi_klarna_es_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const service = module.get(StripeService);
+    await service.createKlarnaPaymentIntent({
+      provider: 'klarna',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      preferredLocale: 'es-US',
+    });
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payment_method_types: ['klarna'],
+        payment_method_options: {
+          klarna: { preferred_locale: 'es-US' },
+        },
+      }),
+    );
+  });
+
   it('rejects unknown products for Klarna', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],

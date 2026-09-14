@@ -33,7 +33,25 @@ export function toPayPalSdkLocale(locale: EasyPaymentsResolvedLocale): string {
 }
 
 /**
- * Klarna / Affirm purchase locale hints when driving Stripe Payment Element.
+ * Google Pay Web `ButtonOptions.buttonLocale` (ISO 639-1).
+ * Controls official button text only — not the Google-hosted payment sheet.
+ * @see https://developers.google.com/pay/api/web/reference/request-objects#ButtonOptions
+ */
+export function toGooglePayButtonLocale(locale: EasyPaymentsResolvedLocale): string {
+  switch (locale) {
+    case 'es':
+      return 'es';
+    case 'pt':
+      return 'pt';
+    case 'en':
+    default:
+      return 'en';
+  }
+}
+
+/**
+ * BCP-47 style language-region tags used as Stripe BNPL locale hints
+ * (e.g. documentation / Affirm preferred_locale when underscore form is derived).
  */
 export function toStripeBnplLocale(locale: EasyPaymentsResolvedLocale): string {
   switch (locale) {
@@ -45,4 +63,46 @@ export function toStripeBnplLocale(locale: EasyPaymentsResolvedLocale): string {
     default:
       return 'en-US';
   }
+}
+
+/**
+ * Stripe Klarna `payment_method_options.klarna.preferred_locale`.
+ * Must be a language-country pair Stripe accepts for the purchase/billing country.
+ * Invalid combinations are ignored by Stripe (country default language wins).
+ * @see https://docs.stripe.com/payments/klarna/accept-a-payment
+ */
+export function toKlarnaPreferredLocale(
+  locale: EasyPaymentsResolvedLocale,
+  purchaseCountry = 'US',
+): string {
+  const country = purchaseCountry.trim().toUpperCase() || 'US';
+  if (locale === 'es') {
+    return `es-${country}`;
+  }
+  if (locale === 'pt') {
+    if (country === 'BR' || country === 'PT') {
+      return `pt-${country}`;
+    }
+    // Portuguese is not a standard Klarna locale for most other countries (e.g. US).
+    return `en-${country}`;
+  }
+  return `en-${country}`;
+}
+
+/**
+ * Stripe Affirm `payment_method_options.affirm.preferred_locale`.
+ * Affirm’s documented US/CA page languages are limited (typically `en_US` / `en_CA` / `fr_CA`).
+ * Easy Payments does not invent unsupported Affirm locales for `es` / `pt`.
+ * @see https://docs.stripe.com/api/payment_intents/create#create_payment_intent-payment_method_options-affirm-preferred_locale
+ */
+export function toAffirmPreferredLocale(
+  locale: EasyPaymentsResolvedLocale,
+  purchaseCountry = 'US',
+): string {
+  const country = purchaseCountry.trim().toUpperCase() || 'US';
+  if (country === 'CA') {
+    return 'en_CA';
+  }
+  void locale;
+  return 'en_US';
 }

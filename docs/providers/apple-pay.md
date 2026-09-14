@@ -1,39 +1,77 @@
 # Apple Pay
 
-Apple Pay in Easy Payments is powered by **Stripe Express Checkout Element** (official Stripe-rendered Apple Pay button).
+Easy Payments implements Apple Pay through **Stripe Express Checkout Element**.
 
-## Configuration
+Stripe handles Apple Pay merchant validation for this integration. You normally do **not** implement a separate Apple merchant-certificate / validation endpoint for Easy Payments’ Stripe path.
+
+## What you need
+
+- Stripe publishable + secret keys (see [stripe.md](./stripe.md))  
+- `providers.applePay` enabled in Easy Payments config  
+- `backend.createPaymentUrl`  
+- HTTPS frontend  
+- Compatible Apple device / Safari / Wallet setup  
+- Frontend hostname registered as a Stripe **Payment Method Domain**
+
+## Frontend configuration
 
 ```ts
 providers: {
-  stripe: { publishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY' },
+  stripe: { publishableKey: 'pk_test_...' },
   applePay: {
-    merchantName: 'Optional display name',
-    countryCode: 'US', // optional, default US
+    merchantName: 'Your Store',
+    countryCode: 'US',
   },
 },
 backend: {
-  createPaymentUrl: 'https://your-backend-domain.example/api/payments/create',
+  createPaymentUrl: '/api/payments/create',
 }
 ```
 
-No Apple Merchant ID or certificates in Angular. Stripe handles domain registration and merchant validation.
+## Backend configuration
 
-## Availability
+Same Stripe PaymentIntent create endpoint used for card / Google Pay (`createPaymentUrl`). Trusted catalog pricing on the server.
 
-Apple Pay appears only when:
+## Dashboard / provider setup
 
-1. `methods` includes `'apple-pay'`, and  
-2. Stripe ECE reports Apple Pay available (`ready.availablePaymentMethods.applePay`)
+1. Enable Apple Pay / wallets in Stripe Dashboard as required.  
+2. Register the checkout hostname under Payment Method Domains.  
+3. Test on a real Apple Pay-capable device/browser when possible.
 
-Configured ≠ always visible. Availability is **capability-based**, not inferred solely from OS or browser brand.
+Official docs:
 
-## Requirements
+- [Express Checkout Element](https://docs.stripe.com/elements/express-checkout-element)  
+- [Accept a payment](https://docs.stripe.com/elements/express-checkout-element/accept-a-payment)  
+- [Payment Method Domains](https://docs.stripe.com/payments/payment-methods/pmd-registration)
 
-- HTTPS in production (and typically for real-device testing)
-- Stripe **Payment Method Domain** registration for your domain
-- Stripe Test vs Live keys as appropriate
+## Localization
 
-## Docs note on screenshots
+- Easy Payments passes Stripe Elements `locale` into Express Checkout.  
+- That may localize Stripe ECE **button** chrome.  
+- The **Apple Pay system wallet sheet** follows Apple / device / Wallet language. Easy Payments cannot officially force that language.
 
-Dedicated Apple Pay screenshots are included in documentation **only** when the environment actually renders Stripe’s Apple Pay button. Text availability is never forced for marketing shots.
+## Testing
+
+- HTTPS required  
+- Wallet must have a usable card  
+- Test vs Live Stripe environments must match your keys  
+- Availability is authoritative: Easy Payments shows Apple Pay only when Stripe reports it available
+
+## Production checklist
+
+- [ ] Live Stripe keys  
+- [ ] Production domain registered for Payment Method Domains  
+- [ ] HTTPS  
+- [ ] Real-device verification  
+
+## Common problems — “Apple Pay does not appear”
+
+Check:
+
+1. HTTPS  
+2. Safari / device compatibility  
+3. Wallet / card setup  
+4. Stripe test vs live environment mismatch  
+5. Payment method enabled in Dashboard  
+6. Exact frontend hostname registered (not a path, not the backend tunnel)  
+7. Temporary tunnel hostname changed since last registration  

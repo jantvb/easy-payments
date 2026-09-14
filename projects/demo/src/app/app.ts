@@ -25,6 +25,7 @@ import {
   readPersistedDemoMode,
   type PersistedDemoMode,
 } from './demo-mode-persistence';
+import { persistDemoLocale, readPersistedDemoLocale } from './demo-locale-persistence';
 
 interface MethodRow {
   method: PaymentMethod;
@@ -86,7 +87,7 @@ export class App {
   readonly theme = signal<PaymentTheme>('system');
   readonly appearance = signal<EasyPaymentsAppearance>('default');
   /** Demo locale control for `<easy-payments [locale]>`. */
-  readonly locale = signal<EasyPaymentsLocale>('auto');
+  readonly locale = signal<EasyPaymentsLocale>(readPersistedDemoLocale() ?? 'auto');
   readonly effectiveLocale = computed(() => resolveEffectiveLocale(this.locale()));
   /** Optional partial text overrides (demo). */
   readonly customTranslations = signal<EasyPaymentsTranslationOverrides>({});
@@ -229,6 +230,7 @@ export class App {
 
   setLocale(locale: EasyPaymentsLocale): void {
     this.locale.set(locale);
+    persistDemoLocale(locale);
   }
 
   setAppearance(appearance: EasyPaymentsAppearance): void {
@@ -302,12 +304,10 @@ export class App {
               },
               klarna: {
                 purchaseCountry: 'US',
-                locale: 'en-US',
               },
               // Affirm via Stripe Payment Element (same pk_test / sk_test).
               affirm: {
                 purchaseCountry: 'US',
-                locale: 'en-US',
               },
             }
           : {}),

@@ -215,6 +215,7 @@ export class AffirmAdapter extends BaseProviderAdapter {
   async createPaymentSession(
     product: PaymentProduct,
     _checkout?: CheckoutOptions,
+    preferredLocale?: string,
   ): Promise<AffirmSessionResult> {
     if (!this.configService.getSnapshot().backend?.affirmCreatePaymentUrl?.trim()) {
       throw new PaymentError({
@@ -229,6 +230,7 @@ export class AffirmAdapter extends BaseProviderAdapter {
       productId: product.id,
       quantity: product.quantity ?? 1,
       currency: product.currency,
+      ...(preferredLocale?.trim() ? { preferredLocale: preferredLocale.trim() } : {}),
     });
     this.assertValidAffirmResponse(response);
 

@@ -1,44 +1,86 @@
 # PayPal
 
-PayPal uses the **PayPal JS SDK** in the browser and Orders create/capture on your backend.
+PayPal in Easy Payments uses the **PayPal JavaScript SDK** in the browser and the **Orders v2 API** on your backend.
 
-## Frontend
+## What you need
+
+| Item | Where |
+|------|-------|
+| PayPal Developer account | [developer.paypal.com](https://developer.paypal.com/) |
+| App in Apps & Credentials | [Applications](https://developer.paypal.com/dashboard/applications/) |
+| Client ID | **SAFE FOR FRONTEND** (Sandbox vs Live differ) |
+| Client secret | **SERVER ONLY** |
+| Backend create-order + capture-order endpoints | Your server |
+
+Never expose the PayPal client secret in Angular.
+
+## Frontend configuration
 
 ```ts
 providers: {
   paypal: {
     clientId: 'YOUR_PAYPAL_CLIENT_ID',
-    currency: 'USD',      // optional
-    intent: 'capture',    // optional: 'capture' | 'authorize'
+    currency: 'USD',
+    intent: 'capture',
   },
+},
+backend: {
+  paypalCreateOrderUrl: '/api/payments/paypal/create',
+  paypalCaptureOrderUrl: '/api/payments/paypal/capture',
 }
 ```
 
-Client ID is browser-safe. **Client Secret must stay on the server.**
+## Backend configuration
 
-## Backend
+1. Create an order with trusted catalog pricing (Orders API).  
+2. Return `{ provider: 'paypal', orderId }`.  
+3. After buyer approval, capture the order server-side.  
+4. Return `{ provider: 'paypal', orderId, captureId, status? }`.
 
-```env
-PAYPAL_CLIENT_ID=YOUR_PAYPAL_CLIENT_ID
-PAYPAL_CLIENT_SECRET=YOUR_PAYPAL_CLIENT_SECRET
-PAYPAL_MODE=sandbox   # or live
-```
+Demo routes: create + capture under `/api/payments/paypal/*` (see [backend.md](../backend.md)).
 
-| Step | Demo route | Config field |
-|------|------------|--------------|
-| Create order | `POST /api/payments/paypal/create` | `paypalCreateOrderUrl` |
-| Capture | `POST /api/payments/paypal/capture` | `paypalCaptureOrderUrl` |
+## Dashboard / provider setup
 
-Create body: `{ provider: 'paypal', productId, quantity, currency? }` — **no client amount**.  
-Capture body: `{ orderId }`.
+1. Create/sign in at [PayPal Developer](https://developer.paypal.com/).  
+2. Create an app under [Apps & Credentials](https://developer.paypal.com/dashboard/applications/).  
+3. Use **Sandbox** credentials for testing; **Live** credentials for production.  
+4. Keep Sandbox and Live Client IDs separate.
 
-## Sandbox vs Live
+Official docs:
 
-- Local / integration: Sandbox Client ID + `PAYPAL_MODE=sandbox`
-- Production: Live credentials + `live`
+- [JavaScript SDK](https://developer.paypal.com/sdk/js/)  
+- [Orders API v2](https://developer.paypal.com/docs/api/orders/v2/)  
+- [Sandbox](https://developer.paypal.com/tools/sandbox/)
 
-## Methods array
+## Localization
 
-```ts
-methods = ['paypal', 'card'];
-```
+Easy Payments loads the PayPal JS SDK with:
+
+| Easy Payments locale | PayPal SDK `locale` |
+|----------------------|---------------------|
+| `en` | `en_US` |
+| `es` | `es_ES` |
+| `pt` | `pt_BR` |
+
+Runtime locale changes unload/reload the SDK script for the new locale (no duplicate conflicting scripts).
+
+## Testing
+
+1. Use Sandbox Client ID.  
+2. Pay with a Sandbox buyer account from the PayPal Sandbox tools.  
+3. Confirm create + capture succeed against your backend.
+
+## Production checklist
+
+- [ ] Switch to Live Client ID (frontend) + Live secret (backend only)  
+- [ ] Live create/capture endpoints  
+- [ ] Trusted server-side pricing  
+- [ ] HTTPS  
+
+## Common problems
+
+| Symptom | Check |
+|---------|-------|
+| Buttons missing | Client ID, currency, SDK load errors, backend URLs |
+| Locale stuck after switching | Easy Payments should remount Buttons after SDK reload — verify `[locale]` changed |
+| Secret in browser bundle | Move Client Secret to server immediately |

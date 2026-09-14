@@ -27,6 +27,7 @@ import { mapPayPalError } from '../../adapters/paypal/paypal-error.mapper';
 import {
   EasyPaymentsI18nService,
   EN_TRANSLATIONS,
+  localizePaymentError,
   type EasyPaymentsResolvedLocale,
 } from '../../i18n';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
@@ -224,7 +225,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'paypal',
       });
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
       return;
     }
@@ -278,7 +279,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       this.renderKey = null;
       const paymentError = mapPayPalError(err, 'SDK_LOAD_FAILED', 'Failed to initialize PayPal.');
       this.uiState.set('error');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }
@@ -310,7 +311,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       const paymentError = mapPayPalError(err, 'BACKEND_ERROR', 'Failed to create PayPal order.');
       if (generation === this.renderGeneration) {
         this.uiState.set('ready');
-        this.inlineError.set(paymentError.message);
+        this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
         this.error.emit(paymentError);
       }
       throw paymentError;
@@ -350,7 +351,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
         provider: 'paypal',
       });
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     } catch (err) {
       if (generation !== this.renderGeneration) {
@@ -370,7 +371,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       this.uiState.set('ready');
-      this.inlineError.set(paymentError.message);
+      this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
     }
   }
@@ -409,7 +410,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
     }
 
     this.uiState.set('ready');
-    this.inlineError.set(paymentError.message);
+    this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
     this.error.emit(paymentError);
   }
 }

@@ -1,32 +1,76 @@
 # Klarna
 
-Klarna is integrated **via Stripe** (Klarna-only PaymentIntent), not via separate Klarna API secrets in Angular.
+Klarna in Easy Payments is **Stripe-backed** (Klarna-only PaymentIntent + Stripe Payment Element).  
+You do **not** configure a separate Klarna Web SDK / Klarna API secret in Angular for this integration.
 
-## Configuration
+## What you need
+
+- Stripe account with Klarna enabled  
+- Stripe publishable + secret keys  
+- `providers.klarna` (+ Stripe)  
+- `backend.klarnaCreatePaymentUrl`  
+
+## Frontend configuration
 
 ```ts
 providers: {
-  stripe: { publishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY' },
+  stripe: { publishableKey: 'pk_test_...' },
   klarna: {
-    purchaseCountry: 'US', // optional
-    locale: 'en-US',       // optional
+    purchaseCountry: 'US', // optional ISO country for purchase context
+    // locale: 'es-US',   // optional explicit Stripe preferred_locale override
   },
 },
 backend: {
-  klarnaCreatePaymentUrl: 'https://your-backend-domain.example/api/payments/klarna/create',
+  klarnaCreatePaymentUrl: '/api/payments/klarna/create',
 }
 ```
 
-## Flow
+If `klarna.locale` is omitted, Easy Payments maps `[locale]` + `purchaseCountry` into Stripe’s Klarna `preferred_locale` (for example `locale="es"` + `US` → `es-US`).
 
-1. Customer selects Klarna  
-2. Backend creates a Klarna PaymentIntent (catalog-priced)  
-3. Customer may be redirected to Klarna  
-4. Easy Payments recovers the return via Stripe redirect helpers and emits success/cancel/error  
+## Backend configuration
 
-Enable Klarna in the Stripe Dashboard (Test/Live) for your account. Eligibility can depend on amount, currency, and country.
+Your backend creates a **Klarna-only** PaymentIntent with trusted catalog pricing and may forward `preferredLocale`:
 
-## Demo
+```ts
+payment_method_types: ['klarna'],
+payment_method_options: {
+  klarna: { preferred_locale: 'es-US' }, // when provided
+}
+```
 
-Reference route: `POST /api/payments/klarna/create`  
-See [backend.md](../backend.md).
+Return `{ provider: 'klarna', clientSecret }`.
+
+Demo route: `POST /api/payments/klarna/create`.
+
+## Dashboard / provider setup
+
+1. Enable Klarna in Stripe Dashboard (Test/Live).  
+2. Understand currency / country eligibility for Klarna in your market.  
+3. Register Payment Method Domains when Stripe requires them for your setup.
+
+Official docs:
+
+- [Accept a Klarna payment (Stripe)](https://docs.stripe.com/payments/klarna/accept-a-payment)  
+- [Payment Method Domains](https://docs.stripe.com/payments/payment-methods/pmd-registration)
+
+## Localization
+
+| UI | Controllable? |
+|----|---------------|
+| Easy Payments chrome | Yes |
+| Stripe Payment Element around Klarna | Yes — Elements `locale` |
+| Klarna-hosted modal / redirect | Best-effort via Stripe `preferred_locale`; invalid language+country combos are ignored by Stripe |
+
+## Testing
+
+- Use Stripe Test mode + Klarna test identities from Stripe docs  
+- Expect redirects / modals; Easy Payments recovers return URLs via Stripe redirect helpers  
+- Demo locale selection should survive reload / redirect (demo app persistence)
+
+## Common problems
+
+| Symptom | Check |
+|---------|-------|
+| English Klarna page with Spanish Easy Payments UI | preferred_locale not accepted for billing/purchase country; Elements locale alone does not control Klarna-hosted UI |
+| Method missing | Klarna not enabled, currency/country/amount ineligible |
+| Error screen shows Spanish title but English detail | Fixed in v1.1.0 completeness — customer UI uses localized error codes, not raw provider sentences |
