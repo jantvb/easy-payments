@@ -13,6 +13,8 @@ import { PaymentError } from '../../errors/payment-error';
 import { SdkLoaderService } from '../../loaders/sdk-loader.service';
 import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
+import { toPayPalSdkLocale } from '../../i18n/provider-locale';
+import type { EasyPaymentsResolvedLocale } from '../../i18n/locale.types';
 import { BaseMockAdapter, BaseProviderAdapter } from '../base.adapter';
 import { mapPayPalError } from './paypal-error.mapper';
 import {
@@ -38,6 +40,8 @@ export class PayPalAdapter extends BaseProviderAdapter {
 
   private configReady = false;
   private loadPromise: Promise<PayPalNamespace> | null = null;
+  /** PayPal SDK locale last successfully loaded (underscore form, e.g. en_US). */
+  private loadedSdkLocale: string | null = null;
   private buttons: PayPalButtonsHandle | null = null;
   private creatingOrder = false;
   private capturing = false;
@@ -80,7 +84,7 @@ export class PayPalAdapter extends BaseProviderAdapter {
     });
   }
 
-  async ensureSdkLoaded(): Promise<PayPalNamespace> {
+  async ensureSdkLoaded(locale: EasyPaymentsResolvedLocale = 'en'): Promise<PayPalNamespace> {
     if (!this.browser.isBrowser) {
       throw new PaymentError({
         code: 'SDK_LOAD_FAILED',
@@ -90,9 +94,18 @@ export class PayPalAdapter extends BaseProviderAdapter {
       });
     }
 
-    const existing = this.browser.getWindow()?.paypal;
-    if (existing) {
-      return existing;
+    const paypalLocale = toPayPalSdkLocale(locale);
+    const scriptId = `easy-payments-paypal-sdk-${paypalLocale}`;
+
+    if (this.loadedSdkLocale === paypalLocale) {
+      const existing = this.browser.getWindow()?.paypal;
+      if (existing?.Buttons) {
+        return existing;
+      }
+      this.loadPromise = null;
+    } else if (this.loadedSdkLocale) {
+      this.unloadSdk(this.loadedSdkLocale);
+      this.loadPromise = null;
     }
 
     if (this.loadPromise) {
@@ -116,8 +129,8 @@ export class PayPalAdapter extends BaseProviderAdapter {
     this.loadPromise = (async () => {
       try {
         await this.sdkLoader.loadScript({
-          id: 'easy-payments-paypal-sdk',
-          src: `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=${encodeURIComponent(intent)}&components=buttons`,
+          id: scriptId,
+          src: `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=${encodeURIComponent(intent)}&components=buttons&locale=${encodeURIComponent(paypalLocale)}`,
         });
       } catch (error) {
         this.loadPromise = null;
@@ -135,10 +148,21 @@ export class PayPalAdapter extends BaseProviderAdapter {
         });
       }
 
+      this.loadedSdkLocale = paypalLocale;
       return paypal;
     })();
 
     return this.loadPromise;
+  }
+
+  private unloadSdk(previousLocale: string): void {
+    const win = this.browser.getWindow();
+    if (win?.paypal) {
+      delete win.paypal;
+    }
+    this.sdkLoader.unloadScript(`easy-payments-paypal-sdk-${previousLocale}`);
+    // Legacy id from pre-locale builds.
+    this.sdkLoader.unloadScript('easy-payments-paypal-sdk');
   }
 
   async createOrder(product: PaymentProduct, _checkout?: CheckoutOptions): Promise<string> {
@@ -203,10 +227,11 @@ export class PayPalAdapter extends BaseProviderAdapter {
   async renderButtons(
     container: HTMLElement,
     options: Omit<PayPalButtonsOptions, 'style'> & { style?: Record<string, string> },
+    locale: EasyPaymentsResolvedLocale = 'en',
   ): Promise<void> {
     await this.destroyButtons();
 
-    const paypal = await this.ensureSdkLoaded();
+    const paypal = await this.ensureSdkLoaded(locale);
     const buttons = paypal.Buttons({
       style: {
         layout: 'vertical',

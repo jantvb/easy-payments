@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
 
 @Component({
   selector: 'easy-checkout-security-message',
@@ -22,7 +23,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
           />
         </svg>
       </span>
-      <span>{{ message() }}</span>
+      <span>{{ resolvedMessage() }}</span>
     </p>
   `,
   styles: [
@@ -51,8 +52,17 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CheckoutSecurityMessageComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
   /**
    * Provider-aware security copy. Defaults to a neutral message (never Stripe-specific).
    */
-  readonly message = input('Secure checkout — your payment details stay with the payment provider.');
+  readonly message = input<string | undefined>(undefined);
+
+  readonly resolvedMessage = computed(
+    () =>
+      this.message() ??
+      this.i18n?.messages().defaultSecureCheckout ??
+      EN_TRANSLATIONS.defaultSecureCheckout,
+  );
 }

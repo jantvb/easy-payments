@@ -48,7 +48,7 @@
         />
       </ng-template>
 
-      <section class="ep-checkout__methods" aria-label="Payment method selection">
+  <section class="ep-checkout__methods" [attr.aria-label]="paymentMethodSelectionAria()">
         <easy-payment-method-selector
           [methods]="visibleMethods()"
           [selected]="selectedMethod()"

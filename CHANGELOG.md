@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.0
+
+Localization release for Easy Payments UI chrome and provider locale hints.
+
+### Localization
+
+- New `[locale]` input: `'auto' | 'en' | 'es' | 'pt'` (default `'auto'`)
+- Browser auto-detect maps `es-*` → Spanish, `pt-*` → Portuguese, `en-*` → English; other languages fall back to English
+- Built-in dictionaries for English, Spanish, and Portuguese covering Easy Payments-owned checkout UI text
+- New `[translations]` input for partial string overrides (override → locale dictionary → English)
+- Amount display uses `Intl` formatting for the active locale **without converting currency** — `product.amount` and `product.currency` are unchanged (e.g. `99` + `USD` stays USD; only number/symbol layout can change)
+- Provider locale hints where supported: Stripe Elements, PayPal JS SDK, and Klarna/Affirm purchase locale mapping from the effective Easy Payments locale
+- Provider-owned surfaces (wallet sheets, bank UIs, etc.) may still follow their own rules and are not fully controlled by Easy Payments
+
+### Notes
+
+- **No currency conversion.** Localization formats money for display only.
+- Published npm package remains: `@easy-payments/angular`
+- Peer compatibility unchanged: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-js` `^8.0.0`
+
 ## 1.0.1
 
 Documentation and npm discoverability patch. **No runtime or public API changes.**

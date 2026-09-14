@@ -1,7 +1,7 @@
 {
   "name": "@easy-payments/angular",
-  "version": "1.0.1",
-  "description": "Angular payments and checkout library for Stripe, PayPal, Apple Pay, Google Pay, Klarna, and Affirm. Unified payment component for Angular 20, 21, and 22.",
+  "version": "1.1.0",
+  "description": "Angular payments and checkout library for Stripe, PayPal, Apple Pay, Google Pay, Klarna, and Affirm. Unified payment component with localization support.",
   "license": "MIT",
   "author": "jantvb",
   "keywords": [
@@ -33,6 +33,10 @@
     "online-payments",
     "ecommerce",
     "e-commerce",
+    "localization",
+    "internationalization",
+    "i18n",
+    "typescript",
     "angular-20",
     "angular-21",
     "angular-22"

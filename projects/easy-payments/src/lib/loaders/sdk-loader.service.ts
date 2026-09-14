@@ -62,4 +62,13 @@ export class SdkLoaderService {
   isLoaded(id: string): boolean {
     return this.loadedScripts.has(id);
   }
+
+  /** Removes a previously loaded script so a new `src` (e.g. locale) can load under a new id. */
+  unloadScript(id: string): void {
+    this.loadedScripts.delete(id);
+    if (!this.browser.isBrowser) {
+      return;
+    }
+    this.browser.getDocument()?.getElementById(id)?.remove();
+  }
 }

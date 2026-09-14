@@ -26,6 +26,12 @@ import { buildApplePayRenderKey, ApplePayUiState } from '../../adapters/apple-pa
 import { mapApplePayError } from '../../adapters/apple-pay/apple-pay-error.mapper';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 import { formatMoney } from '../../utils/format-money';
+import {
+  EasyPaymentsI18nService,
+  EN_TRANSLATIONS,
+  interpolate,
+  toStripeElementsLocale,
+} from '../../i18n';
 
 @Component({
   selector: 'easy-apple-pay-payment',
@@ -35,23 +41,23 @@ import { formatMoney } from '../../utils/format-money';
     <div class="ep-apay" [class.ep-apay--compact]="compact()" [attr.data-state]="uiState()">
       @if (!compact()) {
         <div class="ep-apay__header">
-          <h3 class="ep-apay__title">Pay with Apple Pay</h3>
-          <easy-checkout-security-message message="Secure checkout with Apple Pay" />
+          <h3 class="ep-apay__title">{{ msgs().payWithApplePay }}</h3>
+          <easy-checkout-security-message [message]="msgs().secureCheckoutApplePay" />
         </div>
       }
 
       @if (uiState() === 'initializing') {
-        <p class="ep-apay__status" role="status">Preparing Apple Pay…</p>
+        <p class="ep-apay__status" role="status">{{ msgs().preparingApplePay }}</p>
       }
 
       @if (uiState() === 'unavailable') {
         <p class="ep-apay__status" role="status">
-          Apple Pay is not available in this browser or Wallet.
+          {{ msgs().applePayUnavailable }}
         </p>
       }
 
       @if (uiState() === 'processing') {
-        <p class="ep-apay__status" role="status">Processing Apple Pay payment…</p>
+        <p class="ep-apay__status" role="status">{{ msgs().processingApplePay }}</p>
       }
 
       <div
@@ -60,11 +66,11 @@ import { formatMoney } from '../../utils/format-money';
         [class.ep-apay__button--busy]="isBusy()"
         [class.ep-apay__button--hidden]="uiState() === 'unavailable'"
         [attr.aria-busy]="isBusy()"
-        aria-label="Apple Pay official checkout"
+        [attr.aria-label]="msgs().applePayCheckoutAria"
       ></div>
 
       @if (!compact()) {
-        <p class="ep-apay__amount" aria-live="polite">Total {{ amountLabel() }}</p>
+        <p class="ep-apay__amount" aria-live="polite">{{ totalLabel() }}</p>
       }
 
       @if (inlineError()) {
@@ -72,7 +78,7 @@ import { formatMoney } from '../../utils/format-money';
       }
 
       @if (uiState() === 'success' && !compact()) {
-        <p class="ep-apay__success" role="status">Payment completed.</p>
+        <p class="ep-apay__success" role="status">{{ msgs().paymentCompleted }}</p>
       }
     </div>
   `,
@@ -185,6 +191,9 @@ import { formatMoney } from '../../utils/format-money';
 })
 export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly applePayAdapter = inject(ApplePayAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly product = input.required<PaymentProduct>();
   readonly checkout = input<CheckoutOptions>();
@@ -205,11 +214,26 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly viewReady = signal(false);
   private renderKey: string | null = null;
   private lastTheme: ResolvedPaymentTheme | null = null;
+  private lastLocale: string | null = null;
   private renderGeneration = 0;
   private emittedSuccess = false;
 
   readonly amountLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+    this.i18n
+      ? this.i18n.formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+        )
+      : formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+          'en',
+        ),
+  );
+  readonly totalLabel = computed(() =>
+    interpolate(this.msgs().totalAmount, { amount: this.amountLabel() }),
   );
 
   constructor() {
@@ -218,11 +242,12 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
       const checkout = this.checkout();
       const theme = this.resolvedTheme();
       const ready = this.viewReady();
+      const locale = this.i18n?.effectiveLocale() ?? 'en';
       if (!ready) {
         return;
       }
       untracked(() => {
-        void this.ensureButton(product, checkout, theme);
+        void this.ensureButton(product, checkout, theme, locale);
       });
     });
 
@@ -253,6 +278,7 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
     product: PaymentProduct,
     checkout: CheckoutOptions | undefined,
     theme: ResolvedPaymentTheme,
+    locale: 'en' | 'es' | 'pt',
   ): Promise<void> {
     const validation = validatePaymentProduct(product);
     if (!validation.valid) {
@@ -268,15 +294,23 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const elementsLocale = toStripeElementsLocale(locale);
     const nextKey = buildApplePayRenderKey(product);
     const themeChanged = this.lastTheme !== theme;
-    if (nextKey === this.renderKey && !themeChanged && this.uiState() === 'ready') {
+    const localeChanged = this.lastLocale !== elementsLocale;
+    if (
+      nextKey === this.renderKey &&
+      !themeChanged &&
+      !localeChanged &&
+      this.uiState() === 'ready'
+    ) {
       return;
     }
 
     const generation = ++this.renderGeneration;
     this.renderKey = nextKey;
     this.lastTheme = theme;
+    this.lastLocale = elementsLocale;
     this.emittedSuccess = false;
     // Availability was already proven by the bootstrap `ready`; don't fall back to
     // "Preparing Apple Pay…" while the button re-renders in this panel.
@@ -297,6 +331,7 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
         product,
         checkout,
         theme,
+        locale: elementsLocale,
         onSuccess: (result) => this.onPaymentSuccess(result, generation),
         onCancel: () => this.onPaymentCancel(generation),
         onError: (err) => this.onPaymentError(err, generation),

@@ -15,6 +15,9 @@ import {
   PAYMENT_METHOD_LABELS,
   isAnyStripeBnplReturnAttempt,
   type EasyPaymentsAppearance,
+  type EasyPaymentsLocale,
+  type EasyPaymentsTranslationOverrides,
+  resolveEffectiveLocale,
 } from '@easy-payments/angular';
 import { environment } from '../environments/environment';
 import {
@@ -82,6 +85,11 @@ export class App {
   readonly productQuantity = signal(String(DEFAULT_PRODUCT.quantity ?? 1));
   readonly theme = signal<PaymentTheme>('system');
   readonly appearance = signal<EasyPaymentsAppearance>('default');
+  /** Demo locale control for `<easy-payments [locale]>`. */
+  readonly locale = signal<EasyPaymentsLocale>('auto');
+  readonly effectiveLocale = computed(() => resolveEffectiveLocale(this.locale()));
+  /** Optional partial text overrides (demo). */
+  readonly customTranslations = signal<EasyPaymentsTranslationOverrides>({});
   /** Demo-only: parent backdrop so transparent appearance is visible. */
   readonly transparentPreviewBackdrop = signal<TransparentPreviewBackdrop>('light');
   /** Demo-only control for <easy-payments [maxWidth]>. */
@@ -217,6 +225,10 @@ export class App {
 
   setTheme(theme: PaymentTheme): void {
     this.theme.set(theme);
+  }
+
+  setLocale(locale: EasyPaymentsLocale): void {
+    this.locale.set(locale);
   }
 
   setAppearance(appearance: EasyPaymentsAppearance): void {

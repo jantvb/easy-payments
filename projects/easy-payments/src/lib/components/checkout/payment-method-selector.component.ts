@@ -4,6 +4,7 @@ import {
   ElementRef,
   TemplateRef,
   computed,
+  inject,
   input,
   output,
   viewChildren,
@@ -11,6 +12,7 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { PaymentMethod, ResolvedPaymentTheme } from '../../models';
 import { AvailablePaymentMethod } from '../../services/payment-orchestrator.service';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
 import { PaymentMethodTileComponent } from './payment-method-tile.component';
 
 @Component({
@@ -19,7 +21,7 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
   imports: [PaymentMethodTileComponent, NgTemplateOutlet],
   template: `
     <div class="ep-selector">
-      <p class="ep-selector__label" id="ep-payment-methods-label">Payment methods</p>
+      <p class="ep-selector__label" id="ep-payment-methods-label">{{ msgs().paymentMethodsLabel }}</p>
       <div
         class="ep-selector__grid"
         role="radiogroup"
@@ -122,6 +124,10 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentMethodSelectorComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
+
   readonly methods = input.required<AvailablePaymentMethod[]>();
   readonly selected = input<PaymentMethod | null>(null);
   readonly theme = input<ResolvedPaymentTheme>('light');
