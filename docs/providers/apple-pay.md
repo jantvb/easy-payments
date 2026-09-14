@@ -15,18 +15,38 @@ Stripe handles Apple Pay merchant validation for this integration. You normally 
 
 ## Frontend configuration
 
+Apple Pay is enabled in Easy Payments by including `providers.applePay` **and** using your existing Stripe configuration (`publishableKey` + `backend.createPaymentUrl`).
+
 ```ts
 providers: {
+  // Required — Apple Pay uses this Stripe publishable key (Express Checkout Element).
   stripe: { publishableKey: 'pk_test_...' },
-  applePay: {
-    merchantName: 'Your Store',
-    countryCode: 'US',
-  },
+
+  // Opt in to Apple Pay in Easy Payments.
+  //
+  // applePay: {} does NOT mean "Apple Pay requires no configuration."
+  // It means there are currently no additional Apple Pay-specific frontend
+  // credentials required here (no Apple Merchant ID / certificates in Angular).
+  // Stripe handles merchant validation for this integration.
+  //
+  // You can optionally pass display fields:
+  //   applePay: { merchantName: 'Your Store', countryCode: 'US' }
+  applePay: {},
 },
 backend: {
+  // Same Stripe PaymentIntent create URL used by card / Google Pay.
   createPaymentUrl: '/api/payments/create',
 }
 ```
+
+**Still required outside `provideEasyPayments()`:**
+
+- HTTPS frontend  
+- Compatible Apple device / Safari / Wallet  
+- Stripe Payment Method Domain registration for the checkout hostname  
+- Stripe Dashboard payment-method enablement for your Test/Live mode  
+
+See the troubleshooting section below if Apple Pay does not appear.
 
 ## Backend configuration
 

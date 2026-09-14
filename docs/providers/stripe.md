@@ -95,7 +95,7 @@ Easy Payments passes the resolved locale into Stripe Elements (`en` / `es` / `pt
 | Method | Extra frontend config | Extra backend URL |
 |--------|----------------------|-------------------|
 | Card | `stripe.publishableKey` | `createPaymentUrl` |
-| Apple Pay | `applePay: {}` (+ Stripe) | `createPaymentUrl` |
+| Apple Pay | `applePay: {}` (+ Stripe publishable key) | `createPaymentUrl` — empty `{}` = no extra Apple Pay frontend credentials; Stripe/domain/device setup still required |
 | Google Pay | `googlePay` (+ Stripe) | `createPaymentUrl` |
 | Klarna | `klarna` (+ Stripe) | `klarnaCreatePaymentUrl` |
 | Affirm | `affirm` (+ Stripe) | `affirmCreatePaymentUrl` |
