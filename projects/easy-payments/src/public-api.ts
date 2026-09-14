@@ -80,3 +80,23 @@ export type { AvailablePaymentMethod } from './lib/services/payment-orchestrator
 export { ApplePayAdapter } from './lib/adapters/apple-pay/apple-pay.adapter';
 export type { ApplePayAvailabilityState } from './lib/adapters/apple-pay/apple-pay.types';
 export type { EasyPaymentsAppearance } from './lib/models/easy-payments-appearance.model';
+
+export type {
+  EasyPaymentsLocale,
+  EasyPaymentsResolvedLocale,
+  EasyPaymentsTranslationKey,
+  EasyPaymentsTranslationOverrides,
+  EasyPaymentsTranslations,
+} from './lib/i18n';
+export {
+  EASY_PAYMENTS_DEFAULT_LOCALE,
+  EASY_PAYMENTS_SUPPORTED_LOCALES,
+  detectBrowserLocale,
+  normalizeLanguageTag,
+  resolveEffectiveLocale,
+  resolveMessages,
+  interpolate,
+  toPayPalSdkLocale,
+  toStripeBnplLocale,
+  toStripeElementsLocale,
+} from './lib/i18n';

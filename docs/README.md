@@ -3,8 +3,9 @@
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](./getting-started.md) | Install, Quick Start, compatibility |
+| [Localization](./localization.md) | Locales (`auto` / `en` / `es` / `pt`), overrides, currency formatting |
 | [Configuration](./configuration.md) | Theme, appearance, width, methods, events |
-| [API Reference](./api.md) | Complete public API for v1.0.0 |
+| [API Reference](./api.md) | Complete public API |
 | [Backend](./backend.md) | Contract + NestJS reference |
 | [Demo](./demo.md) | Run the Angular playground |
 | [Payment flow](./payment-flow.md) | Checkout → processing → success / error / cancel |

@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
+import type { Stripe, StripeElements, StripePaymentElement, StripeElementLocale } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
 import {
   CheckoutOptions,
@@ -238,6 +238,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
     container: HTMLElement,
     clientSecret: string,
     theme: ResolvedPaymentTheme,
+    locale?: string,
   ): Promise<void> {
     const stripe = await this.ensureStripeLoaded();
 
@@ -248,6 +249,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
       this.elements = stripe.elements({
         clientSecret,
         appearance: mapResolvedThemeToStripeAppearance(theme),
+        ...(locale ? { locale: locale as StripeElementLocale } : {}),
       });
 
       this.paymentElement = this.elements.create('payment', KLARNA_PAYMENT_ELEMENT_OPTIONS);

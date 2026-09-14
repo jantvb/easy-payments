@@ -48,6 +48,12 @@ import {
   isStripeReturnAttempt,
   type StripeRedirectMethod,
 } from '../../adapters/stripe/stripe-redirect-return';
+import {
+  EasyPaymentsI18nService,
+  type EasyPaymentsLocale,
+  type EasyPaymentsTranslationOverrides,
+  toStripeElementsLocale,
+} from '../../i18n';
 
 @Component({
   selector: 'easy-payments',
@@ -73,17 +79,21 @@ import {
     '[class.ep-appearance-transparent]': 'appearance() === "transparent"',
     '[attr.data-theme]': 'resolvedTheme()',
     '[attr.data-appearance]': 'appearance()',
+    '[attr.data-locale]': 'effectiveLocale()',
+    '[attr.lang]': 'effectiveLocale()',
     '[style.--ep-checkout-max-width]': 'checkoutMaxWidthCss()',
     '[style.max-width.px]': 'effectiveMaxWidth()',
     role: 'region',
-    'aria-label': 'Checkout',
+    '[attr.aria-label]': 'checkoutAriaLabel()',
   },
+  providers: [EasyPaymentsI18nService],
 })
 export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
   private readonly themeService = inject(ThemeService);
   private readonly stripeRedirectRecovery = inject(StripeRedirectRecoveryService);
   private readonly applePayAdapter = inject(ApplePayAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);
   private destroyed = false;
@@ -115,11 +125,29 @@ export class EasyPaymentsComponent {
    */
   readonly successBehavior = input<CheckoutSuccessBehavior>('confirmation');
 
+  /**
+   * UI locale. `auto` detects from the browser (es-*, pt-*, en-* → matching base;
+   * anything else → English). Defaults to `auto`.
+   */
+  readonly locale = input<EasyPaymentsLocale>('auto');
+
+  /**
+   * Partial overrides for Easy Payments-owned UI text.
+   * Priority: override → effective locale dictionary → English.
+   */
+  readonly translations = input<EasyPaymentsTranslationOverrides>({});
+
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
   /** Fired when the customer clicks Continue on the built-in success screen. */
   readonly successContinue = output<PaymentResult>();
+
+  readonly effectiveLocale = this.i18n.effectiveLocale;
+  readonly checkoutAriaLabel = computed(() => this.i18n.messages().checkoutAriaLabel);
+  readonly paymentMethodSelectionAria = computed(
+    () => this.i18n.messages().paymentMethodSelectionAria,
+  );
 
   readonly resolvedTheme = this.themeService.resolvedTheme;
   readonly availableMethods = this.orchestrator.availableMethods;
@@ -374,6 +402,11 @@ export class EasyPaymentsComponent {
       this.themeService.setTheme(this.theme());
     });
 
+    effect(() => {
+      this.i18n.setRequestedLocale(this.locale());
+      this.i18n.setOverrides(this.translations());
+    });
+
     // Merchant removed apple-pay from allowed methods — drop any preserved ECE ready state.
     effect(() => {
       const allowsApplePay = this.methods().includes('apple-pay');
@@ -499,6 +532,7 @@ export class EasyPaymentsComponent {
         product,
         checkout,
         theme,
+        locale: toStripeElementsLocale(this.i18n.effectiveLocale()),
         onSuccess: () => undefined,
         onCancel: () => undefined,
         onError: () => undefined,

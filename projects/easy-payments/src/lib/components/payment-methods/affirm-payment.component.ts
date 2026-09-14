@@ -30,6 +30,13 @@ import {
   markStripePendingReturn,
 } from '../../adapters/stripe/stripe-redirect-return';
 import { formatMoney } from '../../utils/format-money';
+import {
+  EasyPaymentsI18nService,
+  EN_TRANSLATIONS,
+  interpolate,
+  toStripeElementsLocale,
+  type EasyPaymentsResolvedLocale,
+} from '../../i18n';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 
 @Component({
@@ -39,12 +46,12 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
   template: `
     <div class="ep-affirm" [attr.data-state]="uiState()">
       <div class="ep-affirm__header">
-        <h3 class="ep-affirm__title">Pay with Affirm</h3>
-        <easy-checkout-security-message message="Secure checkout powered by Affirm via Stripe" />
+        <h3 class="ep-affirm__title">{{ msgs().payWithAffirm }}</h3>
+        <easy-checkout-security-message [message]="msgs().secureCheckoutAffirm" />
       </div>
 
       @if (uiState() === 'initializing' || uiState() === 'loading-session') {
-        <p class="ep-affirm__status" role="status">Preparing Affirm checkout…</p>
+        <p class="ep-affirm__status" role="status">{{ msgs().preparingAffirm }}</p>
       }
 
       <!--
@@ -58,7 +65,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
           uiState() === 'initializing' || uiState() === 'loading-session'
         "
         [attr.aria-hidden]="uiState() === 'error' || uiState() === 'idle'"
-        aria-label="Affirm secure payment form"
+        [attr.aria-label]="msgs().affirmFormAria"
       ></div>
 
       @if (inlineError()) {
@@ -66,7 +73,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
       }
 
       @if (uiState() === 'success') {
-        <p class="ep-affirm__success" role="status">Payment completed.</p>
+        <p class="ep-affirm__success" role="status">{{ msgs().paymentCompleted }}</p>
       }
 
       <button
@@ -77,9 +84,9 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
         (click)="onPay()"
       >
         @if (uiState() === 'processing') {
-          Processing payment…
+          {{ msgs().processingPayment }}
         } @else {
-          Pay {{ amountLabel() }}
+          {{ payLabel() }}
         }
       </button>
     </div>
@@ -176,6 +183,9 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
 })
 export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly affirmAdapter = inject(AffirmAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly product = input.required<PaymentProduct>();
   readonly checkout = input<CheckoutOptions>();
@@ -201,6 +211,8 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly viewReady = signal(false);
 
   private sessionKey: string | null = null;
+  private lastClientSecret: string | null = null;
+  private lastMountedLocale: string | null = null;
   private initGeneration = 0;
   private lastAppliedTheme: ResolvedPaymentTheme | null = null;
   /** Ensures success/cancel/error emit at most once per payment attempt (incl. redirect return). */
@@ -209,7 +221,21 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
   private returnHandled = false;
 
   readonly amountLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+    this.i18n
+      ? this.i18n.formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+        )
+      : formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+          'en',
+        ),
+  );
+  readonly payLabel = computed(() =>
+    interpolate(this.msgs().payAmount, { amount: this.amountLabel() }),
   );
 
   constructor() {
@@ -219,11 +245,12 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
       const product = this.product();
       const checkout = this.checkout();
       const ready = this.viewReady();
+      const locale = this.i18n?.effectiveLocale() ?? 'en';
       if (!ready) {
         return;
       }
       untracked(() => {
-        void this.ensureSession(product, checkout);
+        void this.ensureSession(product, checkout, locale);
       });
     });
 
@@ -246,6 +273,8 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.initGeneration += 1;
     this.sessionKey = null;
+    this.lastClientSecret = null;
+    this.lastMountedLocale = null;
     void this.affirmAdapter.destroy();
   }
 
@@ -305,6 +334,7 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
   private async ensureSession(
     product: PaymentProduct,
     checkout: CheckoutOptions | undefined,
+    locale: EasyPaymentsResolvedLocale,
   ): Promise<void> {
     const validation = validatePaymentProduct(product);
     if (!validation.valid) {
@@ -334,9 +364,26 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
     }
 
     const nextKey = buildAffirmSessionKey(product, checkout);
+    const elementsLocale = toStripeElementsLocale(locale);
 
     // Same checkout identity (including in-flight): never create another PaymentIntent.
     if (nextKey === this.sessionKey) {
+      if (
+        this.lastMountedLocale !== elementsLocale &&
+        this.lastClientSecret &&
+        this.affirmAdapter.hasMountedElement()
+      ) {
+        const host = this.host().nativeElement;
+        const theme = untracked(() => this.resolvedTheme());
+        await this.affirmAdapter.mountPaymentElement(
+          host,
+          this.lastClientSecret,
+          theme,
+          elementsLocale,
+        );
+        this.lastMountedLocale = elementsLocale;
+        this.lastAppliedTheme = theme;
+      }
       return;
     }
 
@@ -359,11 +406,18 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
 
       const host = this.host().nativeElement;
       const theme = untracked(() => this.resolvedTheme());
-      await this.affirmAdapter.mountPaymentElement(host, session.clientSecret, theme);
+      this.lastClientSecret = session.clientSecret;
+      await this.affirmAdapter.mountPaymentElement(
+        host,
+        session.clientSecret,
+        theme,
+        elementsLocale,
+      );
       if (generation !== this.initGeneration) {
         return;
       }
 
+      this.lastMountedLocale = elementsLocale;
       this.lastAppliedTheme = theme;
       this.uiState.set('ready');
     } catch (err) {
@@ -371,6 +425,8 @@ export class AffirmPaymentComponent implements AfterViewInit, OnDestroy {
         return;
       }
       this.sessionKey = null;
+      this.lastClientSecret = null;
+      this.lastMountedLocale = null;
       const paymentError = normalizeError(err, { method: 'affirm', provider: 'affirm' });
       this.uiState.set('error');
       this.inlineError.set(paymentError.message);

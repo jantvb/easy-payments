@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { PaymentProduct } from '../../models';
 import { formatMoney, formatUnitAmount } from '../../utils/format-money';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
 
 @Component({
   selector: 'easy-checkout-product-summary',
@@ -26,16 +27,16 @@ import { formatMoney, formatUnitAmount } from '../../utils/format-money';
             @if (product().description) {
               {{ product().description }}
             } @else {
-              Order total
+              {{ msgs().orderTotal }}
             }
             @if (quantity() > 1) {
-              <span> · Qty {{ quantity() }}</span>
+              <span> · {{ msgs().quantityPrefix }} {{ quantity() }}</span>
             }
           </p>
           <p class="ep-summary__currency">{{ currency() }}</p>
         </div>
         @if (quantity() > 1) {
-          <p class="ep-summary__unit">{{ unitLabel() }} each</p>
+          <p class="ep-summary__unit">{{ unitLabel() }} {{ msgs().eachSuffix }}</p>
         }
       </div>
     </div>
@@ -140,12 +141,22 @@ import { formatMoney, formatUnitAmount } from '../../utils/format-money';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CheckoutProductSummaryComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
+
   readonly product = input.required<PaymentProduct>();
 
   readonly quantity = computed(() => this.product().quantity ?? 1);
   readonly currency = computed(() => (this.product().currency || 'USD').toUpperCase());
   readonly totalLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.quantity()),
+    this.i18n
+      ? this.i18n.formatMoney(this.product().amount, this.product().currency, this.quantity())
+      : formatMoney(this.product().amount, this.product().currency, this.quantity(), 'en'),
   );
-  readonly unitLabel = computed(() => formatUnitAmount(this.product().amount, this.product().currency));
+  readonly unitLabel = computed(() =>
+    this.i18n
+      ? this.i18n.formatUnitAmount(this.product().amount, this.product().currency)
+      : formatUnitAmount(this.product().amount, this.product().currency, 'en'),
+  );
 }

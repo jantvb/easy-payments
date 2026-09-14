@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { PaymentMethod, PAYMENT_METHOD_LABELS, ResolvedPaymentTheme } from '../../models';
 import { getPaymentMethodPresentation } from '../../branding/payment-method-presentation';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
 import { PaymentMethodIconComponent } from './payment-method-icon.component';
 
 @Component({
@@ -23,7 +24,7 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       (keydown.space)="$event.preventDefault(); select.emit()"
     >
       @if (isMock()) {
-        <span class="ep-tile__demo" aria-hidden="true">Demo</span>
+        <span class="ep-tile__demo" aria-hidden="true">{{ msgs().demoBadge }}</span>
       }
       @if (selected()) {
         <span class="ep-tile__check" aria-hidden="true">
@@ -179,6 +180,10 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentMethodTileComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
+
   readonly method = input.required<PaymentMethod>();
   readonly theme = input<ResolvedPaymentTheme>('light');
   readonly selected = input(false);
@@ -205,8 +210,9 @@ export class PaymentMethodTileComponent {
   });
 
   ariaLabel(): string {
-    const base = PAYMENT_METHOD_LABELS[this.method()];
-    const demo = this.isMock() ? ', demo mode' : '';
+    const method = this.method();
+    const base = method === 'card' ? this.msgs().methodCard : PAYMENT_METHOD_LABELS[method];
+    const demo = this.isMock() ? `, ${this.msgs().demoModeAria}` : '';
     const state = this.selected() ? ', selected' : '';
     return `${base}${demo}${state}`;
   }

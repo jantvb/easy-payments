@@ -1,0 +1,78 @@
+import {
+  detectBrowserLocale,
+  normalizeLanguageTag,
+  resolveEffectiveLocale,
+} from './locale-resolver';
+
+describe('locale-resolver', () => {
+  describe('normalizeLanguageTag', () => {
+    it('maps Spanish regional tags to es', () => {
+      expect(normalizeLanguageTag('es-ES')).toBe('es');
+      expect(normalizeLanguageTag('es-MX')).toBe('es');
+      expect(normalizeLanguageTag('es-US')).toBe('es');
+      expect(normalizeLanguageTag('es_AR')).toBe('es');
+    });
+
+    it('maps Portuguese regional tags to pt', () => {
+      expect(normalizeLanguageTag('pt-BR')).toBe('pt');
+      expect(normalizeLanguageTag('pt-PT')).toBe('pt');
+    });
+
+    it('maps English regional tags to en', () => {
+      expect(normalizeLanguageTag('en-US')).toBe('en');
+      expect(normalizeLanguageTag('en-GB')).toBe('en');
+      expect(normalizeLanguageTag('en-CA')).toBe('en');
+    });
+
+    it('falls back to English for unsupported languages', () => {
+      expect(normalizeLanguageTag('fr-FR')).toBe('en');
+      expect(normalizeLanguageTag('de-DE')).toBe('en');
+      expect(normalizeLanguageTag('zh-CN')).toBe('en');
+      expect(normalizeLanguageTag('ja-JP')).toBe('en');
+      expect(normalizeLanguageTag('ko-KR')).toBe('en');
+      expect(normalizeLanguageTag('it-IT')).toBe('en');
+    });
+
+    it('falls back to English for empty or invalid values', () => {
+      expect(normalizeLanguageTag(null)).toBe('en');
+      expect(normalizeLanguageTag(undefined)).toBe('en');
+      expect(normalizeLanguageTag('')).toBe('en');
+      expect(normalizeLanguageTag('   ')).toBe('en');
+    });
+  });
+
+  describe('detectBrowserLocale', () => {
+    it('prefers navigator.languages over language', () => {
+      expect(detectBrowserLocale(['es-MX', 'en-US'], 'fr-FR')).toBe('es');
+    });
+
+    it('uses language when languages is empty', () => {
+      expect(detectBrowserLocale([], 'pt-BR')).toBe('pt');
+    });
+
+    it('returns English when no navigator data is available', () => {
+      expect(detectBrowserLocale([], null)).toBe('en');
+      expect(detectBrowserLocale(null, null)).toBe('en');
+    });
+  });
+
+  describe('resolveEffectiveLocale', () => {
+    it('resolves explicit locales', () => {
+      expect(resolveEffectiveLocale('en')).toBe('en');
+      expect(resolveEffectiveLocale('es')).toBe('es');
+      expect(resolveEffectiveLocale('pt')).toBe('pt');
+    });
+
+    it('resolves auto from provided browser languages', () => {
+      expect(resolveEffectiveLocale('auto', { languages: ['de-DE'] })).toBe('en');
+      expect(resolveEffectiveLocale('auto', { languages: ['es-ES'] })).toBe('es');
+      expect(resolveEffectiveLocale('auto', { language: 'pt-BR' })).toBe('pt');
+    });
+
+    it('falls back to English for unexpected requested values', () => {
+      expect(resolveEffectiveLocale('fr' as never)).toBe('en');
+      expect(resolveEffectiveLocale('')).toBe('en');
+      expect(resolveEffectiveLocale(null)).toBe('en');
+    });
+  });
+});

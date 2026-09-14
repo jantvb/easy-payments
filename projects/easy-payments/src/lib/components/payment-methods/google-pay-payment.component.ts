@@ -26,6 +26,11 @@ import { buildGooglePayRenderKey, GooglePayUiState } from '../../adapters/google
 import { mapGooglePayError } from '../../adapters/google-pay/google-pay-error.mapper';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 import { formatMoney } from '../../utils/format-money';
+import {
+  EasyPaymentsI18nService,
+  EN_TRANSLATIONS,
+  interpolate,
+} from '../../i18n';
 
 @Component({
   selector: 'easy-google-pay-payment',
@@ -34,30 +39,30 @@ import { formatMoney } from '../../utils/format-money';
   template: `
     <div class="ep-gpay" [attr.data-state]="uiState()">
       <div class="ep-gpay__header">
-        <h3 class="ep-gpay__title">Pay with Google Pay</h3>
-        <easy-checkout-security-message message="Secure checkout with Google Pay" />
+        <h3 class="ep-gpay__title">{{ msgs().payWithGooglePay }}</h3>
+        <easy-checkout-security-message [message]="msgs().secureCheckoutGooglePay" />
       </div>
 
       @if (uiState() === 'initializing') {
-        <p class="ep-gpay__status" role="status">Preparing Google Pay…</p>
+        <p class="ep-gpay__status" role="status">{{ msgs().preparingGooglePay }}</p>
       }
 
       @if (uiState() === 'unavailable') {
         <p class="ep-gpay__status" role="status">
-          Google Pay is not available in this browser or Google account.
+          {{ msgs().googlePayUnavailable }}
         </p>
       }
 
       @if (uiState() === 'creating-session') {
-        <p class="ep-gpay__status" role="status">Preparing secure payment…</p>
+        <p class="ep-gpay__status" role="status">{{ msgs().preparingSecurePayment }}</p>
       }
 
       @if (uiState() === 'awaiting-sheet') {
-        <p class="ep-gpay__status" role="status">Waiting for Google Pay…</p>
+        <p class="ep-gpay__status" role="status">{{ msgs().waitingGooglePay }}</p>
       }
 
       @if (uiState() === 'processing') {
-        <p class="ep-gpay__status" role="status">Processing Google Pay payment…</p>
+        <p class="ep-gpay__status" role="status">{{ msgs().processingGooglePay }}</p>
       }
 
       <div
@@ -65,17 +70,17 @@ import { formatMoney } from '../../utils/format-money';
         class="ep-gpay__button"
         [class.ep-gpay__button--busy]="isBusy()"
         [attr.aria-busy]="isBusy()"
-        aria-label="Google Pay official checkout"
+        [attr.aria-label]="msgs().googlePayCheckoutAria"
       ></div>
 
-      <p class="ep-gpay__amount" aria-live="polite">Total {{ amountLabel() }}</p>
+      <p class="ep-gpay__amount" aria-live="polite">{{ totalLabel() }}</p>
 
       @if (inlineError()) {
         <p class="ep-gpay__error" role="alert">{{ inlineError() }}</p>
       }
 
       @if (uiState() === 'success') {
-        <p class="ep-gpay__success" role="status">Payment completed.</p>
+        <p class="ep-gpay__success" role="status">{{ msgs().paymentCompleted }}</p>
       }
     </div>
   `,
@@ -145,6 +150,9 @@ import { formatMoney } from '../../utils/format-money';
 })
 export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly googlePayAdapter = inject(GooglePayAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly product = input.required<PaymentProduct>();
   readonly checkout = input<CheckoutOptions>();
@@ -167,7 +175,21 @@ export class GooglePayPaymentComponent implements AfterViewInit, OnDestroy {
   private renderGeneration = 0;
 
   readonly amountLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+    this.i18n
+      ? this.i18n.formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+        )
+      : formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+          'en',
+        ),
+  );
+  readonly totalLabel = computed(() =>
+    interpolate(this.msgs().totalAmount, { amount: this.amountLabel() }),
   );
 
   constructor() {

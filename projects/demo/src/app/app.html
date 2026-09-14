@@ -161,6 +161,61 @@
       </section>
 
       <section>
+        <h2>Locale</h2>
+        <p class="hint">
+          Public <code>[locale]</code> input. Auto uses the browser language
+          (<code>es-*</code> → Spanish, <code>pt-*</code> → Portuguese, otherwise English).
+        </p>
+        <fieldset class="choice-group">
+          <legend class="visually-hidden">Locale</legend>
+          <label class="choice">
+            <input
+              type="radio"
+              name="locale"
+              value="auto"
+              [checked]="locale() === 'auto'"
+              (change)="setLocale('auto')"
+            />
+            <span>Auto</span>
+          </label>
+          <label class="choice">
+            <input
+              type="radio"
+              name="locale"
+              value="en"
+              [checked]="locale() === 'en'"
+              (change)="setLocale('en')"
+            />
+            <span>English</span>
+          </label>
+          <label class="choice">
+            <input
+              type="radio"
+              name="locale"
+              value="es"
+              [checked]="locale() === 'es'"
+              (change)="setLocale('es')"
+            />
+            <span>Español</span>
+          </label>
+          <label class="choice">
+            <input
+              type="radio"
+              name="locale"
+              value="pt"
+              [checked]="locale() === 'pt'"
+              (change)="setLocale('pt')"
+            />
+            <span>Português</span>
+          </label>
+        </fieldset>
+        <p class="hint">
+          Requested: <code>{{ locale() }}</code> · Effective:
+          <code>{{ effectiveLocale() }}</code>
+        </p>
+      </section>
+
+      <section>
         <h2>Appearance</h2>
         <p class="hint">
           Public <code>[appearance]</code> input. Transparent removes the built-in checkout shell
@@ -360,12 +415,13 @@
               [theme]="theme()"
               [appearance]="appearance()"
               [maxWidth]="checkoutMaxWidth()"
+              [locale]="locale()"
+              [translations]="customTranslations()"
               (success)="onPaymentSuccess($event)"
               (cancel)="onPaymentCancel($event)"
               (error)="onPaymentError($event)"
               (successContinue)="onSuccessContinue($event)"
-            />
-          }
+            />          }
         </div>
       </div>
 

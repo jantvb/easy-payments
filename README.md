@@ -2,23 +2,24 @@
 
 Angular payments and checkout library for Stripe, PayPal, Apple Pay, Google Pay, Klarna, and Affirm.
 
-`@easy-payments/angular` provides a unified Angular payment component for card payments, digital wallets, PayPal, Klarna, and Affirm with one consistent API.
+`@easy-payments/angular` provides a unified Angular payment component for card payments, digital wallets, PayPal, Klarna, and Affirm with one consistent API — including built-in UI localization for English, Spanish, and Portuguese.
 
 ```bash
 npm install @easy-payments/angular @stripe/stripe-js
 ```
 
-![Version 1.0.1](https://img.shields.io/badge/version-1.0.1-0A7EA4)
+![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-0A7EA4)
 ![Angular 20.3+ · 21 · 22](https://img.shields.io/badge/Angular-≥20.3%20·%2021%20·%2022-DD0031)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 | | |
 |---|---|
-| **Version** | 1.0.1 |
+| **Version** | 1.1.0 |
 | **Framework** | Angular |
 | **Compatibility** | Angular **20.3+**, **21**, **22** (`>=20.3.0 <23.0.0`) |
 | **Workspace** | Built with Angular **22.1.5** |
 | **Methods** | Card · PayPal · Apple Pay · Google Pay · Klarna · Affirm |
+| **Locales** | `auto` · `en` · `es` · `pt` |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jantvb/easy-payments/v1.0.0/docs/assets/easy-payments-desktop.png" alt="Easy Payments checkout — desktop viewport" width="640" />
@@ -26,6 +27,7 @@ npm install @easy-payments/angular @stripe/stripe-js
 
 <p align="center">
   <a href="docs/getting-started.md">Getting Started</a> ·
+  <a href="docs/localization.md">Localization</a> ·
   <a href="docs/api.md">API</a> ·
   <a href="docs/payment-flow.md">Payment flow</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
@@ -39,13 +41,14 @@ npm install @easy-payments/angular @stripe/stripe-js
 
 | Easy Payments | Angular |
 |---------------|---------|
+| **1.1.x** | `>=20.3.0 <23.0.0` |
 | **1.0.x** | `>=20.3.0 <23.0.0` |
 
 - **Workspace / build:** Angular **22.1.5**
 - **Consumer peers:** `>=20.3.0 <23.0.0`
 - **Validated** with packed installs into fresh apps on Angular **20**, **21**, and **22**
 
-v1.0.x does **not** support Angular 19, Angular 23+, or non-Angular frameworks.
+v1.1.x does **not** support Angular 19, Angular 23+, or non-Angular frameworks.
 
 ---
 
@@ -152,9 +155,9 @@ Full states (redirects, `successBehavior`, events): **[docs/payment-flow.md](doc
 
 ## What Easy Payments is / is not
 
-**Is:** Angular payment integration library · unified checkout UI · provider abstraction · normalized events/errors  
+**Is:** Angular payment integration library · unified checkout UI · provider abstraction · normalized events/errors · built-in UI localization  
 
-**Is not:** a payment processor · bank · merchant of record · Stripe/PayPal replacement · trusted pricing backend  
+**Is not:** a payment processor · bank · merchant of record · Stripe/PayPal replacement · trusted pricing backend · a currency converter  
 
 Money settles to **your** Stripe / PayPal (and related) merchant accounts.
 
@@ -168,55 +171,207 @@ npm install @easy-payments/angular @stripe/stripe-js
 
 > Package name: **`@easy-payments/angular`**.
 
-Peers: `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`, `@stripe/stripe-js` `^8.0.0`.
+Peers:
+
+- `@angular/core` / `@angular/common` `>=20.3.0 <23.0.0`
+- `@stripe/stripe-js` `^8.0.0`
 
 ---
 
-## Quick Start
+## Angular Quick Start
 
-1. Install  
-2. Configure providers + backend URLs with `provideEasyPayments(...)`  
-3. Define a `PaymentProduct`  
-4. Choose `methods` (allow-list **and** visual order — no separate `order` input)  
-5. Add `<easy-payments>`  
-6. Handle `(success)` / `(cancel)` / `(error)` / `(successContinue)`
+Standalone Angular only (`ApplicationConfig` + component `imports`). No NgModules.
+
+### 1. Install
+
+```bash
+npm install @easy-payments/angular @stripe/stripe-js
+```
+
+### 2. `app.config.ts` — provide Easy Payments
 
 ```ts
+import { ApplicationConfig } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
 import { provideEasyPayments } from '@easy-payments/angular';
 
-provideEasyPayments({
-  providers: {
-    stripe: { publishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY' },
-    paypal: { clientId: 'YOUR_PAYPAL_CLIENT_ID' },
-    applePay: {},
-    googlePay: { environment: 'TEST' },
-    klarna: {},
-    affirm: {},
-  },
-  backend: {
-    createPaymentUrl: '/api/payments/create',
-    paypalCreateOrderUrl: '/api/payments/paypal/create',
-    paypalCaptureOrderUrl: '/api/payments/paypal/capture',
-    klarnaCreatePaymentUrl: '/api/payments/klarna/create',
-    affirmCreatePaymentUrl: '/api/payments/affirm/create',
-  },
-});
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(),
+    provideEasyPayments({
+      providers: {
+        stripe: { publishableKey: 'pk_test_...' },
+        paypal: { clientId: 'YOUR_PAYPAL_CLIENT_ID', currency: 'USD', intent: 'capture' },
+        applePay: {},
+        googlePay: { environment: 'TEST' },
+        klarna: { purchaseCountry: 'US' },
+        affirm: { purchaseCountry: 'US' },
+      },
+      backend: {
+        createPaymentUrl: '/api/payments/create',
+        paypalCreateOrderUrl: '/api/payments/paypal/create',
+        paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+        klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+        affirmCreatePaymentUrl: '/api/payments/affirm/create',
+      },
+      // enableMockMode: true, // demo only — never in production
+    }),
+  ],
+};
 ```
+
+`EasyPaymentsConfig` shape:
+
+| Field | Notes |
+|-------|--------|
+| `providers.stripe?` | `{ publishableKey }` |
+| `providers.paypal?` | `{ clientId, currency?, intent? }` |
+| `providers.applePay?` | `{}` (or optional display fields) |
+| `providers.googlePay?` | `{ merchantId?, merchantName?, environment?, countryCode? }` |
+| `providers.klarna?` | `{ purchaseCountry?, locale? }` |
+| `providers.affirm?` | `{ purchaseCountry?, locale? }` |
+| `backend?` | `createPaymentUrl?`, `paypalCreateOrderUrl?`, `paypalCaptureOrderUrl?`, `klarnaCreatePaymentUrl?`, `affirmCreatePaymentUrl?` |
+| `enableMockMode?` | When `true`, all providers use mocks |
+
+Never put Stripe secret keys or PayPal Client Secrets in Angular.
+
+### 3. `app.component.ts` — product + handlers
+
+```ts
+import { Component } from '@angular/core';
+import {
+  EasyPaymentsComponent,
+  PaymentError,
+  PaymentMethod,
+  PaymentProduct,
+  PaymentResult,
+} from '@easy-payments/angular';
+
+@Component({
+  selector: 'app-root',
+  imports: [EasyPaymentsComponent],
+  templateUrl: './app.component.html',
+})
+export class AppComponent {
+  readonly product: PaymentProduct = {
+    id: 'premium-plan',
+    name: 'Premium Plan',
+    description: 'One year subscription',
+    amount: 99, // major units: 99 = $99.00 USD (not cents)
+    currency: 'USD',
+    quantity: 1,
+  };
+
+  readonly methods: PaymentMethod[] = [
+    'card',
+    'paypal',
+    'apple-pay',
+    'google-pay',
+    'klarna',
+    'affirm',
+  ];
+
+  onSuccess(result: PaymentResult): void {
+    console.log('paid', result);
+  }
+
+  onCancel(result: PaymentResult): void {
+    console.log('cancelled', result);
+  }
+
+  onError(error: PaymentError): void {
+    console.error(error.code, error.message);
+  }
+
+  onContinue(result: PaymentResult): void {
+    console.log('continue after confirmation', result);
+  }
+}
+```
+
+`PaymentProduct`: `id`, `name`, `amount`, `currency` required; optional `quantity`, `description`, `imageUrl`, `metadata`.
+
+**Amount is major currency units** (dollars, not cents). Example: `amount: 99` with `currency: 'USD'` means **$99.00**.
+
+### 4. `app.component.html` — render `<easy-payments>`
 
 ```html
 <easy-payments
   [product]="product"
-  [methods]="['card', 'paypal', 'apple-pay', 'google-pay', 'klarna', 'affirm']"
+  [methods]="methods"
   theme="system"
   appearance="default"
   [maxWidth]="640"
+  locale="auto"
+  (success)="onSuccess($event)"
+  (cancel)="onCancel($event)"
+  (error)="onError($event)"
+  (successContinue)="onContinue($event)"
+/>
+```
+
+Outputs are **`success`**, **`cancel`**, **`error`**, and **`successContinue`**. There is no `cancelled` output — use `(cancel)`.
+
+The `methods` array is both the allow-list and the visual order. No separate `order` input.
+
+### Localization
+
+```html
+<easy-payments
+  [product]="product"
+  locale="es"
   (success)="onSuccess($event)"
   (cancel)="onCancel($event)"
   (error)="onError($event)"
 />
 ```
 
-Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**  
+| `locale` | Behavior |
+|----------|----------|
+| `auto` (default) | Detects from the browser (`es-*` → Spanish, `pt-*` → Portuguese, `en-*` → English; other → English) |
+| `en` | English |
+| `es` | Spanish |
+| `pt` | Portuguese |
+
+Full guide: **[docs/localization.md](docs/localization.md)**
+
+### Custom translations
+
+Pass partial overrides with `[translations]`. Missing keys fall back to the effective locale, then English:
+
+```ts
+readonly translations = {
+  successTitle: 'You are all set!',
+  successContinue: 'Back to shop',
+};
+```
+
+```html
+<easy-payments
+  [product]="product"
+  locale="en"
+  [translations]="translations"
+  (success)="onSuccess($event)"
+  (cancel)="onCancel($event)"
+  (error)="onError($event)"
+/>
+```
+
+### Currency formatting
+
+Locale changes **how** amounts are displayed (`Intl` number/currency formatting). It does **not** convert currencies. `product.amount` and `product.currency` stay as you provide them.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `'easy-payments' is not a known element` | Import `EasyPaymentsComponent` in the host component's `imports` array (standalone). Ensure `provideEasyPayments(...)` is in `app.config.ts`. |
+| No payment methods appear | Configure the matching `providers` + backend URLs, and include those methods in `[methods]`. |
+| Stripe / wallets fail in production | Use live publishable keys server-side secrets, HTTPS, and Stripe Payment Method Domains for wallets. |
+| Wrong language | Set `locale` explicitly (`en` / `es` / `pt`) instead of `auto`, or check the browser language list. |
+| Amount looks like cents | Amounts are **major units** (`99` = $99.00), not Stripe-style cents. |
+
+Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
 **View complete example:** [`projects/demo`](projects/demo) · **Library source:** [`projects/easy-payments`](projects/easy-payments) · **Reference backend:** [`server`](server)
 
@@ -226,13 +381,15 @@ Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
 | Input | Type | Default | Notes |
 |-------|------|---------|-------|
-| `product` | `PaymentProduct` | — | **Required** |
+| `product` | `PaymentProduct` | — | **Required** (`id`, `name`, `amount`, `currency`; amount in major units) |
 | `methods` | `PaymentMethod[]` | `['apple-pay','google-pay','paypal','card']` | Allow-list + order |
 | `checkout` | `CheckoutOptions` | — | Optional URLs / successBehavior / customer |
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | System follows OS and updates live |
 | `appearance` | `'default' \| 'transparent'` | `'default'` | Independent of theme |
 | `maxWidth` | `number \| string \| null` | `640` | Clamped **320–1200** |
 | `successBehavior` | `'confirmation' \| 'event-only'` | `'confirmation'` | Overridable via `checkout` |
+| `locale` | `'auto' \| 'en' \| 'es' \| 'pt'` | `'auto'` | UI locale |
+| `translations` | `Partial<EasyPaymentsTranslations>` | `{}` | Partial string overrides |
 
 | Output | Payload |
 |--------|---------|
@@ -241,7 +398,7 @@ Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 | `error` | `PaymentError` |
 | `successContinue` | `PaymentResult` |
 
-Complete reference: **[docs/api.md](docs/api.md)** · Recipes: **[docs/configuration.md](docs/configuration.md)**
+Complete reference: **[docs/api.md](docs/api.md)** · Localization: **[docs/localization.md](docs/localization.md)** · Recipes: **[docs/configuration.md](docs/configuration.md)**
 
 ---
 
@@ -287,8 +444,6 @@ This repo’s [`server/`](server) NestJS app is a **reference example**, not a p
 | Reference backend | [`server`](server) |
 | Documentation | [`docs`](docs) |
 | Issues | [GitHub Issues](https://github.com/jantvb/easy-payments/issues) |
-
-Public-facing release branch: **`release/1.0.0`** (see [docs/release-branch.md](docs/release-branch.md)).
 
 ---
 
@@ -355,6 +510,10 @@ Do not use live credentials for basic integration testing.
 
 **Can I choose method order?** Yes — `methods` array order. No separate `order` property.  
 
+**How do I localize the UI?** `[locale]` (`auto` / `en` / `es` / `pt`) and optional `[translations]`. See [localization](docs/localization.md).  
+
+**Does locale convert currency?** No — display formatting only.  
+
 **Dark / light / system / transparent / width?** Yes — see [configuration](docs/configuration.md).  
 
 **Does Apple Pay / Google Pay always appear?** No — capability and configuration dependent.  
@@ -391,7 +550,7 @@ This is an optional way to support the open-source project. It is **not** a lice
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for **1.0.1**.
+See [CHANGELOG.md](CHANGELOG.md) for **1.1.0**.
 
 ---
 

@@ -4,6 +4,7 @@ import {
   ElementRef,
   computed,
   effect,
+  inject,
   input,
   output,
   viewChild,
@@ -11,7 +12,7 @@ import {
 import { PaymentError } from '../../errors/payment-error';
 import { PaymentMethod, PAYMENT_METHOD_LABELS, PaymentProduct, PaymentResult } from '../../models';
 import { formatMoney } from '../../utils/format-money';
-import { CHECKOUT_COPY } from './checkout-copy';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
 import { CheckoutViewState, formatTransactionReference } from './checkout-view-state';
 
 @Component({
@@ -73,18 +74,18 @@ import { CheckoutViewState, formatTransactionReference } from './checkout-view-s
         <p class="ep-outcome__product">{{ item.name }}</p>
         <dl class="ep-outcome__details">
           <div class="ep-outcome__row">
-            <dt>{{ copy.successTotal }}</dt>
+            <dt>{{ msgs().successTotal }}</dt>
             <dd>{{ totalLabel() }}</dd>
           </div>
           @if (methodLabel()) {
             <div class="ep-outcome__row">
-              <dt>{{ copy.successPaidWith }}</dt>
+              <dt>{{ msgs().successPaidWith }}</dt>
               <dd>{{ methodLabel() }}</dd>
             </div>
           }
           @if (transactionRef()) {
             <div class="ep-outcome__row">
-              <dt>{{ copy.successTransaction }}</dt>
+              <dt>{{ msgs().successTransaction }}</dt>
               <dd class="ep-outcome__mono">{{ transactionRef() }}</dd>
             </div>
           }
@@ -281,7 +282,9 @@ import { CheckoutViewState, formatTransactionReference } from './checkout-view-s
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CheckoutOutcomeComponent {
-  readonly copy = CHECKOUT_COPY;
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly state = input.required<Exclude<CheckoutViewState, 'checkout'>>();
   readonly product = input<PaymentProduct | null>(null);
@@ -301,39 +304,42 @@ export class CheckoutOutcomeComponent {
   }
 
   readonly title = computed(() => {
+    const copy = this.msgs();
     switch (this.state()) {
       case 'processing':
-        return CHECKOUT_COPY.processingTitle;
+        return copy.processingTitle;
       case 'success':
-        return CHECKOUT_COPY.successTitle;
+        return copy.successTitle;
       case 'error':
-        return CHECKOUT_COPY.errorTitle;
+        return copy.errorTitle;
       case 'cancelled':
-        return CHECKOUT_COPY.cancelledTitle;
+        return copy.cancelledTitle;
     }
   });
 
   readonly body = computed(() => {
+    const copy = this.msgs();
     switch (this.state()) {
       case 'processing':
-        return CHECKOUT_COPY.processingHint;
+        return copy.processingHint;
       case 'success':
-        return CHECKOUT_COPY.successBody;
+        return copy.successBody;
       case 'error':
-        return CHECKOUT_COPY.errorBody;
+        return copy.errorBody;
       case 'cancelled':
-        return CHECKOUT_COPY.cancelledBody;
+        return copy.cancelledBody;
     }
   });
 
   readonly actionLabel = computed(() => {
+    const copy = this.msgs();
     switch (this.state()) {
       case 'success':
-        return CHECKOUT_COPY.successContinue;
+        return copy.successContinue;
       case 'error':
-        return CHECKOUT_COPY.errorTryAgain;
+        return copy.errorTryAgain;
       case 'cancelled':
-        return CHECKOUT_COPY.cancelledReturn;
+        return copy.cancelledReturn;
       default:
         return '';
     }
@@ -341,7 +347,13 @@ export class CheckoutOutcomeComponent {
 
   readonly methodLabel = computed(() => {
     const method = this.result()?.method as PaymentMethod | undefined;
-    return method ? PAYMENT_METHOD_LABELS[method] : null;
+    if (!method) {
+      return null;
+    }
+    if (method === 'card') {
+      return this.msgs().methodCard;
+    }
+    return PAYMENT_METHOD_LABELS[method];
   });
 
   readonly transactionRef = computed(() =>
@@ -353,9 +365,10 @@ export class CheckoutOutcomeComponent {
     if (!item) {
       return '';
     }
-    return `${formatMoney(item.amount, item.currency, item.quantity ?? 1)} ${item.currency
-      .trim()
-      .toUpperCase()}`;
+    const amount = this.i18n
+      ? this.i18n.formatMoney(item.amount, item.currency, item.quantity ?? 1)
+      : formatMoney(item.amount, item.currency, item.quantity ?? 1, 'en');
+    return `${amount} ${item.currency.trim().toUpperCase()}`;
   });
 
   readonly safeErrorMessage = computed(() => {
@@ -367,7 +380,7 @@ export class CheckoutOutcomeComponent {
     if (message.startsWith('{') || message.startsWith('[') || message.length > 180) {
       return null;
     }
-    if (message === CHECKOUT_COPY.errorBody) {
+    if (message === this.msgs().errorBody) {
       return null;
     }
     return message;

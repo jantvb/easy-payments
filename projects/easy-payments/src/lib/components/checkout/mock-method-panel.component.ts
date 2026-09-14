@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import {
   PaymentMethod,
   PAYMENT_METHOD_LABELS,
@@ -6,6 +6,7 @@ import {
   ResolvedPaymentTheme,
 } from '../../models';
 import { formatMoney } from '../../utils/format-money';
+import { EasyPaymentsI18nService, EN_TRANSLATIONS, interpolate } from '../../i18n';
 import { PaymentMethodIconComponent } from './payment-method-icon.component';
 
 /**
@@ -20,11 +21,11 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       <div class="ep-mock-panel__header">
         <easy-payment-method-icon [method]="method()" [theme]="theme()" />
         <div>
-          <h3 class="ep-mock-panel__title">Pay with {{ label() }}</h3>
+          <h3 class="ep-mock-panel__title">{{ title() }}</h3>
           @if (isMock()) {
-            <p class="ep-mock-panel__hint">Demo checkout — no real payment is processed.</p>
+            <p class="ep-mock-panel__hint">{{ msgs().demoCheckoutHint }}</p>
           } @else {
-            <p class="ep-mock-panel__hint">Continue to complete your payment.</p>
+            <p class="ep-mock-panel__hint">{{ msgs().continuePaymentHint }}</p>
           }
         </div>
       </div>
@@ -39,9 +40,9 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       >
         @if (loading()) {
           <span class="ep-mock-panel__spinner" aria-hidden="true"></span>
-          Processing payment…
+          {{ msgs().processingPayment }}
         } @else {
-          Pay {{ amountLabel() }}
+          {{ payLabel() }}
         }
       </button>
     </div>
@@ -135,6 +136,10 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MockMethodPanelComponent {
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
+
   readonly method = input.required<PaymentMethod>();
   readonly product = input.required<PaymentProduct>();
   readonly theme = input<ResolvedPaymentTheme>('light');
@@ -143,12 +148,35 @@ export class MockMethodPanelComponent {
 
   readonly pay = output<void>();
 
-  readonly label = computed(() => PAYMENT_METHOD_LABELS[this.method()]);
+  readonly label = computed(() => {
+    const method = this.method();
+    return method === 'card' ? this.msgs().methodCard : PAYMENT_METHOD_LABELS[method];
+  });
   readonly amountLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+    this.i18n
+      ? this.i18n.formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+        )
+      : formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+          'en',
+        ),
+  );
+  readonly title = computed(() =>
+    interpolate(this.msgs().payWithMethod, { method: this.label() }),
+  );
+  readonly payLabel = computed(() =>
+    interpolate(this.msgs().payAmount, { amount: this.amountLabel() }),
   );
 
   ctaAriaLabel(): string {
-    return `Pay ${this.amountLabel()} with ${this.label()}`;
+    return interpolate(this.msgs().payAmountWithMethodAria, {
+      amount: this.amountLabel(),
+      method: this.label(),
+    });
   }
 }

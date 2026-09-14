@@ -1,4 +1,4 @@
-# Easy Payments API Reference (v1.0.0)
+# Easy Payments API Reference (v1.1.0)
 
 Complete public API for the Angular `<easy-payments>` component and related exports.
 
@@ -22,6 +22,8 @@ Standalone component. Selector: `easy-payments`.
 | `appearance` | `EasyPaymentsAppearance` | `'default'` | No | `default`, `transparent` | Outer shell. Independent of `theme`. `transparent` removes built-in card chrome. |
 | `maxWidth` | `number \| string \| null \| undefined` | `640` | No | clamped to **320–1200** px | Max checkout width. Component stays `width: 100%` up to this cap. Invalid values fall back to `640`. |
 | `successBehavior` | `CheckoutSuccessBehavior` | `'confirmation'` | No | `confirmation`, `event-only` | Built-in success UI vs emit-only. Overridden by `checkout.successBehavior` when set. |
+| `locale` | `EasyPaymentsLocale` | `'auto'` | No | `auto`, `en`, `es`, `pt` | UI locale. `auto` detects from the browser (`es-*`→es, `pt-*`→pt, `en-*`→en, else English). See [localization.md](./localization.md). |
+| `translations` | `EasyPaymentsTranslationOverrides` | `{}` | No | partial dictionary keys | Partial overrides for Easy Payments-owned strings. Priority: override → locale dictionary → English. |
 
 #### Examples
 

@@ -3,6 +3,7 @@ import type {
   Stripe,
   StripeElements,
   StripeExpressCheckoutElement,
+  StripeElementLocale,
 } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
 import {
@@ -246,6 +247,8 @@ export class ApplePayAdapter extends BaseProviderAdapter {
       product: PaymentProduct;
       checkout?: CheckoutOptions;
       theme: ResolvedPaymentTheme;
+      /** Stripe Elements locale (Easy Payments chrome is localized separately). */
+      locale?: string;
       onSuccess: (result: PaymentResult) => void;
       onCancel: () => void;
       onError: (error: PaymentError) => void;
@@ -296,11 +299,13 @@ export class ApplePayAdapter extends BaseProviderAdapter {
     // Same paymentMethods contract that unlocked ready+applePay on iPhone Safari.
     // buttonHeight is Stripe-supported visual sizing only (does not change availability
     // or PaymentIntent flow). Keep other ECE chrome options out of this path.
+    // Optional `locale` is a documented Stripe Elements option (not Apple Wallet sheet API).
     this.elements = stripe.elements({
       mode: 'payment',
       amount,
       currency,
       paymentMethodTypes: ['card'],
+      ...(options.locale ? { locale: options.locale as StripeElementLocale } : {}),
     });
 
     const expressCheckout = this.elements.create('expressCheckout', {

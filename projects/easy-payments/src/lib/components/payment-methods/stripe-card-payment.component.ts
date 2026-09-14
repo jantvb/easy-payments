@@ -25,6 +25,13 @@ import { StripeCardAdapter } from '../../adapters/stripe/stripe-card.adapter';
 import { buildStripeSessionKey } from '../../adapters/stripe/stripe-appearance';
 import { StripeCardUiState } from '../../adapters/stripe/stripe.types';
 import { formatMoney } from '../../utils/format-money';
+import {
+  EasyPaymentsI18nService,
+  EN_TRANSLATIONS,
+  interpolate,
+  toStripeElementsLocale,
+  type EasyPaymentsResolvedLocale,
+} from '../../i18n';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 
 @Component({
@@ -34,12 +41,12 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
   template: `
     <div class="ep-stripe-card" [attr.data-state]="uiState()">
       <div class="ep-stripe-card__header">
-        <h3 class="ep-stripe-card__title">Pay with card</h3>
-        <easy-checkout-security-message message="Secure card payment powered by Stripe" />
+        <h3 class="ep-stripe-card__title">{{ msgs().payWithCard }}</h3>
+        <easy-checkout-security-message [message]="msgs().secureCardPaymentStripe" />
       </div>
 
       @if (uiState() === 'initializing' || uiState() === 'loading-session') {
-        <p class="ep-stripe-card__status" role="status">Preparing secure card form…</p>
+        <p class="ep-stripe-card__status" role="status">{{ msgs().preparingSecureCardForm }}</p>
       }
 
       <!--
@@ -53,11 +60,11 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
           uiState() === 'initializing' || uiState() === 'loading-session'
         "
         [attr.aria-hidden]="uiState() === 'error' || uiState() === 'idle'"
-        aria-label="Stripe secure card payment form"
+        [attr.aria-label]="msgs().stripeCardFormAria"
       ></div>
 
-      <p class="ep-stripe-card__brands" aria-label="Commonly accepted cards">
-        Cards accepted via Stripe (Visa, Mastercard, American Express, and more)
+      <p class="ep-stripe-card__brands" [attr.aria-label]="msgs().acceptedCardsAria">
+        {{ msgs().cardsAcceptedViaStripe }}
       </p>
 
       @if (inlineError()) {
@@ -65,7 +72,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
       }
 
       @if (uiState() === 'success') {
-        <p class="ep-stripe-card__success" role="status">Payment completed.</p>
+        <p class="ep-stripe-card__success" role="status">{{ msgs().paymentCompleted }}</p>
       }
 
       <button
@@ -76,9 +83,9 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
         (click)="onPay()"
       >
         @if (uiState() === 'processing') {
-          Processing payment…
+          {{ msgs().processingPayment }}
         } @else {
-          Pay {{ amountLabel() }}
+          {{ payLabel() }}
         }
       </button>
     </div>
@@ -181,6 +188,9 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
 })
 export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly stripeAdapter = inject(StripeCardAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly product = input.required<PaymentProduct>();
   readonly checkout = input<CheckoutOptions>();
@@ -201,11 +211,27 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly viewReady = signal(false);
 
   private sessionKey: string | null = null;
+  private lastClientSecret: string | null = null;
+  private lastMountedLocale: string | null = null;
   private initGeneration = 0;
   private lastAppliedTheme: ResolvedPaymentTheme | null = null;
 
   readonly amountLabel = computed(() =>
-    formatMoney(this.product().amount, this.product().currency, this.product().quantity ?? 1),
+    this.i18n
+      ? this.i18n.formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+        )
+      : formatMoney(
+          this.product().amount,
+          this.product().currency,
+          this.product().quantity ?? 1,
+          'en',
+        ),
+  );
+  readonly payLabel = computed(() =>
+    interpolate(this.msgs().payAmount, { amount: this.amountLabel() }),
   );
 
   constructor() {
@@ -219,11 +245,12 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
       const product = this.product();
       const checkout = this.checkout();
       const ready = this.viewReady();
+      const locale = this.i18n?.effectiveLocale() ?? 'en';
       if (!ready) {
         return;
       }
       untracked(() => {
-        void this.ensureSession(product, checkout);
+        void this.ensureSession(product, checkout, locale);
       });
     });
 
@@ -246,6 +273,8 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.initGeneration += 1;
     this.sessionKey = null;
+    this.lastClientSecret = null;
+    this.lastMountedLocale = null;
     void this.stripeAdapter.destroy();
   }
 
@@ -316,6 +345,7 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
   private async ensureSession(
     product: PaymentProduct,
     checkout: CheckoutOptions | undefined,
+    locale: EasyPaymentsResolvedLocale,
   ): Promise<void> {
     const validation = validatePaymentProduct(product);
     if (!validation.valid) {
@@ -332,10 +362,27 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
     }
 
     const nextKey = buildStripeSessionKey(product, checkout);
+    const elementsLocale = toStripeElementsLocale(locale);
 
     // Same checkout identity (including in-flight): never create another PaymentIntent.
     // sessionKey is cleared only on error/destroy so retries remain possible.
     if (nextKey === this.sessionKey) {
+      if (
+        this.lastMountedLocale !== elementsLocale &&
+        this.lastClientSecret &&
+        this.stripeAdapter.hasMountedElement()
+      ) {
+        const host = this.host().nativeElement;
+        const theme = untracked(() => this.resolvedTheme());
+        await this.stripeAdapter.mountPaymentElement(
+          host,
+          this.lastClientSecret,
+          theme,
+          elementsLocale,
+        );
+        this.lastMountedLocale = elementsLocale;
+        this.lastAppliedTheme = theme;
+      }
       return;
     }
 
@@ -358,11 +405,18 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
 
       const host = this.host().nativeElement;
       const theme = untracked(() => this.resolvedTheme());
-      await this.stripeAdapter.mountPaymentElement(host, session.clientSecret, theme);
+      this.lastClientSecret = session.clientSecret;
+      await this.stripeAdapter.mountPaymentElement(
+        host,
+        session.clientSecret,
+        theme,
+        elementsLocale,
+      );
       if (generation !== this.initGeneration) {
         return;
       }
 
+      this.lastMountedLocale = elementsLocale;
       this.lastAppliedTheme = theme;
       this.uiState.set('ready');
     } catch (err) {
@@ -370,6 +424,8 @@ export class StripeCardPaymentComponent implements AfterViewInit, OnDestroy {
         return;
       }
       this.sessionKey = null;
+      this.lastClientSecret = null;
+      this.lastMountedLocale = null;
       const paymentError = normalizeError(err, { method: 'card', provider: 'stripe' });
       this.uiState.set('error');
       this.inlineError.set(paymentError.message);

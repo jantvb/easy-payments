@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   OnDestroy,
+  computed,
   effect,
   inject,
   input,
@@ -23,6 +24,11 @@ import { validatePaymentProduct } from '../../validators/product.validator';
 import { PayPalAdapter } from '../../adapters/paypal/paypal.adapter';
 import { buildPayPalRenderKey, PayPalUiState } from '../../adapters/paypal/paypal.types';
 import { mapPayPalError } from '../../adapters/paypal/paypal-error.mapper';
+import {
+  EasyPaymentsI18nService,
+  EN_TRANSLATIONS,
+  type EasyPaymentsResolvedLocale,
+} from '../../i18n';
 import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-message.component';
 
 @Component({
@@ -32,24 +38,24 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
   template: `
     <div class="ep-paypal" [attr.data-state]="uiState()">
       <div class="ep-paypal__header">
-        <h3 class="ep-paypal__title">Pay with PayPal</h3>
-        <easy-checkout-security-message message="Secure checkout powered by PayPal" />
+        <h3 class="ep-paypal__title">{{ msgs().payWithPayPal }}</h3>
+        <easy-checkout-security-message [message]="msgs().secureCheckoutPayPal" />
       </div>
 
       @if (uiState() === 'initializing') {
-        <p class="ep-paypal__status" role="status">Preparing PayPal checkout…</p>
+        <p class="ep-paypal__status" role="status">{{ msgs().preparingPayPal }}</p>
       }
 
       @if (uiState() === 'creating-order') {
-        <p class="ep-paypal__status" role="status">Creating PayPal order…</p>
+        <p class="ep-paypal__status" role="status">{{ msgs().creatingPayPalOrder }}</p>
       }
 
       @if (uiState() === 'waiting-approval') {
-        <p class="ep-paypal__status" role="status">Waiting for PayPal approval…</p>
+        <p class="ep-paypal__status" role="status">{{ msgs().waitingPayPalApproval }}</p>
       }
 
       @if (uiState() === 'capturing') {
-        <p class="ep-paypal__status" role="status">Capturing PayPal payment…</p>
+        <p class="ep-paypal__status" role="status">{{ msgs().capturingPayPal }}</p>
       }
 
       <!--
@@ -61,7 +67,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
         class="ep-paypal__buttons"
         [class.ep-paypal__buttons--pending]="uiState() === 'initializing'"
         [attr.aria-busy]="isBusyState()"
-        aria-label="PayPal official checkout"
+        [attr.aria-label]="msgs().paypalCheckoutAria"
       ></div>
 
       @if (inlineError()) {
@@ -69,11 +75,11 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
       }
 
       @if (uiState() === 'success') {
-        <p class="ep-paypal__success" role="status">Payment completed.</p>
+        <p class="ep-paypal__success" role="status">{{ msgs().paymentCompleted }}</p>
       }
 
       @if (uiState() === 'cancelled') {
-        <p class="ep-paypal__status" role="status">PayPal checkout cancelled.</p>
+        <p class="ep-paypal__status" role="status">{{ msgs().paypalCancelled }}</p>
       }
     </div>
   `,
@@ -136,6 +142,9 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
 })
 export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly paypalAdapter = inject(PayPalAdapter);
+  private readonly i18n = inject(EasyPaymentsI18nService, { optional: true });
+
+  readonly msgs = computed(() => this.i18n?.messages() ?? EN_TRANSLATIONS);
 
   readonly product = input.required<PaymentProduct>();
   readonly checkout = input<CheckoutOptions>();
@@ -158,19 +167,20 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   private renderGeneration = 0;
 
   constructor() {
-    // Product/checkout identity may require re-rendering Buttons (createOrder closure).
+    // Product/checkout/locale identity may require re-rendering Buttons (createOrder closure).
     // Theme must NOT recreate orders or reload the SDK.
     effect(() => {
       const product = this.product();
       const checkout = this.checkout();
       const ready = this.viewReady();
+      const locale = this.i18n?.effectiveLocale() ?? 'en';
       // Read theme so Angular tracks it, but do not use it as a render key.
       void this.resolvedTheme();
       if (!ready) {
         return;
       }
       untracked(() => {
-        void this.ensureButtons(product, checkout);
+        void this.ensureButtons(product, checkout, locale);
       });
     });
 
@@ -203,6 +213,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   private async ensureButtons(
     product: PaymentProduct,
     checkout: CheckoutOptions | undefined,
+    locale: EasyPaymentsResolvedLocale,
   ): Promise<void> {
     const validation = validatePaymentProduct(product);
     if (!validation.valid) {
@@ -218,7 +229,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const nextKey = buildPayPalRenderKey(product, checkout);
+    const nextKey = `${buildPayPalRenderKey(product, checkout)}|${locale}`;
     if (nextKey === this.renderKey) {
       return;
     }
@@ -229,7 +240,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
     this.inlineError.set(null);
 
     try {
-      await this.paypalAdapter.ensureSdkLoaded();
+      await this.paypalAdapter.ensureSdkLoaded(locale);
       if (generation !== this.renderGeneration) {
         return;
       }
@@ -237,19 +248,23 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       const host = this.host().nativeElement;
       host.replaceChildren();
 
-      await this.paypalAdapter.renderButtons(host, {
-        createOrder: () => this.onCreateOrder(product, checkout, generation),
-        onApprove: (data) => this.onApprove(data.orderID, generation),
-        onCancel: () => this.onCancel(generation),
-        onError: (err) => this.onSdkError(err, generation),
-        onClick: async (_data, actions) => {
-          if (this.paypalAdapter.isBusy() || this.uiState() === 'success') {
-            await actions.reject();
-            return;
-          }
-          await actions.resolve();
+      await this.paypalAdapter.renderButtons(
+        host,
+        {
+          createOrder: () => this.onCreateOrder(product, checkout, generation),
+          onApprove: (data) => this.onApprove(data.orderID, generation),
+          onCancel: () => this.onCancel(generation),
+          onError: (err) => this.onSdkError(err, generation),
+          onClick: async (_data, actions) => {
+            if (this.paypalAdapter.isBusy() || this.uiState() === 'success') {
+              await actions.reject();
+              return;
+            }
+            await actions.resolve();
+          },
         },
-      });
+        locale,
+      );
 
       if (generation !== this.renderGeneration) {
         return;

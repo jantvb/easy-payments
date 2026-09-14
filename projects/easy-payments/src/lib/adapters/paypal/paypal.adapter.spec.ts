@@ -21,7 +21,10 @@ describe('PayPalAdapter', () => {
       'createPayPalOrder',
       'capturePayPalOrder',
     ]);
-    sdkLoader = jasmine.createSpyObj<SdkLoaderService>('SdkLoaderService', ['loadScript']);
+    sdkLoader = jasmine.createSpyObj<SdkLoaderService>('SdkLoaderService', [
+      'loadScript',
+      'unloadScript',
+    ]);
     sdkLoader.loadScript.and.resolveTo();
 
     renderSpy = jasmine.createSpy('render').and.resolveTo();
@@ -101,7 +104,9 @@ describe('PayPalAdapter', () => {
     expect(first).toBe(paypalNs);
     expect(second).toBe(paypalNs);
     expect(sdkLoader.loadScript).toHaveBeenCalledTimes(1);
-    expect(sdkLoader.loadScript.calls.mostRecent().args[0].id).toBe('easy-payments-paypal-sdk');
+    expect(sdkLoader.loadScript.calls.mostRecent().args[0].id).toBe(
+      'easy-payments-paypal-sdk-en_US',
+    );
   });
 
   it('creates an order through the backend without amount or metadata', async () => {
