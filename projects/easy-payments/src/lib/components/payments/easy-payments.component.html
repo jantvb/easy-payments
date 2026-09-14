@@ -9,8 +9,8 @@
     />
   } @else {
     <header class="ep-checkout__header">
-      <h2 class="ep-checkout__title">Complete your purchase</h2>
-      <p class="ep-checkout__subtitle">Choose your preferred payment method</p>
+      <h2 class="ep-checkout__title">{{ checkoutTitle() }}</h2>
+      <p class="ep-checkout__subtitle">{{ checkoutSubtitle() }}</p>
     </header>
 
     <easy-checkout-product-summary [product]="product()" />
@@ -28,7 +28,7 @@
 
     @if (visibleMethods().length === 0) {
       <p class="ep-checkout__empty" role="status">
-        No payment methods are available for this configuration.
+        {{ noPaymentMethodsAvailable() }}
       </p>
     } @else {
       <!--

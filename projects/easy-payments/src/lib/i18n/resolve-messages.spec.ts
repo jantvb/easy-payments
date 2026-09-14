@@ -18,10 +18,23 @@ describe('resolveMessages', () => {
   it('returns Spanish dictionary for es', () => {
     expect(resolveMessages('es').successTitle).toBe(ES_TRANSLATIONS.successTitle);
     expect(resolveMessages('es').payWithCard).toBe(ES_TRANSLATIONS.payWithCard);
+    expect(resolveMessages('es').checkoutTitle).toBe(ES_TRANSLATIONS.checkoutTitle);
+    expect(resolveMessages('es').checkoutSubtitle).toBe(ES_TRANSLATIONS.checkoutSubtitle);
   });
 
   it('returns Portuguese dictionary for pt', () => {
     expect(resolveMessages('pt').successTitle).toBe(PT_TRANSLATIONS.successTitle);
+    expect(resolveMessages('pt').checkoutTitle).toBe(PT_TRANSLATIONS.checkoutTitle);
+    expect(resolveMessages('pt').checkoutSubtitle).toBe(PT_TRANSLATIONS.checkoutSubtitle);
+  });
+
+  it('includes checkout heading keys for all supported locales', () => {
+    for (const locale of ['en', 'es', 'pt'] as const) {
+      const messages = resolveMessages(locale);
+      expect(messages.checkoutTitle.trim().length).toBeGreaterThan(0);
+      expect(messages.checkoutSubtitle.trim().length).toBeGreaterThan(0);
+      expect(messages.noPaymentMethodsAvailable.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it('applies partial custom overrides with locale fallback for remaining keys', () => {

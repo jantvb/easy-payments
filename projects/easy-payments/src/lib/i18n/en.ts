@@ -4,6 +4,9 @@ export const EN_TRANSLATIONS: EasyPaymentsTranslations = {
   checkoutAriaLabel: 'Checkout',
   paymentMethodsLabel: 'Payment methods',
   paymentMethodSelectionAria: 'Payment method selection',
+  checkoutTitle: 'Complete your purchase',
+  checkoutSubtitle: 'Choose your preferred payment method',
+  noPaymentMethodsAvailable: 'No payment methods are available for this configuration.',
   demoBadge: 'Demo',
   demoModeAria: 'demo mode',
 

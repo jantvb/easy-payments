@@ -6,6 +6,9 @@ export interface EasyPaymentsTranslations {
   checkoutAriaLabel: string;
   paymentMethodsLabel: string;
   paymentMethodSelectionAria: string;
+  checkoutTitle: string;
+  checkoutSubtitle: string;
+  noPaymentMethodsAvailable: string;
   demoBadge: string;
   demoModeAria: string;
 

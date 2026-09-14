@@ -940,4 +940,82 @@ describe('EasyPaymentsComponent', () => {
       expect(fixture.componentInstance.viewState()).toBe('error');
     });
   });
+
+  describe('checkout heading localization', () => {
+    it('renders English title and subtitle for locale=en', async () => {
+      fixture.componentRef.setInput('locale', 'en');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('renders Spanish title and subtitle for locale=es', async () => {
+      fixture.componentRef.setInput('locale', 'es');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Completa tu compra');
+      expect(text).toContain('Elige tu método de pago preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).not.toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('renders Portuguese title and subtitle for locale=pt', async () => {
+      fixture.componentRef.setInput('locale', 'pt');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Finalize sua compra');
+      expect(text).toContain('Escolha seu método de pagamento preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+
+    it('switches checkout headings at runtime en → es → pt → en without reload', async () => {
+      fixture.componentRef.setInput('methods', ['card']);
+      fixture.componentRef.setInput('locale', 'en');
+      await render(fixture);
+
+      let text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).toContain('Premium Plan');
+
+      fixture.componentRef.setInput('locale', 'es');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Completa tu compra');
+      expect(text).toContain('Elige tu método de pago preferido');
+      expect(text).not.toContain('Complete your purchase');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+
+      fixture.componentRef.setInput('locale', 'pt');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Finalize sua compra');
+      expect(text).toContain('Escolha seu método de pagamento preferido');
+      expect(text).not.toContain('Completa tu compra');
+      expect(text).toContain('Premium Plan');
+
+      fixture.componentRef.setInput('locale', 'en');
+      await render(fixture);
+      text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Complete your purchase');
+      expect(text).toContain('Choose your preferred payment method');
+      expect(text).not.toContain('Finalize sua compra');
+      expect(text).toContain('Premium Plan');
+      expect(text).toContain('One year subscription');
+    });
+  });
 });

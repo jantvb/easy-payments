@@ -5,6 +5,9 @@ export const ES_TRANSLATIONS: EasyPaymentsTranslations = {
   checkoutAriaLabel: 'Pago',
   paymentMethodsLabel: 'Métodos de pago',
   paymentMethodSelectionAria: 'Selección de método de pago',
+  checkoutTitle: 'Completa tu compra',
+  checkoutSubtitle: 'Elige tu método de pago preferido',
+  noPaymentMethodsAvailable: 'No hay métodos de pago disponibles para esta configuración.',
   demoBadge: 'Demo',
   demoModeAria: 'modo demo',
 

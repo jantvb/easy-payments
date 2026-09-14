@@ -148,6 +148,11 @@ export class EasyPaymentsComponent {
   readonly paymentMethodSelectionAria = computed(
     () => this.i18n.messages().paymentMethodSelectionAria,
   );
+  readonly checkoutTitle = computed(() => this.i18n.messages().checkoutTitle);
+  readonly checkoutSubtitle = computed(() => this.i18n.messages().checkoutSubtitle);
+  readonly noPaymentMethodsAvailable = computed(
+    () => this.i18n.messages().noPaymentMethodsAvailable,
+  );
 
   readonly resolvedTheme = this.themeService.resolvedTheme;
   readonly availableMethods = this.orchestrator.availableMethods;
