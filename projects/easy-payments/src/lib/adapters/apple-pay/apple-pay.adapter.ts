@@ -253,6 +253,8 @@ export class ApplePayAdapter extends BaseProviderAdapter {
       onSuccess: (result: PaymentResult) => void;
       onCancel: () => void;
       onError: (error: PaymentError) => void;
+      /** Wallet confirm began. Not fired for ready, unavailable, or a duplicate confirm. */
+      onAttempt?: () => void;
       onReady?: () => void;
       onUnavailable?: () => void;
       onAvailabilityChange?: (state: ApplePayAvailabilityState) => void;
@@ -356,6 +358,7 @@ export class ApplePayAdapter extends BaseProviderAdapter {
         return;
       }
       this.processing = true;
+      options.onAttempt?.();
       try {
         const result = await this.confirmExpressCheckout(options.product, options.checkout);
         this.successHandler?.(result);

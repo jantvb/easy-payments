@@ -17,8 +17,11 @@ import {
   CheckoutOptions,
   CheckoutSuccessBehavior,
   PaymentMethod,
+  PAYMENT_METHOD_PROVIDER_MAP,
+  PaymentMethodChangeEvent,
   PaymentProduct,
   PaymentResult,
+  PaymentStartedEvent,
   PaymentTheme,
   ResolvedPaymentTheme,
 } from '../../models';
@@ -146,6 +149,13 @@ export class EasyPaymentsComponent {
   readonly error = output<PaymentError>();
   /** Fired when the customer clicks Continue on the built-in success screen. */
   readonly successContinue = output<PaymentResult>();
+  /**
+   * Fired once when a payment attempt begins.
+   * Selecting a method tile does not start an attempt.
+   */
+  readonly started = output<PaymentStartedEvent>();
+  /** Fired when the selected method changes, including when it becomes unavailable. */
+  readonly methodChange = output<PaymentMethodChangeEvent>();
 
   readonly effectiveLocale = this.i18n.effectiveLocale;
   readonly checkoutAriaLabel = computed(() => this.i18n.messages().checkoutAriaLabel);
@@ -180,6 +190,8 @@ export class EasyPaymentsComponent {
   /** Prevents duplicate Stripe BNPL return recovery / success emits on one page load. */
   private stripeReturnRecoveryStarted = false;
   private terminalSuccessEmitted = false;
+  /** One in-flight attempt. `settled` drops duplicate terminal callbacks until the next attempt. */
+  private paymentAttempt: 'idle' | 'active' | 'settled' = 'idle';
 
   /** Terminal/mock-processing screens that replace the checkout form. */
   readonly showOutcome = computed(() => {
@@ -400,7 +412,7 @@ export class EasyPaymentsComponent {
     if (typeof window !== 'undefined' && isStripeReturnAttempt()) {
       const method = detectStripeReturnMethod() ?? 'klarna';
       this.viewState.set('processing');
-      this.selectedMethod.set(method);
+      this.updateSelectedMethod(method);
       this.providerBusy.set(true);
       queueMicrotask(() => {
         void this.recoverStripeReturn(method);
@@ -453,13 +465,13 @@ export class EasyPaymentsComponent {
 
       if (visible.length === 0) {
         if (current !== null) {
-          this.selectedMethod.set(null);
+          this.updateSelectedMethod(null);
         }
         return;
       }
 
       if (!current || !visible.some((entry) => entry.method === current)) {
-        this.selectedMethod.set(visible[0].method);
+        this.updateSelectedMethod(visible[0].method);
       }
     });
 
@@ -547,6 +559,7 @@ export class EasyPaymentsComponent {
         onSuccess: () => undefined,
         onCancel: () => undefined,
         onError: () => undefined,
+        onAttempt: () => this.onPaymentStarted('apple-pay'),
       });
       if (this.destroyed || generation !== this.applePayBootstrapGeneration) {
         return;
@@ -571,7 +584,7 @@ export class EasyPaymentsComponent {
     this.stripeReturnRecoveryStarted = true;
 
     this.viewState.set('processing');
-    this.selectedMethod.set(method);
+    this.updateSelectedMethod(method);
     this.providerBusy.set(true);
 
     const label = method === 'affirm' ? 'Affirm' : 'Klarna';
@@ -637,7 +650,7 @@ export class EasyPaymentsComponent {
       // The express button owns the interaction; there is no tile to select.
       return;
     }
-    this.selectedMethod.set(method);
+    this.updateSelectedMethod(method);
   }
 
   isMethodLoading(method: PaymentMethod): boolean {
@@ -718,7 +731,7 @@ export class EasyPaymentsComponent {
    */
   onKlarnaReturning(active: boolean): void {
     if (active) {
-      this.selectedMethod.set('klarna');
+      this.updateSelectedMethod('klarna');
       if (this.viewState() === 'checkout') {
         this.viewState.set('processing');
       }
@@ -745,7 +758,7 @@ export class EasyPaymentsComponent {
 
   onAffirmReturning(active: boolean): void {
     if (active) {
-      this.selectedMethod.set('affirm');
+      this.updateSelectedMethod('affirm');
       if (this.viewState() === 'checkout') {
         this.viewState.set('processing');
       }
@@ -764,6 +777,7 @@ export class EasyPaymentsComponent {
     this.viewState.set('processing');
     this.lastError.set(null);
     this.lastResult.set(null);
+    this.onPaymentStarted(method);
 
     try {
       const result = await this.orchestrator.processPayment(method, this.product(), this.checkout());
@@ -824,14 +838,66 @@ export class EasyPaymentsComponent {
     this.processingMethod.set(null);
     this.providerBusy.set(false);
     this.terminalSuccessEmitted = false;
+    this.paymentAttempt = 'idle';
     this.providerMountKey.update((value) => value + 1);
   }
 
+  /** Provider panels call this when a real attempt starts. Tile selection does not. */
+  onPaymentStarted(method: PaymentMethod): void {
+    if (this.destroyed || this.paymentAttempt === 'active') {
+      return;
+    }
+    this.paymentAttempt = 'active';
+    const product = this.product();
+    this.started.emit({
+      method,
+      provider: PAYMENT_METHOD_PROVIDER_MAP[method],
+      amount: product.amount,
+      currency: product.currency,
+    });
+  }
+
+  private updateSelectedMethod(method: PaymentMethod | null): void {
+    const previousMethod = this.selectedMethod();
+    if (previousMethod === method) {
+      return;
+    }
+    this.selectedMethod.set(method);
+    if (this.destroyed) {
+      return;
+    }
+    this.methodChange.emit({
+      method,
+      previousMethod,
+      provider: method ? PAYMENT_METHOD_PROVIDER_MAP[method] : null,
+    });
+  }
+
+  /** False when this terminal callback repeats an attempt that already finished. */
+  private acceptTerminalEvent(): boolean {
+    if (this.destroyed) {
+      return false;
+    }
+    if (this.paymentAttempt === 'settled') {
+      return false;
+    }
+    if (this.paymentAttempt === 'active') {
+      this.paymentAttempt = 'settled';
+    }
+    return true;
+  }
+
   private handleSuccess(result: PaymentResult): void {
+    if (this.destroyed) {
+      return;
+    }
     if (
       this.terminalSuccessEmitted &&
       (result.method === 'klarna' || result.method === 'affirm')
     ) {
+      return;
+    }
+    if (!this.acceptTerminalEvent()) {
       return;
     }
     if (result.method === 'klarna' || result.method === 'affirm') {
@@ -851,6 +917,9 @@ export class EasyPaymentsComponent {
   }
 
   private handleCancelled(result: PaymentResult): void {
+    if (!this.acceptTerminalEvent()) {
+      return;
+    }
     this.cancel.emit(result);
     this.lastResult.set(result);
     this.lastError.set(null);
@@ -859,6 +928,9 @@ export class EasyPaymentsComponent {
   }
 
   private handlePaymentError(error: PaymentError): void {
+    if (this.destroyed) {
+      return;
+    }
     if (error.code === 'PAYMENT_CANCELLED') {
       this.handleCancelled({
         status: 'cancelled',
@@ -866,6 +938,9 @@ export class EasyPaymentsComponent {
         provider: error.provider ?? 'stripe',
         message: error.message,
       });
+      return;
+    }
+    if (!this.acceptTerminalEvent()) {
       return;
     }
     this.error.emit(error);

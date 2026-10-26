@@ -440,9 +440,11 @@
               [maxWidth]="checkoutMaxWidth()"
               [locale]="locale()"
               [translations]="customTranslations()"
+              (started)="onPaymentStarted($event)"
               (success)="onPaymentSuccess($event)"
               (cancel)="onPaymentCancel($event)"
               (error)="onPaymentError($event)"
+              (methodChange)="onPaymentMethodChange($event)"
               (successContinue)="onSuccessContinue($event)"
             />          }
         </div>
@@ -451,6 +453,14 @@
       <section class="event-log" aria-live="polite">
         <h2>Last event</h2>
         <p>{{ lastEvent() }}</p>
+        @if (paymentEvents().length > 0) {
+          <h2>Event history</h2>
+          <ul class="status-list">
+            @for (entry of paymentEvents(); track $index) {
+              <li>{{ entry }}</li>
+            }
+          </ul>
+        }
       </section>
     </main>
   </div>

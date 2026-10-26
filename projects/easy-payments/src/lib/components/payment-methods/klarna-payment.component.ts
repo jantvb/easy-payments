@@ -198,6 +198,8 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** Fired once when the customer submits Klarna. Redirect recovery does not fire it again. */
+  readonly started = output<void>();
   /** True while confirmPayment / redirect is in progress — parent should lock method switching. */
   readonly busyChange = output<boolean>();
   /**
@@ -293,6 +295,7 @@ export class KlarnaPaymentComponent implements AfterViewInit, OnDestroy {
 
     this.inlineError.set(null);
     this.uiState.set('processing');
+    this.started.emit();
     this.busyChange.emit(true);
 
     try {

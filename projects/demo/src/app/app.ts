@@ -9,9 +9,11 @@ import {
   MockPaymentController,
   PaymentError,
   PaymentMethod,
+  PaymentMethodChangeEvent,
   PaymentOrchestratorService,
   PaymentProduct,
   PaymentResult,
+  PaymentStartedEvent,
   PaymentTheme,
   PAYMENT_METHOD_LABELS,
   isAnyStripeBnplReturnAttempt,
@@ -100,6 +102,8 @@ export class App {
   readonly checkoutMaxWidth = signal(640);
   readonly methodRows = signal<MethodRow[]>(DEFAULT_METHODS.map((row) => ({ ...row })));
   readonly lastEvent = signal<string>('No payment events yet.');
+  /** Newest first. Safe event lines only. */
+  readonly paymentEvents = signal<string[]>([]);
   readonly mode = signal<DemoMode>('demo');
   readonly modeMessage = signal<string | null>(null);
   readonly switchingMode = signal(false);
@@ -403,24 +407,42 @@ export class App {
     return PAYMENT_METHOD_LABELS[method];
   }
 
+  onPaymentStarted(event: PaymentStartedEvent): void {
+    this.recordEvent(`started · ${event.method} · ${event.provider}`);
+  }
+
+  onPaymentMethodChange(event: PaymentMethodChangeEvent): void {
+    const next = event.method ?? 'none';
+    this.recordEvent(`methodChange · ${event.previousMethod ?? 'none'} → ${next}`);
+  }
+
   onPaymentSuccess(result: PaymentResult): void {
-    this.lastEvent.set(
-      `Success (${result.method}): ${result.message ?? 'Payment completed'} [${result.transactionId ?? 'no id'}]`,
-    );
+    const reference = result.transactionId ?? result.sessionId;
+    this.recordEvent(`success · ${result.method}${reference ? ` · ${reference}` : ''}`);
   }
 
   onSuccessContinue(result: PaymentResult): void {
     // Library already resets the checkout view; keep playground config + Real mode intact.
-    this.lastEvent.set(
+    this.recordEvent(
       `Continue after success (${result.method}) — checkout reset for another test payment.`,
     );
   }
 
   onPaymentCancel(result: PaymentResult): void {
-    this.lastEvent.set(`Cancelled (${result.method}): ${result.message ?? 'Payment cancelled'}`);
+    this.recordEvent(`cancel · ${result.method}`);
   }
 
   onPaymentError(error: PaymentError): void {
-    this.lastEvent.set(`Error (${error.method ?? 'unknown'}): [${error.code}] ${error.message}`);
+    this.recordEvent(`error · ${error.method ?? 'unknown'} · ${error.code}`);
+  }
+
+  private recordEvent(line: string): void {
+    this.lastEvent.set(line);
+    this.paymentEvents.update((events) => {
+      if (events[0] === line) {
+        return events;
+      }
+      return [line, ...events].slice(0, 8);
+    });
   }
 }

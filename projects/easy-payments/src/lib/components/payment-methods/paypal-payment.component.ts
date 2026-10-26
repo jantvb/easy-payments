@@ -155,6 +155,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** Fired once when PayPal order creation begins. Capture does not fire it again. */
+  readonly started = output<void>();
   /** True during create/approve/capture — parent should lock method switching. */
   readonly busyChange = output<boolean>();
 
@@ -166,6 +168,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   private readonly viewReady = signal(false);
   private renderKey: string | null = null;
   private renderGeneration = 0;
+  private attemptAnnounced = false;
+  private captureEmitted = false;
 
   constructor() {
     // Product/checkout/locale identity may require re-rendering Buttons (createOrder closure).
@@ -300,6 +304,11 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
 
     this.inlineError.set(null);
     this.uiState.set('creating-order');
+    this.captureEmitted = false;
+    if (!this.attemptAnnounced) {
+      this.attemptAnnounced = true;
+      this.started.emit();
+    }
 
     try {
       const orderId = await this.paypalAdapter.createOrder(product, checkout);
@@ -310,6 +319,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
     } catch (err) {
       const paymentError = mapPayPalError(err, 'BACKEND_ERROR', 'Failed to create PayPal order.');
       if (generation === this.renderGeneration) {
+        this.attemptAnnounced = false;
         this.uiState.set('ready');
         this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
         this.error.emit(paymentError);
@@ -319,9 +329,10 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
   }
 
   private async onApprove(orderId: string, generation: number): Promise<void> {
-    if (generation !== this.renderGeneration) {
+    if (generation !== this.renderGeneration || this.captureEmitted) {
       return;
     }
+    this.captureEmitted = true;
 
     this.uiState.set('capturing');
     this.inlineError.set(null);
@@ -333,12 +344,14 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       }
 
       if (result.status === 'success') {
+        this.attemptAnnounced = false;
         this.uiState.set('success');
         this.success.emit(result);
         return;
       }
 
       if (result.status === 'cancelled') {
+        this.attemptAnnounced = false;
         this.uiState.set('cancelled');
         this.cancel.emit(result);
         return;
@@ -350,6 +363,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
         method: 'paypal',
         provider: 'paypal',
       });
+      this.attemptAnnounced = false;
+      this.captureEmitted = false;
       this.uiState.set('ready');
       this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
@@ -359,6 +374,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       }
       const paymentError = normalizeError(err, { method: 'paypal', provider: 'paypal' });
       if (paymentError.code === 'PAYMENT_CANCELLED') {
+        this.attemptAnnounced = false;
+        this.captureEmitted = false;
         this.uiState.set('cancelled');
         this.cancel.emit({
           status: 'cancelled',
@@ -370,6 +387,8 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
         return;
       }
 
+      this.attemptAnnounced = false;
+      this.captureEmitted = false;
       this.uiState.set('ready');
       this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
       this.error.emit(paymentError);
@@ -381,6 +400,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.attemptAnnounced = false;
     this.uiState.set('cancelled');
     this.cancel.emit({
       status: 'cancelled',
@@ -409,6 +429,7 @@ export class PayPalPaymentComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.attemptAnnounced = false;
     this.uiState.set('ready');
     this.inlineError.set(localizePaymentError(paymentError.code, this.msgs()));
     this.error.emit(paymentError);

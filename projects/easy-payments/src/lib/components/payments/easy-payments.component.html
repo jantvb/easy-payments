@@ -44,6 +44,7 @@
           (success)="onApplePaySuccess($event)"
           (cancel)="onApplePayCancel($event)"
           (error)="onApplePayError($event)"
+          (started)="onPaymentStarted('apple-pay')"
           (busyChange)="onProviderBusy($event)"
         />
       </ng-template>
@@ -83,6 +84,7 @@
             (success)="onStripeSuccess($event)"
             (cancel)="onStripeCancel($event)"
             (error)="onStripeError($event)"
+            (started)="onPaymentStarted('card')"
             (busyChange)="onProviderBusy($event)"
           />
         </div>
@@ -103,6 +105,7 @@
             (success)="onPayPalSuccess($event)"
             (cancel)="onPayPalCancel($event)"
             (error)="onPayPalError($event)"
+            (started)="onPaymentStarted('paypal')"
             (busyChange)="onProviderBusy($event)"
           />
         </div>
@@ -123,6 +126,7 @@
             (success)="onGooglePaySuccess($event)"
             (cancel)="onGooglePayCancel($event)"
             (error)="onGooglePayError($event)"
+            (started)="onPaymentStarted('google-pay')"
             (busyChange)="onProviderBusy($event)"
           />
         </div>
@@ -143,6 +147,7 @@
             (success)="onApplePaySuccess($event)"
             (cancel)="onApplePayCancel($event)"
             (error)="onApplePayError($event)"
+            (started)="onPaymentStarted('apple-pay')"
             (busyChange)="onProviderBusy($event)"
           />
         </div>
@@ -163,6 +168,7 @@
             (success)="onKlarnaSuccess($event)"
             (cancel)="onKlarnaCancel($event)"
             (error)="onKlarnaError($event)"
+            (started)="onPaymentStarted('klarna')"
             (busyChange)="onProviderBusy($event)"
             (returning)="onKlarnaReturning($event)"
           />
@@ -184,6 +190,7 @@
             (success)="onAffirmSuccess($event)"
             (cancel)="onAffirmCancel($event)"
             (error)="onAffirmError($event)"
+            (started)="onPaymentStarted('affirm')"
             (busyChange)="onProviderBusy($event)"
             (returning)="onAffirmReturning($event)"
           />
