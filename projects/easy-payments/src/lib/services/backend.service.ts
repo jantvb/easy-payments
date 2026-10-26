@@ -2,6 +2,11 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { EasyPaymentsConfigService } from '../config/easy-payments-config.service';
+import {
+  backendEndpointUrl,
+  resolveBackendUrl,
+  warnBackendUrlIssue,
+} from '../config/resolve-backend-url';
 import { PaymentError } from '../errors/payment-error';
 import { PaymentMethod, PaymentProviderName } from '../models';
 import {
@@ -25,40 +30,37 @@ export class BackendService {
   private readonly configService = inject(EasyPaymentsConfigService);
 
   get createPaymentUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.createPaymentUrl?.trim() || undefined;
+    return this.endpointUrl('createPaymentUrl');
   }
 
   get paypalCreateOrderUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.paypalCreateOrderUrl?.trim() || undefined;
+    return this.endpointUrl('paypalCreateOrderUrl');
   }
 
   get paypalCaptureOrderUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.paypalCaptureOrderUrl?.trim() || undefined;
+    return this.endpointUrl('paypalCaptureOrderUrl');
   }
 
   get klarnaCreatePaymentUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.klarnaCreatePaymentUrl?.trim() || undefined;
+    return this.endpointUrl('klarnaCreatePaymentUrl');
   }
 
   get affirmCreatePaymentUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.affirmCreatePaymentUrl?.trim() || undefined;
+    return this.endpointUrl('affirmCreatePaymentUrl');
   }
 
   /** @deprecated Prefer createPaymentUrl. Kept optional for future provider flows. */
   get confirmPaymentUrl(): string | undefined {
-    return this.configService.getSnapshot().backend?.confirmPaymentUrl?.trim() || undefined;
+    return this.endpointUrl('confirmPaymentUrl');
   }
 
   async createStripePayment(payload: CreatePaymentRequest): Promise<CreateStripePaymentResponse> {
-    const url = this.createPaymentUrl;
-    if (!url) {
-      throw new PaymentError({
-        code: 'BACKEND_ERROR',
-        message: 'Backend createPaymentUrl is not configured.',
-        method: 'card',
-        provider: 'stripe',
-      });
-    }
+    const url = this.requireEndpoint(
+      'createPaymentUrl',
+      'Backend createPaymentUrl is not configured.',
+      'card',
+      'stripe',
+    );
 
     return this.postJson<CreateStripePaymentResponse>(url, payload, 'card', 'stripe', {
       successMessage: 'Failed to create payment on backend.',
@@ -87,15 +89,12 @@ export class BackendService {
   async createPayPalOrder(
     payload: PayPalCreateOrderRequest | { productId: string; quantity: number; currency: string },
   ): Promise<CreatePayPalOrderResponse> {
-    const url = this.paypalCreateOrderUrl;
-    if (!url) {
-      throw new PaymentError({
-        code: 'BACKEND_ERROR',
-        message: 'Backend paypalCreateOrderUrl is not configured.',
-        method: 'paypal',
-        provider: 'paypal',
-      });
-    }
+    const url = this.requireEndpoint(
+      'paypalCreateOrderUrl',
+      'Backend paypalCreateOrderUrl is not configured.',
+      'paypal',
+      'paypal',
+    );
 
     const body = toPayPalCreateOrderRequest(payload);
 
@@ -120,15 +119,12 @@ export class BackendService {
   }
 
   async capturePayPalOrder(orderId: string): Promise<CapturePayPalOrderResponse> {
-    const url = this.paypalCaptureOrderUrl;
-    if (!url) {
-      throw new PaymentError({
-        code: 'BACKEND_ERROR',
-        message: 'Backend paypalCaptureOrderUrl is not configured.',
-        method: 'paypal',
-        provider: 'paypal',
-      });
-    }
+    const url = this.requireEndpoint(
+      'paypalCaptureOrderUrl',
+      'Backend paypalCaptureOrderUrl is not configured.',
+      'paypal',
+      'paypal',
+    );
 
     const id = orderId?.trim();
     if (!id) {
@@ -175,15 +171,12 @@ export class BackendService {
   async createKlarnaPayment(
     payload: KlarnaCreatePaymentRequest | { productId: string; quantity: number; currency: string },
   ): Promise<CreateKlarnaPaymentResponse> {
-    const url = this.klarnaCreatePaymentUrl;
-    if (!url) {
-      throw new PaymentError({
-        code: 'BACKEND_ERROR',
-        message: 'Backend klarnaCreatePaymentUrl is not configured.',
-        method: 'klarna',
-        provider: 'klarna',
-      });
-    }
+    const url = this.requireEndpoint(
+      'klarnaCreatePaymentUrl',
+      'Backend klarnaCreatePaymentUrl is not configured.',
+      'klarna',
+      'klarna',
+    );
 
     const body = toKlarnaCreatePaymentRequest(payload);
 
@@ -214,15 +207,12 @@ export class BackendService {
   async createAffirmPayment(
     payload: AffirmCreatePaymentRequest | { productId: string; quantity: number; currency: string },
   ): Promise<CreateAffirmPaymentResponse> {
-    const url = this.affirmCreatePaymentUrl;
-    if (!url) {
-      throw new PaymentError({
-        code: 'BACKEND_ERROR',
-        message: 'Backend affirmCreatePaymentUrl is not configured.',
-        method: 'affirm',
-        provider: 'affirm',
-      });
-    }
+    const url = this.requireEndpoint(
+      'affirmCreatePaymentUrl',
+      'Backend affirmCreatePaymentUrl is not configured.',
+      'affirm',
+      'affirm',
+    );
 
     const body = toAffirmCreatePaymentRequest(payload);
 
@@ -243,6 +233,44 @@ export class BackendService {
           });
         }
       },
+    });
+  }
+
+  private endpointUrl(
+    key: 'createPaymentUrl' | 'paypalCreateOrderUrl' | 'paypalCaptureOrderUrl' | 'klarnaCreatePaymentUrl' | 'affirmCreatePaymentUrl' | 'confirmPaymentUrl',
+  ): string | undefined {
+    const backend = this.configService.getSnapshot().backend;
+    return backendEndpointUrl(backend, backend?.[key]);
+  }
+
+  private requireEndpoint(
+    key: 'createPaymentUrl' | 'paypalCreateOrderUrl' | 'paypalCaptureOrderUrl' | 'klarnaCreatePaymentUrl' | 'affirmCreatePaymentUrl' | 'confirmPaymentUrl',
+    missingMessage: string,
+    method: PaymentMethod,
+    provider: PaymentProviderName,
+  ): string {
+    const backend = this.configService.getSnapshot().backend;
+    const result = resolveBackendUrl(backend?.baseUrl, backend?.[key]);
+    if (result.ok) {
+      return result.url;
+    }
+    if (result.code === 'missing-endpoint') {
+      throw new PaymentError({
+        code: 'BACKEND_ERROR',
+        message: missingMessage,
+        method,
+        provider,
+      });
+    }
+    warnBackendUrlIssue(result.code);
+    throw new PaymentError({
+      code: 'CONFIG_INVALID',
+      message:
+        result.code === 'invalid-base-url'
+          ? 'backend.baseUrl must be an absolute http or https URL.'
+          : `${missingMessage.replace(' is not configured.', '')} must be a relative path or an absolute http(s) URL.`,
+      method,
+      provider,
     });
   }
 

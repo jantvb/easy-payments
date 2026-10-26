@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import { backendEndpointUrl } from '../../config/resolve-backend-url';
 import {
   CheckoutOptions,
   PaymentContext,
@@ -62,10 +63,10 @@ export class PayPalAdapter extends BaseProviderAdapter {
     if (!clientId || !this.configReady) {
       return false;
     }
-    if (!snapshot.backend?.paypalCreateOrderUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.paypalCreateOrderUrl)) {
       return false;
     }
-    if (!snapshot.backend?.paypalCaptureOrderUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.paypalCaptureOrderUrl)) {
       return false;
     }
     return true;

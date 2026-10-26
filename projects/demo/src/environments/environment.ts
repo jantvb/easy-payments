@@ -14,6 +14,15 @@ export const environment = {
   stripePublishableKey: 'YOUR_STRIPE_PUBLISHABLE_KEY',
   /** Frontend-safe PayPal Client ID only. */
   paypalClientId: 'YOUR_PAYPAL_CLIENT_ID',
+  /**
+   * Optional origin for relative endpoint paths.
+   * Leave empty to use the absolute URLs below unchanged.
+   *
+   * Local Angular proxy: '' and paths such as '/api/payments/create'.
+   * NestJS on another port: 'http://localhost:3000' and paths such as '/api/payments/create'.
+   * Production API: 'https://api.example.com' and paths such as '/api/payments/create'.
+   */
+  backendBaseUrl: '',
   createPaymentUrl: 'http://localhost:3000/api/payments/create',
   paypalCreateOrderUrl: 'http://localhost:3000/api/payments/paypal/create',
   paypalCaptureOrderUrl: 'http://localhost:3000/api/payments/paypal/capture',

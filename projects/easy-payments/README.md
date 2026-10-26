@@ -265,7 +265,11 @@ export const appConfig: ApplicationConfig = {
       // Backend endpoints owned by YOUR application/server.
       // Easy Payments calls these endpoints from the frontend.
       // Secret provider credentials remain on the server.
+      // Optional baseUrl prefixes relative paths only. Omit it to use the URLs below as written.
+      // Local NestJS: baseUrl: 'http://localhost:3000'
+      // Production:   baseUrl: 'https://api.example.com'
       backend: {
+        // baseUrl: 'https://api.example.com',
         // Creates the Stripe PaymentIntent used by card / Apple Pay / Google Pay flows.
         createPaymentUrl: '/api/payments/create',
 
@@ -301,10 +305,21 @@ export const appConfig: ApplicationConfig = {
 | `providers.googlePay?` | `{ merchantId?, merchantName?, environment?, countryCode? }` |
 | `providers.klarna?` | `{ purchaseCountry?, locale? }` — Stripe-backed |
 | `providers.affirm?` | `{ purchaseCountry?, locale? }` — Stripe-backed |
-| `backend?` | `createPaymentUrl?`, `paypalCreateOrderUrl?`, `paypalCaptureOrderUrl?`, `klarnaCreatePaymentUrl?`, `affirmCreatePaymentUrl?` |
+| `backend?` | Optional `baseUrl` plus `createPaymentUrl?`, `paypalCreateOrderUrl?`, `paypalCaptureOrderUrl?`, `klarnaCreatePaymentUrl?`, `affirmCreatePaymentUrl?` |
 | `enableMockMode?` | When `true`, all providers use mocks (never in production) |
 
 Never put Stripe secret keys or PayPal Client Secrets in Angular.
+
+`backend.baseUrl` is optional. When it is omitted, each endpoint is requested exactly as you wrote it. When it is set, relative paths are joined to that origin:
+
+```ts
+backend: {
+  baseUrl: 'https://api.example.com',
+  createPaymentUrl: '/api/payments/create',
+}
+```
+
+A trailing slash on `baseUrl` does not matter. `https://api.example.com/v1` plus `/payments/create` stays under `/v1`. An absolute `https://...` endpoint is not prefixed. For a local Angular proxy, omit `baseUrl` and use `/api/...`. For the demo NestJS server, use `baseUrl: 'http://localhost:3000'` with those relative paths, and allow the Angular origin in CORS. Production APIs should be HTTPS. `javascript:`, `data:`, and `//host/...` URLs are rejected without taking down unrelated providers.
 
 ### 3. `app.component.ts` — product + handlers
 

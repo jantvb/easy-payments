@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import type { Stripe, StripeElements, StripePaymentElement, StripeElementLocale } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import { backendEndpointUrl } from '../../config/resolve-backend-url';
 import {
   CheckoutOptions,
   PaymentContext,
@@ -85,7 +86,7 @@ export class StripeCardAdapter extends BaseProviderAdapter {
     if (!key || looksLikeSecretKey(key) || !this.configReady) {
       return false;
     }
-    if (!snapshot.backend?.createPaymentUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.createPaymentUrl)) {
       return false;
     }
     return true;

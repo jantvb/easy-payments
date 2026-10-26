@@ -60,6 +60,13 @@ export interface AffirmProviderConfig {
 }
 
 export interface EasyPaymentsBackendConfig {
+  /**
+   * Optional origin or origin + path prefix for relative backend endpoints.
+   * Example: `https://api.example.com` or `https://api.example.com/v1`.
+   * Omitted baseUrl leaves each endpoint unchanged. Absolute http(s) endpoints
+   * are used as-is. `javascript:`, `data:`, and protocol-relative URLs are rejected.
+   */
+  baseUrl?: string;
   /** Merchant endpoint that creates a Stripe PaymentIntent and returns clientSecret. */
   createPaymentUrl?: string;
   /**

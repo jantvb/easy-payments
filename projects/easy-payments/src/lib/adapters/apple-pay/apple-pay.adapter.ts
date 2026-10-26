@@ -6,6 +6,7 @@ import type {
   StripeElementLocale,
 } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import { backendEndpointUrl } from '../../config/resolve-backend-url';
 import {
   CheckoutOptions,
   PaymentContext,
@@ -122,7 +123,7 @@ export class ApplePayAdapter extends BaseProviderAdapter {
       return;
     }
 
-    if (!snapshot.backend?.createPaymentUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.createPaymentUrl)) {
       this.configReady = false;
       this.configReadySignal.set(false);
       this.initialized = false;
