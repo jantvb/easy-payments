@@ -487,6 +487,51 @@ Complete reference: **[docs/api.md](docs/api.md)** · Localization: **[docs/loca
 
 ---
 
+## Diagnostics
+
+Inject `EasyPaymentsDiagnosticsService` to read provider readiness. The checkout component already refreshes availability; this service projects that result.
+
+```ts
+import { Component, inject } from '@angular/core';
+import { EasyPaymentsDiagnosticsService } from '@easy-payments/angular';
+
+@Component({ /* ... */ })
+export class CheckoutStatusComponent {
+  private readonly diagnosticsService = inject(EasyPaymentsDiagnosticsService);
+  readonly diagnostics = this.diagnosticsService.diagnostics;
+
+  logCard(): void {
+    const snapshot = this.diagnosticsService.snapshot();
+    const card = this.diagnosticsService.method('card');
+    if (card?.readiness === 'unavailable' || card?.readiness === 'misconfigured') {
+      console.info(card.code, card.message);
+    }
+    console.info(snapshot.published, snapshot.methods);
+  }
+}
+```
+
+`diagnostics` is a signal. `snapshot()` returns a frozen `EasyPaymentsDiagnosticsSnapshot`. `method()` returns one `PaymentMethodDiagnostic`.
+
+| `readiness` | Meaning |
+|-------------|---------|
+| `loading` | Still checking. Not ready. |
+| `ready` | Availability passed. |
+| `unavailable` | Not usable in this environment. |
+| `misconfigured` | Configuration or initialization failed for that method. |
+
+`published` is `false` until the first `refreshAvailability()`, and again after `reinitialize()` until the next refresh. An empty list in that state is not a ready checkout. `code` is a stable `EasyPaymentsDiagnosticCode` from `EASY_PAYMENTS_DIAGNOSTIC_CODES` and is omitted when the method is ready. `message` is fixed developer text.
+
+A misconfigured Stripe method does not mark a configured PayPal method unavailable, and the reverse is also true. Invalid backend URLs stay off the snapshot; the affected method uses `PROVIDER_MISCONFIGURED`. `BACKEND_BASE_URL_INVALID` and `BACKEND_ENDPOINT_INVALID` are development-console codes.
+
+Snapshots omit secret keys, client secrets, PaymentIntent secrets, authorization headers, tokens, and raw provider errors. The service does not read `window`, `document`, `navigator`, or `localStorage`. Apple Pay and Google Pay are not `ready` during server rendering.
+
+Calling `EasyPaymentsConfigService.replace()` does not refresh diagnostics by itself. Call `PaymentOrchestratorService.reinitialize()`, then let `<easy-payments>` refresh or call `refreshAvailability()` yourself.
+
+Full reference: **[docs/api.md](docs/api.md#diagnostics)**.
+
+---
+
 ## Responsive Design
 
 Checkout is fluid up to `[maxWidth]`. The payment method grid reflows from the **component container width** (works in sidebars, modals, and embeds — not viewport-only). See Preview screenshots above.

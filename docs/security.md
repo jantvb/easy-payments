@@ -38,3 +38,7 @@ PayPal, Klarna, and Affirm create routes in the reference backend **reject clien
 ## Mock mode
 
 `enableMockMode: true` never processes real money. Do not enable in production.
+
+## Diagnostics
+
+`EasyPaymentsDiagnosticsService.snapshot()` and its `diagnostics` signal are safe to inspect and log. Method messages are fixed strings. Snapshots do not include Stripe secret keys, PayPal client secrets, PaymentIntent client secrets, authorization headers, access tokens, raw provider responses, or customer payment data. An invalid backend URL is not copied into the snapshot.
