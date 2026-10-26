@@ -77,6 +77,13 @@ export type { ProductValidationResult } from './lib/validators/product.validator
 export { PaymentOrchestratorService } from './lib/services/payment-orchestrator.service';
 export type { AvailablePaymentMethod } from './lib/services/payment-orchestrator.service';
 export type { MethodReadinessState } from './lib/diagnostics/provider-diagnostics';
+export { EasyPaymentsDiagnosticsService } from './lib/diagnostics/easy-payments-diagnostics.service';
+export { EASY_PAYMENTS_DIAGNOSTIC_CODES } from './lib/diagnostics/easy-payments-diagnostics.service';
+export type {
+  EasyPaymentsDiagnosticCode,
+  EasyPaymentsDiagnosticsSnapshot,
+  PaymentMethodDiagnostic,
+} from './lib/diagnostics/easy-payments-diagnostics.service';
 
 export { ApplePayAdapter } from './lib/adapters/apple-pay/apple-pay.adapter';
 export type { ApplePayAvailabilityState } from './lib/adapters/apple-pay/apple-pay.types';

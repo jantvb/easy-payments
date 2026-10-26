@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   EasyPaymentsComponent,
   EasyPaymentsConfigService,
+  EasyPaymentsDiagnosticsService,
   EasyPaymentsConfigValidator,
   MockPaymentController,
   PaymentError,
@@ -78,6 +79,8 @@ export class App {
   private readonly configService = inject(EasyPaymentsConfigService);
   private readonly orchestrator = inject(PaymentOrchestratorService);
   private readonly http = inject(HttpClient);
+  /** Developer readiness. Kept outside the customer-facing checkout. */
+  readonly paymentDiagnostics = inject(EasyPaymentsDiagnosticsService).diagnostics;
 
   readonly productName = signal(DEFAULT_PRODUCT.name);
   readonly productDescription = signal(DEFAULT_PRODUCT.description ?? '');

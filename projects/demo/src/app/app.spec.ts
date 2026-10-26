@@ -174,6 +174,21 @@ describe('App', () => {
     expect(compiled.querySelector('easy-payments')).toBeTruthy();
   });
 
+  it('shows developer diagnostics separately from the checkout', async () => {
+    const fixture = TestBed.createComponent(App);
+    await settle(fixture);
+
+    const section = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="developer-diagnostics"]',
+    );
+    expect(section).toBeTruthy();
+    expect(section?.textContent).toContain('card · stripe · ready');
+    expect(section?.textContent).toContain('paypal · paypal · ready');
+    expect(section?.textContent).not.toContain('sk_');
+    expect(section?.textContent).not.toContain('client_secret');
+    expect((fixture.nativeElement as HTMLElement).querySelector('easy-payments')).toBeTruthy();
+  });
+
   it('defaults payment methods with Card first in a six-method order', async () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;

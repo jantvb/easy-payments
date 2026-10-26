@@ -50,10 +50,17 @@ export class PaymentOrchestratorService {
   private readonly themeService = inject(ThemeService);
 
   private readonly _availableMethods = signal<AvailablePaymentMethod[]>([]);
+  private readonly _availabilityPublished = signal(false);
   private readonly _loading = signal(false);
   private initialized = false;
 
   readonly availableMethods = this._availableMethods.asReadonly();
+  /**
+   * True after `refreshAvailability` publishes method readiness.
+   * `reinitialize()` clears it until the next successful refresh.
+   * Consuming apps should read `EasyPaymentsDiagnosticsService` instead of this flag.
+   */
+  readonly availabilityPublished = this._availabilityPublished.asReadonly();
   readonly loading = this._loading.asReadonly();
 
   async initialize(): Promise<void> {
@@ -68,6 +75,7 @@ export class PaymentOrchestratorService {
   async reinitialize(): Promise<void> {
     this.initialized = false;
     this._availableMethods.set([]);
+    this._availabilityPublished.set(false);
     await this.initialize();
   }
 
@@ -180,6 +188,7 @@ export class PaymentOrchestratorService {
     }
 
     this._availableMethods.set(results);
+    this._availabilityPublished.set(true);
     return results;
   }
 

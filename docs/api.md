@@ -276,6 +276,113 @@ Relative endpoints are resolved against `baseUrl` when it is set. Absolute `http
 
 ---
 
+## Diagnostics
+
+`EasyPaymentsDiagnosticsService` is a read-only view of the readiness `PaymentOrchestratorService` already publishes. It does not start a second diagnostics engine, and it does not reconfigure providers on its own.
+
+Inject it anywhere `provideEasyPayments()` is available:
+
+```ts
+import { Component, inject } from '@angular/core';
+import {
+  EasyPaymentsDiagnosticsService,
+  PaymentMethodDiagnostic,
+} from '@easy-payments/angular';
+
+@Component({
+  selector: 'app-checkout-status',
+  template: `
+    @if (!diagnostics().published) {
+      <p>Waiting for checkout availability.</p>
+    } @else {
+      @for (entry of diagnostics().methods; track entry.method) {
+        <p>{{ entry.method }} · {{ entry.provider }} · {{ entry.readiness }}</p>
+      }
+    }
+  `,
+})
+export class CheckoutStatusComponent {
+  private readonly diagnosticsService = inject(EasyPaymentsDiagnosticsService);
+
+  /** Signal. Updates when availability is published or cleared. */
+  readonly diagnostics = this.diagnosticsService.diagnostics;
+
+  /** Frozen copy for logging or one-off inspection. */
+  current() {
+    return this.diagnosticsService.snapshot();
+  }
+
+  /** One method from the current snapshot. */
+  card(): PaymentMethodDiagnostic | undefined {
+    return this.diagnosticsService.method('card');
+  }
+}
+```
+
+`snapshot()` returns a frozen `EasyPaymentsDiagnosticsSnapshot`:
+
+| Field | Meaning |
+|-------|---------|
+| `published` | `false` until `refreshAvailability()` finishes. `reinitialize()` sets it back to `false` until the next refresh. |
+| `methods` | One `PaymentMethodDiagnostic` per method included in the last refresh, in that order. |
+
+`PaymentMethodDiagnostic` fields: `method`, `provider`, `readiness`, optional `code`, `message`, and `mock`.
+
+Before the first refresh, `published` is `false` and `methods` is empty. That means availability has not been published. It does not mean every method is ready. `<easy-payments>` refreshes when its product, methods, or checkout inputs change. A host that calls `EasyPaymentsConfigService.replace()` must also call `PaymentOrchestratorService.reinitialize()`. The checkout component then refreshes on its next input change; the demo calls `refreshAvailability()` itself after `reinitialize()`.
+
+### Readiness
+
+| `readiness` | Meaning |
+|-------------|---------|
+| `loading` | The provider is still checking. Apple Pay Express Checkout `checking` is `loading`. A loading method is not ready. |
+| `ready` | The existing availability check passed. |
+| `unavailable` | The method cannot be used in this environment, or its provider is not available. |
+| `misconfigured` | Configuration or initialization failed for that method. |
+
+`ready` means the library's availability check passed. It does not mean a browser SDK has already loaded. Card and PayPal check configuration and backend URLs before loading their SDKs.
+
+### Diagnostic codes
+
+`code` is optional and is omitted for `ready` methods. Present codes are members of `EASY_PAYMENTS_DIAGNOSTIC_CODES` / `EasyPaymentsDiagnosticCode`. Unknown strings are dropped so a snapshot cannot echo an arbitrary value. `message` is fixed developer text for that code.
+
+Codes the snapshot uses when the orchestrator publishes them:
+
+| Code | Typical readiness |
+|------|-------------------|
+| `PROVIDER_AVAILABILITY_PENDING` | `loading` |
+| `PROVIDER_UNAVAILABLE` | `unavailable` (including Apple Pay or Google Pay when the device or browser cannot pay) |
+| `PROVIDER_MISCONFIGURED` | `misconfigured` or `unavailable` when a configured method fails its availability check |
+| `PROVIDER_NOT_CONFIGURED` | `misconfigured` |
+| `STRIPE_INITIALIZATION_FAILED` | Stripe-dependent method blocked by a Stripe initialization failure |
+| `CONFIG_MISSING` | `misconfigured` |
+| `CONFIG_INVALID` | `misconfigured` |
+| `SDK_LOAD_FAILED` | `unavailable` |
+| `BACKEND_ERROR` | `unavailable` |
+| `PROVIDER_NOT_IMPLEMENTED` | `unavailable` |
+
+`BACKEND_BASE_URL_INVALID` and `BACKEND_ENDPOINT_INVALID` are stable development-console codes from backend URL validation. The affected method's snapshot code stays `PROVIDER_MISCONFIGURED`. The raw URL is not included.
+
+### Unavailable provider
+
+```ts
+const paypal = diagnostics.method('paypal');
+if (paypal?.readiness === 'unavailable' || paypal?.readiness === 'misconfigured') {
+  console.info(paypal.code, paypal.message);
+}
+```
+
+A Stripe secret key, missing Stripe setup, or invalid Stripe endpoint does not mark a correctly configured PayPal method unavailable. A PayPal initialization or endpoint failure does not mark Stripe card unavailable.
+
+### Security
+
+Snapshots and diagnostic messages are safe to log. They do not include Stripe secret keys, PayPal client secrets, PaymentIntent client secrets, authorization headers, access tokens, raw provider errors, or customer payment details. Development warnings use the same redaction and do not print those values. Do not treat a snapshot as a secret store or as proof of a completed charge.
+
+### Server-side rendering
+
+`EasyPaymentsDiagnosticsService` can be injected during server rendering. Construction and `snapshot()` do not read `window`, `document`, `navigator`, or `localStorage`. Browser SDK loading stays inside the existing provider guards. Apple Pay and Google Pay are not reported `ready` on the server. An empty unpublished snapshot during server render is expected until the browser checkout refreshes availability.
+
+---
+
 ## Notable public exports
 
 From `@easy-payments/angular` (see `public-api.ts`):
@@ -284,6 +391,8 @@ From `@easy-payments/angular` (see `public-api.ts`):
 - `provideEasyPayments`, `EasyPaymentsConfigService`
 - Models / types above
 - `PaymentError`, `normalizeError`
+- `EasyPaymentsDiagnosticsService`, `EASY_PAYMENTS_DIAGNOSTIC_CODES`
+- `EasyPaymentsDiagnosticsSnapshot`, `PaymentMethodDiagnostic`, `EasyPaymentsDiagnosticCode`, `MethodReadinessState`
 - `validatePaymentProduct`, `EasyPaymentsConfigValidator`
 - `MockPaymentController` (demo/testing)
 - Klarna/Stripe return helpers (`isKlarnaReturnAttempt`, `detectStripeReturnMethod`, …)

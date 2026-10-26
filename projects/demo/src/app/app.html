@@ -81,6 +81,29 @@
         }
       </section>
 
+      <section aria-label="Developer diagnostics" data-testid="developer-diagnostics">
+        <h2>Diagnostics</h2>
+        <p class="hint">
+          Developer readiness for the current checkout. Customer-facing payment errors stay inside the form.
+        </p>
+        @if (!paymentDiagnostics().published) {
+          <p class="hint">Waiting for checkout availability.</p>
+        } @else if (paymentDiagnostics().methods.length === 0) {
+          <p class="hint">No payment methods are included in this checkout.</p>
+        } @else {
+          <ul class="status-list">
+            @for (entry of paymentDiagnostics().methods; track entry.method) {
+              <li>
+                {{ entry.method }} · {{ entry.provider }} · {{ entry.readiness }}
+                @if (entry.code) {
+                  · {{ entry.code }}
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
       <section>
         <h2>Product</h2>
         <p class="hint">
