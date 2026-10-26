@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import type { Stripe } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import { backendEndpointUrl } from '../../config/resolve-backend-url';
 import {
   CheckoutOptions,
   PaymentContext,
@@ -69,7 +70,7 @@ export class GooglePayAdapter extends BaseProviderAdapter {
       return;
     }
 
-    if (!snapshot.backend?.createPaymentUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.createPaymentUrl)) {
       this.configReady = false;
       this.initialized = false;
       return;

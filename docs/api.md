@@ -264,12 +264,15 @@ interface EasyPaymentsConfig {
 
 | Field | Purpose |
 |-------|---------|
+| `baseUrl` | Optional origin or origin + path prefix for relative endpoints |
 | `createPaymentUrl` | Stripe PaymentIntent create → `{ provider:'stripe', clientSecret, ... }` |
 | `paypalCreateOrderUrl` | PayPal create order → `{ provider:'paypal', orderId }` |
 | `paypalCaptureOrderUrl` | PayPal capture → `{ provider:'paypal', orderId, captureId, status? }` |
 | `klarnaCreatePaymentUrl` | Klarna PI create → `{ provider:'klarna', clientSecret, ... }` |
 | `affirmCreatePaymentUrl` | Affirm PI create → `{ provider:'affirm', clientSecret, ... }` |
 | `confirmPaymentUrl` | Optional / reserved |
+
+Relative endpoints are resolved against `baseUrl` when it is set. Absolute `http(s)` endpoints are used unchanged. See [Backend](./backend.md).
 
 ---
 

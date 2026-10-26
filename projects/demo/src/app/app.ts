@@ -283,6 +283,8 @@ export class App {
     this.productAmount.set(String(trusted.unitAmount));
     this.productCurrency.set(trusted.currency);
 
+    const backendBaseUrl = (environment as { backendBaseUrl?: string }).backendBaseUrl?.trim();
+
     this.configService.replace({
       enableMockMode: false,
       providers: {
@@ -322,6 +324,7 @@ export class App {
           : {}),
       },
       backend: {
+        ...(backendBaseUrl ? { baseUrl: backendBaseUrl } : {}),
         createPaymentUrl: environment.createPaymentUrl.trim(),
         paypalCreateOrderUrl: environment.paypalCreateOrderUrl.trim(),
         paypalCaptureOrderUrl: environment.paypalCaptureOrderUrl.trim(),

@@ -140,4 +140,47 @@ describe('PaymentOrchestratorService provider isolation', () => {
       'card',
     ]);
   });
+
+  it('keeps Stripe available when only the PayPal endpoint is unsafe', async () => {
+    const results = await availability(
+      {
+        enableMockMode: false,
+        providers: {
+          stripe: { publishableKey: 'pk_test_123' },
+          paypal: { clientId: 'paypal-client-id' },
+        },
+        backend: {
+          createPaymentUrl: '/api/payments/create',
+          paypalCreateOrderUrl: 'javascript:example',
+          paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+        },
+      },
+      ['card', 'paypal'],
+    );
+
+    expect(results.find((entry) => entry.method === 'card')?.available).toBeTrue();
+    expect(results.find((entry) => entry.method === 'paypal')?.available).toBeFalse();
+  });
+
+  it('keeps an absolute PayPal endpoint working when baseUrl is invalid', async () => {
+    const results = await availability(
+      {
+        enableMockMode: false,
+        providers: {
+          stripe: { publishableKey: 'pk_test_123' },
+          paypal: { clientId: 'paypal-client-id' },
+        },
+        backend: {
+          baseUrl: 'javascript:example',
+          createPaymentUrl: '/api/payments/create',
+          paypalCreateOrderUrl: 'https://payments.example.test/paypal/create',
+          paypalCaptureOrderUrl: 'https://payments.example.test/paypal/capture',
+        },
+      },
+      ['card', 'paypal'],
+    );
+
+    expect(results.find((entry) => entry.method === 'card')?.available).toBeFalse();
+    expect(results.find((entry) => entry.method === 'paypal')?.available).toBeTrue();
+  });
 });

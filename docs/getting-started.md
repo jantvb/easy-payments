@@ -132,21 +132,27 @@ export const appConfig: ApplicationConfig = {
       // Backend endpoints owned by YOUR application/server.
       // Easy Payments calls these endpoints from the frontend.
       // Secret provider credentials remain on the server.
+      // baseUrl is optional. Omit it to use each URL exactly as written.
       backend: {
+        // Shared origin for the relative paths below.
+        // Local NestJS: 'http://localhost:3000'
+        // Production: 'https://api.example.com'
+        baseUrl: 'https://api.example.com',
+
         // Creates the Stripe PaymentIntent used by card / Apple Pay / Google Pay flows.
-        createPaymentUrl: 'https://your-backend.example/api/payments/create',
+        createPaymentUrl: '/api/payments/create',
 
         // Creates a PayPal order on the merchant backend.
-        paypalCreateOrderUrl: 'https://your-backend.example/api/payments/paypal/create',
+        paypalCreateOrderUrl: '/api/payments/paypal/create',
 
         // Captures an approved PayPal order on the merchant backend.
-        paypalCaptureOrderUrl: 'https://your-backend.example/api/payments/paypal/capture',
+        paypalCaptureOrderUrl: '/api/payments/paypal/capture',
 
         // Creates the Klarna-only Stripe PaymentIntent on the merchant backend.
-        klarnaCreatePaymentUrl: 'https://your-backend.example/api/payments/klarna/create',
+        klarnaCreatePaymentUrl: '/api/payments/klarna/create',
 
         // Creates the Affirm-only Stripe PaymentIntent on the merchant backend.
-        affirmCreatePaymentUrl: 'https://your-backend.example/api/payments/affirm/create',
+        affirmCreatePaymentUrl: '/api/payments/affirm/create',
       },
 
       // Optional demo/development mode.
@@ -173,6 +179,7 @@ export const appConfig: ApplicationConfig = {
     affirm?: { purchaseCountry?; locale? }; // Stripe-backed
   };
   backend?: {
+    baseUrl?: string;
     createPaymentUrl?;
     paypalCreateOrderUrl?;
     paypalCaptureOrderUrl?;

@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import type { Stripe, StripeElements, StripePaymentElement, StripeElementLocale } from '@stripe/stripe-js';
 import { EasyPaymentsConfigService } from '../../config/easy-payments-config.service';
+import { backendEndpointUrl } from '../../config/resolve-backend-url';
 import {
   CheckoutOptions,
   PaymentContext,
@@ -99,7 +100,7 @@ export class KlarnaAdapter extends BaseProviderAdapter {
     if (!key || looksLikeSecretKey(key) || !looksLikePublishableKey(key)) {
       return false;
     }
-    if (!snapshot.backend?.klarnaCreatePaymentUrl?.trim()) {
+    if (!backendEndpointUrl(snapshot.backend, snapshot.backend?.klarnaCreatePaymentUrl)) {
       return false;
     }
     if (!KLARNA_SUPPORTED_CURRENCIES.has(context.product.currency)) {

@@ -179,6 +179,38 @@ Not required for production merchants that already have a catalog API.
 | `paypalCaptureOrderUrl` | `/api/payments/paypal/capture` |
 | `klarnaCreatePaymentUrl` | `/api/payments/klarna/create` |
 | `affirmCreatePaymentUrl` | `/api/payments/affirm/create` |
+| `baseUrl` | Optional. Prefixes relative endpoints only. |
+
+### `backend.baseUrl`
+
+Use `baseUrl` when every relative endpoint shares one origin. Omit it to keep today's behavior: each endpoint is requested exactly as configured.
+
+```ts
+backend: {
+  baseUrl: 'https://api.example.com',
+  createPaymentUrl: '/api/payments/create',
+  paypalCreateOrderUrl: '/api/payments/paypal/create',
+  paypalCaptureOrderUrl: '/api/payments/paypal/capture',
+  klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+  affirmCreatePaymentUrl: '/api/payments/affirm/create',
+}
+```
+
+That calls `https://api.example.com/api/payments/create`. A trailing slash on `baseUrl` is ignored. An endpoint without a leading slash is joined the same way. A path prefix is kept: `baseUrl: 'https://api.example.com/v1'` plus `/payments/create` becomes `https://api.example.com/v1/payments/create`. Query strings and fragments on the endpoint are preserved and are not encoded again.
+
+An absolute `http:` or `https:` endpoint is an override and is not prefixed:
+
+```ts
+createPaymentUrl: 'https://payments.other-provider.com/create'
+```
+
+`javascript:`, `data:`, and protocol-relative URLs (`//example.com/...`) are rejected. One invalid endpoint does not disable an unrelated provider. An omitted `baseUrl` does not warn.
+
+**Local proxy.** Leave `baseUrl` unset and use relative paths such as `/api/payments/create`. The Angular dev server proxy forwards them.
+
+**Separate local API.** `baseUrl: 'http://localhost:3000'` with the same relative paths. The API must allow the Angular origin in CORS.
+
+**Production.** `baseUrl: 'https://api.example.com'` (HTTPS). Secret keys and PayPal client secrets stay on that server, never in Angular.
 
 ---
 

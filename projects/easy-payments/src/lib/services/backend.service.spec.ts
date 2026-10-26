@@ -213,3 +213,153 @@ describe('BackendService', () => {
     );
   });
 });
+
+describe('BackendService baseUrl resolution', () => {
+  afterEach(() => {
+    TestBed.inject(HttpTestingController).verify();
+  });
+
+  function setup(backend: {
+    baseUrl?: string;
+    createPaymentUrl?: string;
+    paypalCreateOrderUrl?: string;
+    paypalCaptureOrderUrl?: string;
+    klarnaCreatePaymentUrl?: string;
+    affirmCreatePaymentUrl?: string;
+    confirmPaymentUrl?: string;
+  }): { service: BackendService; http: HttpTestingController } {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withXhr()),
+        provideHttpClientTesting(),
+        provideEasyPayments({
+          enableMockMode: false,
+          providers: {
+            stripe: { publishableKey: 'pk_test_123' },
+            paypal: { clientId: 'paypal-client' },
+          },
+          backend,
+        }),
+      ],
+    });
+    return {
+      service: TestBed.inject(BackendService),
+      http: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  it('resolves Stripe, PayPal, Klarna, and Affirm endpoints against baseUrl', async () => {
+    const { service, http } = setup({
+      baseUrl: 'https://api.example.com/',
+      createPaymentUrl: '/api/payments/create',
+      paypalCreateOrderUrl: 'api/payments/paypal/create',
+      paypalCaptureOrderUrl: '/api/payments/paypal/capture?mode=sandbox',
+      klarnaCreatePaymentUrl: '/api/payments/klarna/create',
+      affirmCreatePaymentUrl: '/api/payments/affirm/create',
+    });
+
+    const stripe = service.createStripePayment({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('https://api.example.com/api/payments/create').flush({
+      provider: 'stripe',
+      clientSecret: 'pi_example',
+    });
+    await expectAsync(stripe).toBeResolved();
+
+    const paypal = service.createPayPalOrder({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('https://api.example.com/api/payments/paypal/create').flush({
+      provider: 'paypal',
+      orderId: 'order-1',
+    });
+    await expectAsync(paypal).toBeResolved();
+
+    const capture = service.capturePayPalOrder('order-1');
+    http.expectOne('https://api.example.com/api/payments/paypal/capture?mode=sandbox').flush({
+      provider: 'paypal',
+      orderId: 'order-1',
+      captureId: 'capture-1',
+    });
+    await expectAsync(capture).toBeResolved();
+
+    const klarna = service.createKlarnaPayment({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('https://api.example.com/api/payments/klarna/create').flush({
+      provider: 'klarna',
+      clientSecret: 'pi_example',
+    });
+    await expectAsync(klarna).toBeResolved();
+
+    const affirm = service.createAffirmPayment({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('https://api.example.com/api/payments/affirm/create').flush({
+      provider: 'affirm',
+      clientSecret: 'pi_example',
+    });
+    await expectAsync(affirm).toBeResolved();
+  });
+
+  it('keeps the existing relative URL when baseUrl is omitted', async () => {
+    const { service, http } = setup({
+      createPaymentUrl: '/api/payments/create',
+    });
+    const pending = service.createStripePayment({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('/api/payments/create').flush({
+      provider: 'stripe',
+      clientSecret: 'pi_example',
+    });
+    await expectAsync(pending).toBeResolved();
+  });
+
+  it('uses an absolute endpoint override and does not post an unsafe URL', async () => {
+    const { service, http } = setup({
+      baseUrl: 'https://api.example.com',
+      createPaymentUrl: 'https://payments.other-provider.com/create',
+    });
+    const pending = service.createStripePayment({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+    });
+    http.expectOne('https://payments.other-provider.com/create').flush({
+      provider: 'stripe',
+      clientSecret: 'pi_example',
+    });
+    await expectAsync(pending).toBeResolved();
+
+    TestBed.resetTestingModule();
+    const unsafe = setup({
+      baseUrl: 'https://api.example.com',
+      createPaymentUrl: 'javascript:example',
+    });
+    await expectAsync(
+      unsafe.service.createStripePayment({
+        provider: 'stripe',
+        productId: 'premium-plan',
+        quantity: 1,
+        currency: 'USD',
+      }),
+    ).toBeRejectedWith(jasmine.objectContaining({ code: 'CONFIG_INVALID' }));
+    unsafe.http.expectNone(() => true);
+  });
+});
