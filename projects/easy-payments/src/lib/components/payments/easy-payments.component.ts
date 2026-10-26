@@ -24,6 +24,10 @@ import {
 } from '../../models';
 import type { EasyPaymentsAppearance } from '../../models/easy-payments-appearance.model';
 import { PaymentError, normalizeError } from '../../errors/payment-error';
+import {
+  isIsolatedProviderFailure,
+  warnProviderDiagnostic,
+} from '../../diagnostics/provider-diagnostics';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { ThemeService } from '../../themes/theme.service';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
@@ -855,7 +859,30 @@ export class EasyPaymentsComponent {
   }
 
   private handlePaymentError(error: PaymentError): void {
+    if (error.code === 'PAYMENT_CANCELLED') {
+      this.handleCancelled({
+        status: 'cancelled',
+        method: error.method ?? 'card',
+        provider: error.provider ?? 'stripe',
+        message: error.message,
+      });
+      return;
+    }
     this.error.emit(error);
+    if (isIsolatedProviderFailure(error.code)) {
+      // Log the stable code only. PaymentError.message may contain a backend
+      // response body, a client secret, or a credential-bearing SDK URL.
+      if (error.code !== 'BACKEND_ERROR') {
+        warnProviderDiagnostic(error.provider ?? error.method ?? 'checkout', error.code);
+      }
+      this.lastError.set(error);
+      this.providerBusy.set(false);
+      this.processingMethod.set(null);
+      if (this.viewState() === 'processing') {
+        this.viewState.set('checkout');
+      }
+      return;
+    }
     this.lastError.set(error);
     this.lastResult.set(null);
     this.providerBusy.set(false);

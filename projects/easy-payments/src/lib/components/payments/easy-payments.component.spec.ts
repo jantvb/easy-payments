@@ -9,6 +9,7 @@ import { PaymentError } from '../../errors/payment-error';
 import { PaymentResult } from '../../models';
 import { FakeBrowserGuard, SAMPLE_PRODUCT } from '../../testing/test-doubles';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
+import { resetProviderDiagnosticsForTests } from '../../diagnostics/provider-diagnostics';
 import { ApplePayAdapter } from '../../adapters/apple-pay/apple-pay.adapter';
 import { EasyPaymentsComponent } from './easy-payments.component';
 
@@ -1060,6 +1061,126 @@ describe('EasyPaymentsComponent', () => {
       expect(text).toContain('Pago fallido');
       expect(text).toContain('Su tarjeta fue rechazada');
       expect(text).not.toContain('Your card was declined');
+    });
+  });
+
+  describe('provider isolation', () => {
+    it('keeps other methods usable when PayPal SDK loading fails', async () => {
+      resetProviderDiagnosticsForTests();
+      const warn = spyOn(console, 'warn');
+      fixture.componentRef.setInput('methods', ['card', 'paypal']);
+      await render(fixture);
+
+      fixture.componentInstance.onPayPalError(
+        new PaymentError({
+          code: 'SDK_LOAD_FAILED',
+          message:
+            'Failed to load SDK: https://www.paypal.com/sdk/js?client-id=SHOULD_NOT_LEAK&currency=USD',
+          method: 'paypal',
+          provider: 'paypal',
+        }),
+      );
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Card');
+      expect(text).not.toContain('SHOULD_NOT_LEAK');
+      expect(text).not.toContain('Payment failed');
+      const logged = warn.calls.allArgs().map((args) => args.join(' ')).join('\n');
+      expect(logged).not.toContain('SHOULD_NOT_LEAK');
+      expect(logged).not.toContain('client-id=');
+    });
+
+    it('keeps Stripe card usable when the PayPal backend endpoint fails', async () => {
+      fixture.componentRef.setInput('methods', ['card', 'paypal']);
+      await render(fixture);
+
+      fixture.componentInstance.onPayPalError(
+        new PaymentError({
+          code: 'BACKEND_ERROR',
+          message: 'PayPal order endpoint returned 500',
+          method: 'paypal',
+          provider: 'paypal',
+        }),
+      );
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(fixture.nativeElement.textContent).toContain('Card');
+      expect(payCta(fixture)).toBeTruthy();
+    });
+
+    it('returns to checkout after cancellation so another method can be selected', async () => {
+      const controller = TestBed.inject(MockPaymentController);
+      controller.setOutcome('cancelled');
+      fixture.componentRef.setInput('methods', ['paypal', 'card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('cancelled');
+
+      (fixture.nativeElement.querySelector('button.ep-outcome__action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+
+      const cardTile = fixture.debugElement
+        .queryAll(By.css('button.ep-tile'))
+        .find((btn) =>
+          ((btn.nativeElement as HTMLButtonElement).getAttribute('aria-label') ?? '').includes('Card'),
+        );
+      cardTile!.nativeElement.click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.selectedMethod()).toBe('card');
+
+      controller.setOutcome('success');
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('success');
+    });
+
+    it('allows another attempt after a recoverable payment error', async () => {
+      const controller = TestBed.inject(MockPaymentController);
+      controller.setOutcome('failed');
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('error');
+
+      (fixture.nativeElement.querySelector('button.ep-outcome__action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+
+      controller.setOutcome('success');
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('success');
+    });
+
+    it('does not submit a second payment while the first attempt is in progress', async () => {
+      const controller = TestBed.inject(MockPaymentController);
+      controller.setDelay(300);
+      const successes: PaymentResult[] = [];
+      fixture.componentInstance.success.subscribe((result) => successes.push(result));
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const cta = payCta(fixture)!;
+      cta.click();
+      cta.click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewState()).toBe('processing');
+
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(successes.length).toBe(1);
     });
   });
 });

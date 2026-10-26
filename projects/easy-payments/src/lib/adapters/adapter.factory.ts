@@ -1,9 +1,14 @@
 import { inject, Injectable, Injector } from '@angular/core';
-import { EasyPaymentsProviderConfig } from '../config/easy-payments.config';
+import { EasyPaymentsProviderConfig, PROVIDER_DISPLAY_NAMES } from '../config/easy-payments.config';
 import { EasyPaymentsConfigService } from '../config/easy-payments-config.service';
 import { AdapterRegistry } from '../core/adapter-registry';
 import { PaymentProviderAdapter } from '../core/payment-provider.adapter';
 import { PaymentProviderName } from '../models';
+import {
+  describeInitFailure,
+  ProviderInitFailure,
+  warnProviderDiagnostic,
+} from '../diagnostics/provider-diagnostics';
 import { EasyPaymentsConfigValidator } from '../validators/config.validator';
 import { StripeCardAdapter, StripeCardMockAdapter } from './stripe/stripe-card.adapter';
 import { PayPalAdapter, PayPalMockAdapter } from './paypal/paypal.adapter';
@@ -47,20 +52,44 @@ export class AdapterFactory {
   private readonly registry = inject(AdapterRegistry);
   private readonly validator = inject(EasyPaymentsConfigValidator);
   private readonly injector = inject(Injector);
+  private readonly initFailures = new Map<PaymentProviderName, ProviderInitFailure>();
+
+  getInitializationFailure(provider: PaymentProviderName): ProviderInitFailure | undefined {
+    return this.initFailures.get(provider);
+  }
 
   async initializeAdapters(): Promise<void> {
     for (const adapter of this.registry.getAll()) {
       await adapter.destroy?.();
     }
     this.registry.clear();
+    this.initFailures.clear();
 
     const providers = Object.keys(REAL_ADAPTERS) as PaymentProviderName[];
 
-    for (const provider of providers) {
-      const adapter = this.createAdapter(provider);
-      this.registry.register(adapter);
-      await adapter.initialize();
-    }
+    // One provider's initialize() must not reject the rest of checkout.
+    await Promise.all(
+      providers.map(async (provider) => {
+        let adapter: PaymentProviderAdapter | undefined;
+        try {
+          adapter = this.createAdapter(provider);
+          this.registry.register(adapter);
+          await adapter.initialize();
+        } catch (error) {
+          if (adapter && !this.registry.get(provider)) {
+            this.registry.register(adapter);
+          }
+          const failure = describeInitFailure(error);
+          this.initFailures.set(provider, failure);
+          const configKey = CONFIG_KEY_MAP[provider];
+          warnProviderDiagnostic(
+            PROVIDER_DISPLAY_NAMES[configKey],
+            failure.code,
+            error instanceof Error ? error.message : undefined,
+          );
+        }
+      }),
+    );
   }
 
   createAdapter(provider: PaymentProviderName): PaymentProviderAdapter {
@@ -71,10 +100,17 @@ export class AdapterFactory {
       config.providers?.[configKey],
     );
 
-    const useMock =
-      config.enableMockMode === true ||
-      validation.status === 'missing' ||
-      validation.status === 'invalid';
+    // Mock adapters are an explicit demo mode. A missing or invalid provider
+    // stays on its real adapter so it reports unavailable instead of looking payable.
+    const useMock = config.enableMockMode === true;
+
+    if (!useMock && validation.status === 'invalid') {
+      warnProviderDiagnostic(
+        PROVIDER_DISPLAY_NAMES[configKey],
+        'CONFIG_INVALID',
+        validation.message,
+      );
+    }
 
     const AdapterClass = useMock ? MOCK_ADAPTERS[provider] : REAL_ADAPTERS[provider];
     return this.injector.get(AdapterClass);

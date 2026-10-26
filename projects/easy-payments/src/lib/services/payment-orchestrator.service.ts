@@ -14,6 +14,10 @@ import { validatePaymentProduct } from '../validators/product.validator';
 import { ThemeService } from '../themes/theme.service';
 import { AdapterFactory } from '../adapters/adapter.factory';
 import { AdapterRegistry } from '../core/adapter-registry';
+import {
+  MethodReadinessState,
+  warnProviderDiagnostic,
+} from '../diagnostics/provider-diagnostics';
 
 export interface AvailablePaymentMethod {
   method: PaymentMethod;
@@ -24,7 +28,20 @@ export interface AvailablePaymentMethod {
    * `checking` = waiting for Express Checkout `ready` (tile hidden).
    */
   status?: 'checking' | 'available' | 'unavailable' | 'error' | 'indeterminate';
+  /** Internal method readiness. Optional so existing callers stay compatible. */
+  readiness?: MethodReadinessState;
+  /** Stable diagnostic code for developers. Not shown in customer UI. */
+  diagnosticCode?: string;
 }
+
+/** Methods that cannot run without a working Stripe publishable-key setup. */
+const STRIPE_DEPENDENT_METHODS = new Set<PaymentMethod>([
+  'card',
+  'apple-pay',
+  'google-pay',
+  'klarna',
+  'affirm',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class PaymentOrchestratorService {
@@ -88,14 +105,41 @@ export class PaymentOrchestratorService {
     this.validateProduct(product);
 
     const context = this.buildContext(product, checkout);
+    const stripeFailure = this.adapterFactory.getInitializationFailure('stripe');
     const results: AvailablePaymentMethod[] = [];
 
     for (const method of methods) {
       const provider = PAYMENT_METHOD_PROVIDER_MAP[method];
       const adapter = this.registry.get(provider);
+      const ownFailure = this.adapterFactory.getInitializationFailure(provider);
+      const blockedByStripe =
+        !!stripeFailure && STRIPE_DEPENDENT_METHODS.has(method) && provider !== 'stripe'
+          ? stripeFailure
+          : undefined;
+      const failure = ownFailure ?? blockedByStripe;
 
       if (!adapter) {
-        results.push({ method, isMock: false, available: false });
+        results.push({
+          method,
+          isMock: false,
+          available: false,
+          status: 'unavailable',
+          readiness: 'misconfigured',
+          diagnosticCode: 'PROVIDER_NOT_CONFIGURED',
+        });
+        continue;
+      }
+
+      if (failure) {
+        results.push({
+          method,
+          isMock: adapter.isMock,
+          available: false,
+          status: 'error',
+          readiness: failure.readiness,
+          diagnosticCode:
+            blockedByStripe && !ownFailure ? 'STRIPE_INITIALIZATION_FAILED' : failure.code,
+        });
         continue;
       }
 
@@ -112,9 +156,26 @@ export class PaymentOrchestratorService {
             : available
               ? ('available' as const)
               : ('unavailable' as const);
-        results.push({ method, isMock: adapter.isMock, available, status });
-      } catch {
-        results.push({ method, isMock: adapter.isMock, available: false, status: 'error' });
+        const readiness = readinessFromAvailability(available, status);
+        results.push({
+          method,
+          isMock: adapter.isMock,
+          available,
+          status,
+          readiness,
+          diagnosticCode: available ? undefined : diagnosticCodeForUnavailable(method, status),
+        });
+      } catch (error) {
+        const normalized = normalizeError(error, { method, provider });
+        warnProviderDiagnostic(method, normalized.code);
+        results.push({
+          method,
+          isMock: adapter.isMock,
+          available: false,
+          status: 'error',
+          readiness: normalized.code.startsWith('CONFIG') ? 'misconfigured' : 'unavailable',
+          diagnosticCode: normalized.code,
+        });
       }
     }
 
@@ -165,4 +226,33 @@ export class PaymentOrchestratorService {
       this._loading.set(false);
     }
   }
+}
+
+function readinessFromAvailability(
+  available: boolean,
+  status: AvailablePaymentMethod['status'],
+): MethodReadinessState {
+  if (status === 'checking') {
+    return 'loading';
+  }
+  if (available || status === 'available') {
+    return 'ready';
+  }
+  if (status === 'error') {
+    return 'unavailable';
+  }
+  return 'unavailable';
+}
+
+function diagnosticCodeForUnavailable(
+  method: PaymentMethod,
+  status: AvailablePaymentMethod['status'],
+): string {
+  if (status === 'checking') {
+    return 'PROVIDER_AVAILABILITY_PENDING';
+  }
+  if (method === 'apple-pay' || method === 'google-pay') {
+    return 'PROVIDER_UNAVAILABLE';
+  }
+  return 'PROVIDER_MISCONFIGURED';
 }
