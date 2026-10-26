@@ -205,6 +205,8 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
   readonly success = output<PaymentResult>();
   readonly cancel = output<PaymentResult>();
   readonly error = output<PaymentError>();
+  /** Fired when the wallet confirm event begins. Rendering the button does not fire it. */
+  readonly started = output<void>();
   readonly busyChange = output<boolean>();
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('applePayButtonHost');
@@ -336,6 +338,11 @@ export class ApplePayPaymentComponent implements AfterViewInit, OnDestroy {
         onSuccess: (result) => this.onPaymentSuccess(result, generation),
         onCancel: () => this.onPaymentCancel(generation),
         onError: (err) => this.onPaymentError(err, generation),
+        onAttempt: () => {
+          if (generation === this.renderGeneration) {
+            this.started.emit();
+          }
+        },
         onReady: () => {
           if (generation === this.renderGeneration) {
             this.uiState.set('ready');

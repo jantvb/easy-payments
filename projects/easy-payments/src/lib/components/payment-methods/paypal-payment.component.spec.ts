@@ -14,6 +14,7 @@ import { PayPalPaymentComponent } from './paypal-payment.component';
     <easy-paypal-payment
       [product]="product()"
       [resolvedTheme]="theme()"
+      (started)="starts.push($event)"
       (success)="successes.push($event)"
       (cancel)="cancels.push($event)"
       (error)="errors.push($event)"
@@ -29,6 +30,7 @@ class HostComponent {
     quantity: 1,
   });
   readonly theme = signal<ResolvedPaymentTheme>('light');
+  starts: unknown[] = [];
   successes: unknown[] = [];
   cancels: unknown[] = [];
   errors: unknown[] = [];
@@ -123,7 +125,9 @@ describe('PayPalPaymentComponent', () => {
 
     adapter.createOrder.and.resolveTo('ORDER-1');
     await options.createOrder();
-    expect(adapter.createOrder).toHaveBeenCalled();
+    await options.createOrder();
+    expect(adapter.createOrder).toHaveBeenCalledTimes(2);
+    expect(host.starts.length).toBe(1);
 
     adapter.captureOrder.and.resolveTo({
       status: 'success',
@@ -133,7 +137,11 @@ describe('PayPalPaymentComponent', () => {
       sessionId: 'ORDER-1',
     });
     await options.onApprove({ orderID: 'ORDER-1' });
+    await options.onApprove({ orderID: 'ORDER-1' });
+    expect(adapter.captureOrder).toHaveBeenCalledTimes(1);
     expect(host.successes.length).toBe(1);
+    expect(host.starts.length).toBe(1);
+    expect(JSON.stringify(host.successes)).not.toContain('client_secret');
 
     options.onCancel?.();
     fixture.detectChanges();

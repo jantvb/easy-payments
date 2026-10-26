@@ -552,6 +552,37 @@ Full reference: **[docs/api.md](docs/api.md#diagnostics)**.
 
 ---
 
+## Payment events
+
+`<easy-payments>` keeps `success`, `cancel`, `error`, and `successContinue`. Two outputs are added:
+
+| Output | Payload | When |
+|--------|---------|------|
+| `started` | `PaymentStartedEvent` | A payment attempt begins. Not fired by selecting a tile. |
+| `methodChange` | `PaymentMethodChangeEvent` | The selected method changes. |
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  (started)="onStarted($event)"
+  (success)="onSuccess($event)"
+  (cancel)="onCancel($event)"
+  (error)="onError($event)"
+  (methodChange)="onMethodChange($event)"
+/>
+```
+
+`PaymentStartedEvent` is `{ method, provider, amount, currency }`. Amount and currency are the checkout product input. `PaymentMethodChangeEvent` is `{ method, previousMethod, provider }`. `method` is null when no method remains selected.
+
+PayPal `success` is emitted after capture. Apple Pay `started` is emitted on wallet confirm. Klarna and Affirm do not emit `started` again when the browser returns from a redirect. A repeated click or duplicate callback does not emit a second `started` for the same attempt. Configuration failures use `error` and do not emit `cancel`.
+
+These events omit client secrets, secret keys, tokens, and raw provider responses. Log `PaymentError.code` rather than `message`. Diagnostics readiness is a separate API.
+
+Full reference: **[docs/api.md](docs/api.md#outputs)**.
+
+---
+
 ## Responsive Design
 
 Checkout is fluid up to `[maxWidth]`. The payment method grid reflows from the **component container width** (works in sidebars, modals, and embeds — not viewport-only). See Preview screenshots above.

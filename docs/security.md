@@ -42,3 +42,7 @@ PayPal, Klarna, and Affirm create routes in the reference backend **reject clien
 ## Diagnostics
 
 `EasyPaymentsDiagnosticsService.snapshot()` and its `diagnostics` signal are safe to inspect and log. Method messages are fixed strings. Snapshots do not include Stripe secret keys, PayPal client secrets, PaymentIntent client secrets, authorization headers, access tokens, raw provider responses, or customer payment data. An invalid backend URL is not copied into the snapshot.
+
+## Payment events
+
+`started` carries the checkout method, provider, and the current product amount and currency. It does not carry secrets or provider responses. `success` and `cancel` keep the existing `PaymentResult` fields. Prefer `transactionId` or `sessionId` over free-form messages. Prefer `PaymentError.code` over `PaymentError.message` when logging failures. Payment events are not diagnostics: a provider that is not ready does not emit `started` or `cancel`.

@@ -6,7 +6,8 @@ import { MockPaymentController } from '../../adapters/mock/mock-payment.controll
 import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
 import { BrowserGuard } from '../../utils/browser-guard';
 import { PaymentError } from '../../errors/payment-error';
-import { PaymentResult } from '../../models';
+import { PaymentMethodChangeEvent, PaymentResult, PaymentStartedEvent } from '../../models';
+import { EasyPaymentsDiagnosticsService } from '../../diagnostics/easy-payments-diagnostics.service';
 import { FakeBrowserGuard, SAMPLE_PRODUCT } from '../../testing/test-doubles';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { resetProviderDiagnosticsForTests } from '../../diagnostics/provider-diagnostics';
@@ -1181,6 +1182,229 @@ describe('EasyPaymentsComponent', () => {
       await fixture.whenStable();
       fixture.detectChanges();
       expect(successes.length).toBe(1);
+    });
+  });
+
+  describe('public payment events', () => {
+    function listen(): {
+      starts: PaymentStartedEvent[];
+      successes: PaymentResult[];
+      cancels: PaymentResult[];
+      errors: PaymentError[];
+      changes: PaymentMethodChangeEvent[];
+    } {
+      const starts: PaymentStartedEvent[] = [];
+      const successes: PaymentResult[] = [];
+      const cancels: PaymentResult[] = [];
+      const errors: PaymentError[] = [];
+      const changes: PaymentMethodChangeEvent[] = [];
+      fixture.componentInstance.started.subscribe((event) => starts.push(event));
+      fixture.componentInstance.success.subscribe((event) => successes.push(event));
+      fixture.componentInstance.cancel.subscribe((event) => cancels.push(event));
+      fixture.componentInstance.error.subscribe((event) => errors.push(event));
+      fixture.componentInstance.methodChange.subscribe((event) => changes.push(event));
+      return { starts, successes, cancels, errors, changes };
+    }
+
+    it('emits started once and success for a mock card payment', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      const cta = payCta(fixture)!;
+      cta.click();
+      cta.click();
+      await fixture.whenStable();
+
+      expect(events.starts.length).toBe(1);
+      expect(events.starts[0]).toEqual(
+        jasmine.objectContaining({
+          method: 'card',
+          provider: 'stripe',
+          amount: SAMPLE_PRODUCT.amount,
+          currency: SAMPLE_PRODUCT.currency,
+        }),
+      );
+      expect(events.successes.length).toBe(1);
+      expect(events.successes[0].status).toBe('success');
+      expect(events.successes[0].method).toBe('card');
+      expect(events.successes[0].provider).toBe('stripe');
+      expect(events.cancels.length).toBe(0);
+      expect(JSON.stringify(events.starts)).not.toContain('clientSecret');
+      expect(JSON.stringify(events.successes)).not.toContain('originalError');
+    });
+
+    it('emits cancel for an observable mock cancellation and does not also emit error', async () => {
+      TestBed.inject(MockPaymentController).setOutcome('cancelled');
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['paypal']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+
+      expect(events.starts.length).toBe(1);
+      expect(events.cancels.length).toBe(1);
+      expect(events.cancels[0].status).toBe('cancelled');
+      expect(events.cancels[0].method).toBe('paypal');
+      expect(events.errors.length).toBe(0);
+      expect(events.successes.length).toBe(0);
+    });
+
+    it('emits a declined-style failure and a second attempt after retry', async () => {
+      const controller = TestBed.inject(MockPaymentController);
+      controller.setOutcome('failed');
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(events.starts.length).toBe(1);
+      expect(events.errors.map((error) => error.code)).toEqual(['PAYMENT_FAILED']);
+      expect(events.cancels.length).toBe(0);
+      expect(events.successes.length).toBe(0);
+
+      const retry = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+      const tryAgain = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+        (button as HTMLButtonElement).textContent?.includes('Try again'),
+      ) as HTMLButtonElement;
+      expect(tryAgain).toBeTruthy();
+      tryAgain.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      controller.setOutcome('success');
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+
+      expect(events.starts.length).toBe(2);
+      expect(events.successes.length).toBe(1);
+      expect(events.errors.length).toBe(1);
+      expect(retry).toBeTruthy();
+    });
+
+    it('does not emit started or cancel for a configuration failure', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card', 'paypal']);
+      await render(fixture);
+      const startsBefore = events.starts.length;
+
+      fixture.componentInstance.onPayPalError(
+        new PaymentError({
+          code: 'SDK_LOAD_FAILED',
+          message: 'https://example.test/sdk?client-id=SHOULD_NOT_LEAK',
+          method: 'paypal',
+          provider: 'paypal',
+        }),
+      );
+
+      expect(events.starts.length).toBe(startsBefore);
+      expect(events.cancels.length).toBe(0);
+      expect(events.errors.map((error) => error.code)).toEqual(['SDK_LOAD_FAILED']);
+      expect(fixture.componentInstance.viewState()).toBe('checkout');
+      expect(JSON.stringify(events.errors.map((error) => error.code))).not.toContain('SHOULD_NOT_LEAK');
+    });
+
+    it('emits methodChange when the selection changes and not when it is repeated', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['paypal', 'card']);
+      await render(fixture);
+
+      expect(events.changes.map((event) => event.method)).toEqual(['paypal']);
+      expect(events.changes[0].previousMethod).toBeNull();
+      expect(events.changes[0].provider).toBe('paypal');
+
+      const cardTile = fixture.debugElement
+        .queryAll(By.css('button.ep-tile'))
+        .find((button) =>
+          ((button.nativeElement as HTMLButtonElement).getAttribute('aria-label') ?? '').includes(
+            'Card',
+          ),
+        );
+      cardTile!.nativeElement.click();
+      fixture.detectChanges();
+      cardTile!.nativeElement.click();
+      fixture.detectChanges();
+
+      expect(events.changes.map((event) => [event.previousMethod, event.method])).toEqual([
+        [null, 'paypal'],
+        ['paypal', 'card'],
+      ]);
+    });
+
+    it('emits methodChange when the selected method becomes unavailable', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card', 'paypal']);
+      await render(fixture);
+      expect(events.changes.at(-1)?.method).toBe('card');
+
+      fixture.componentRef.setInput('methods', ['paypal']);
+      await render(fixture);
+
+      expect(events.changes.at(-1)).toEqual(
+        jasmine.objectContaining({
+          previousMethod: 'card',
+          method: 'paypal',
+          provider: 'paypal',
+        }),
+      );
+    });
+
+    it('drops a duplicate success callback for the same attempt', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+      const result: PaymentResult = {
+        status: 'success',
+        method: 'card',
+        provider: 'stripe',
+        transactionId: 'pi_123',
+      };
+
+      fixture.componentInstance.onPaymentStarted('card');
+      fixture.componentInstance.onStripeSuccess(result);
+      fixture.componentInstance.onStripeSuccess(result);
+
+      expect(events.starts.length).toBe(1);
+      expect(events.successes.length).toBe(1);
+      expect(events.successes[0].transactionId).toBe('pi_123');
+    });
+
+    it('ignores terminal callbacks after the checkout is destroyed', async () => {
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+      fixture.componentInstance.onPaymentStarted('card');
+      fixture.destroy();
+
+      fixture.componentInstance.onStripeSuccess({
+        status: 'success',
+        method: 'card',
+        provider: 'stripe',
+        transactionId: 'pi_late',
+      });
+      fixture.componentInstance.onPaymentStarted('paypal');
+
+      expect(events.starts.length).toBe(1);
+      expect(events.successes.length).toBe(0);
+    });
+
+    it('keeps diagnostics on readiness after a payment failure', async () => {
+      TestBed.inject(MockPaymentController).setOutcome('failed');
+      const events = listen();
+      fixture.componentRef.setInput('methods', ['card']);
+      await render(fixture);
+
+      payCta(fixture)!.click();
+      await fixture.whenStable();
+
+      const card = TestBed.inject(EasyPaymentsDiagnosticsService).method('card');
+      expect(events.errors[0].code).toBe('PAYMENT_FAILED');
+      expect(card?.readiness).toBe('ready');
+      expect(card?.code).toBeUndefined();
     });
   });
 });

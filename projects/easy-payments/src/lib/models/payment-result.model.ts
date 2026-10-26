@@ -12,6 +12,29 @@ export interface PaymentResult {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Emitted when a customer starts a payment attempt.
+ * Amount and currency come from the current checkout product input.
+ * They are not a captured charge and are not a provider authorization.
+ */
+export interface PaymentStartedEvent {
+  method: PaymentMethod;
+  provider: PaymentProviderName;
+  amount: number;
+  currency: string;
+}
+
+/**
+ * Emitted when the selected checkout method changes.
+ * `method` is null when the previous selection is no longer available and no
+ * other method can be selected.
+ */
+export interface PaymentMethodChangeEvent {
+  method: PaymentMethod | null;
+  previousMethod: PaymentMethod | null;
+  provider: PaymentProviderName | null;
+}
+
 export function normalizePaymentResult(result: PaymentResult): PaymentResult {
   return {
     status: result.status,

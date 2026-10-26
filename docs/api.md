@@ -57,10 +57,89 @@ Standalone component. Selector: `easy-payments`.
 
 | Event | Payload | When it fires | Typical use |
 |-------|---------|---------------|-------------|
+| `started` | `PaymentStartedEvent` | A payment attempt begins | Disable a second submit, analytics |
 | `success` | `PaymentResult` | Payment completed successfully | Persist order, navigate, analytics |
-| `cancel` | `PaymentResult` | Customer cancelled (or equivalent cancel path) | Restore cart UX, messaging |
-| `error` | `PaymentError` | Payment or configuration failure | Show merchant error UI |
+| `cancel` | `PaymentResult` | Customer cancelled on a path the provider reports as cancellation | Restore cart UX, messaging |
+| `error` | `PaymentError` | Payment failed, or an existing configuration/availability error | Show merchant error UI |
+| `methodChange` | `PaymentMethodChangeEvent` | The selected method changes | Update the surrounding page |
 | `successContinue` | `PaymentResult` | Customer clicks **Continue** on the built-in success screen | Only when `successBehavior` is `confirmation` |
+
+`success`, `cancel`, `error`, and `successContinue` keep their existing names and payload fields. `started` and `methodChange` are additive.
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  (started)="onStarted($event)"
+  (success)="onSuccess($event)"
+  (cancel)="onCancel($event)"
+  (error)="onError($event)"
+  (methodChange)="onMethodChange($event)"
+  (successContinue)="onContinue($event)"
+/>
+```
+
+```ts
+import {
+  PaymentError,
+  PaymentMethodChangeEvent,
+  PaymentResult,
+  PaymentStartedEvent,
+} from '@easy-payments/angular';
+
+onStarted(event: PaymentStartedEvent): void {
+  // One attempt. Tile selection does not call this.
+}
+
+onSuccess(result: PaymentResult): void {
+  // result.transactionId and result.sessionId are safe references when the provider has them.
+}
+
+onError(error: PaymentError): void {
+  // Prefer error.code. error.message is the existing PaymentError text.
+}
+
+onCancel(result: PaymentResult): void {
+  // Only when the current provider flow reports cancellation.
+}
+
+onMethodChange(event: PaymentMethodChangeEvent): void {
+  // event.method is null when nothing remains selectable.
+}
+```
+
+### Payment started
+
+`started` fires once per attempt:
+
+| Flow | When `started` fires |
+|------|----------------------|
+| Mock checkout and any `processPayment()` path | When the pay action is accepted |
+| Stripe card | When the customer submits the card form, before `confirmPayment` |
+| PayPal | When order creation begins. Approve and capture do not fire it again |
+| Google Pay | When the official button click is accepted |
+| Apple Pay | When Stripe Express Checkout emits `confirm`. Rendering the button does not fire it |
+| Klarna and Affirm | When the customer submits. A return to the page does not fire it again |
+
+Selecting a method tile does not fire `started`. A repeated click or a second SDK callback during the same attempt does not fire it again. `resetCheckoutView()` or the built-in Try again / Continue action allows another attempt.
+
+`PaymentStartedEvent` contains `method`, `provider`, `amount`, and `currency`. Amount and currency are the current checkout product input, not a captured charge.
+
+### Success, failure, and cancellation
+
+`success` still fires only after the existing provider flow confirms success. PayPal `success` fires after capture, not when the order is created. Stripe card `success` keeps the current adapter rule: PaymentIntent statuses `succeeded`, `processing`, and `requires_capture` are already reported as success.
+
+`error` still uses `PaymentError` and its stable `code`. A declined card uses `CARD_DECLINED` or `PAYMENT_FAILED`, depending on the existing mapper. Configuration failures such as `SDK_LOAD_FAILED` still use `error` and do not emit `cancel` or `started`. An availability refresh error still uses the existing `error` output and is not a payment attempt.
+
+`cancel` fires when the existing flow reports cancellation: mock cancellation, PayPal `onCancel`, a Stripe or wallet result with status `cancelled`, or `PAYMENT_CANCELLED`. A configuration failure is not a cancellation. Easy Payments does not invent a cancellation for a provider that only reports a generic dismissal or load failure.
+
+`methodChange` fires when the selected method actually changes, including the first selection and when the current method is removed or becomes unavailable. Choosing the method that is already selected does not fire it again. `provider` is null when `method` is null.
+
+Duplicate terminal callbacks for the same attempt are ignored after the first `success`, `cancel`, or `error` that belongs to that attempt. Callbacks after the component is destroyed are ignored.
+
+Diagnostics stay separate. A payment failure does not change `EasyPaymentsDiagnosticsService` readiness, and a readiness update does not emit `started` or `cancel`.
+
+These payloads omit PaymentIntent client secrets, secret keys, PayPal client secrets, access tokens, authorization headers, raw SDK bodies, and card data. `PaymentResult.metadata` remains whatever the existing provider result already included. Do not log `PaymentError.message` if a backend or SDK may have put sensitive text there; log `code` instead.
 
 > There is **no** public `busyChange` output on `<easy-payments>` in v1.0.0. Processing locks the checkout UI internally; use the visible processing screen and the events above. See [payment-flow.md](./payment-flow.md).
 
@@ -199,7 +278,22 @@ interface PaymentResult {
 }
 ```
 
-`normalizePaymentResult(result)` returns a shallow-normalized copy.
+`normalizePaymentResult(result)` returns a shallow-normalized copy. Existing fields are unchanged.
+
+```ts
+interface PaymentStartedEvent {
+  method: PaymentMethod;
+  provider: PaymentProviderName;
+  amount: number;
+  currency: string;
+}
+
+interface PaymentMethodChangeEvent {
+  method: PaymentMethod | null;
+  previousMethod: PaymentMethod | null;
+  provider: PaymentProviderName | null;
+}
+```
 
 ---
 
@@ -391,6 +485,7 @@ From `@easy-payments/angular` (see `public-api.ts`):
 - `provideEasyPayments`, `EasyPaymentsConfigService`
 - Models / types above
 - `PaymentError`, `normalizeError`
+- `PaymentStartedEvent`, `PaymentMethodChangeEvent`
 - `EasyPaymentsDiagnosticsService`, `EASY_PAYMENTS_DIAGNOSTIC_CODES`
 - `EasyPaymentsDiagnosticsSnapshot`, `PaymentMethodDiagnostic`, `EasyPaymentsDiagnosticCode`, `MethodReadinessState`
 - `validatePaymentProduct`, `EasyPaymentsConfigValidator`
