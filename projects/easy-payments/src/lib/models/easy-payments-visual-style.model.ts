@@ -16,14 +16,30 @@ export interface EasyPaymentsVisualStyle {
   textColor?: string;
   /** Secondary / muted text color (maps to `--ep-text-secondary`). */
   textSecondaryColor?: string;
-  /** Host / page background token (maps to `--ep-background`). */
+  /**
+   * Host backdrop (maps to `--ep-background` on `<easy-payments>`).
+   * Use `'transparent'` to keep the host clear. Independent of `appearance`.
+   */
   backgroundColor?: string;
-  /** Checkout surface / card background (maps to `--ep-surface`). */
+  /**
+   * EP-owned surface fill (maps to `--ep-surface`): default shell card, tiles,
+   * and other solid panels. With `appearance="transparent"`, the outer shell
+   * stays clear; tiles/panels still use this surface.
+   */
   surfaceColor?: string;
-  /** Accent / selection / focus hue (maps to `--ep-accent` and `--ep-focus`). */
+  /**
+   * Accent / selection / focus hue (maps to `--ep-accent`, `--ep-focus`, and a
+   * derived `--ep-accent-soft`). Does not recolor provider logos or SDK chrome.
+   */
   accentColor?: string;
-  /** Corner radius CSS length (maps to `--ep-radius` and `--ep-radius-md`). */
+  /**
+   * Outer corner radius (maps to `--ep-radius`). Inner EP controls use
+   * `--ep-radius-md` derived as `calc(var(--ep-radius) * 0.625)`.
+   */
   borderRadius?: string;
-  /** Spacing scale CSS length (maps to `--ep-spacing`). */
+  /**
+   * Spacing scale (maps to `--ep-spacing`). Shell padding uses `--ep-padding`
+   * (`calc(var(--ep-spacing) * 1.25)`).
+   */
   spacing?: string;
 }

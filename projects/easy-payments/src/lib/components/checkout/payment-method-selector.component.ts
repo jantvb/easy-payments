@@ -55,7 +55,7 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
       }
 
       .ep-selector__label {
-        margin: 0 0 10px;
+        margin: 0 0 var(--ep-spacing-sm, 10px);
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.08em;
@@ -65,7 +65,7 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
 
       .ep-selector__grid {
         display: grid;
-        gap: 10px;
+        gap: var(--ep-spacing-sm, 10px);
         width: 100%;
         /*
           Columns follow the <easy-payments> container width (container queries),

@@ -42,6 +42,8 @@ export interface VisualStyleHostCssVars {
   backgroundColor: string | null;
   surfaceColor: string | null;
   accentColor: string | null;
+  /** Derived soft fill for selected tiles; set only when `accentColor` is valid. */
+  accentSoft: string | null;
   borderRadius: string | null;
   spacing: string | null;
 }
@@ -53,9 +55,18 @@ const EMPTY_HOST_VARS: VisualStyleHostCssVars = {
   backgroundColor: null,
   surfaceColor: null,
   accentColor: null,
+  accentSoft: null,
   borderRadius: null,
   spacing: null,
 };
+
+/**
+ * Soft accent fill derived from a sanitized accent color.
+ * Used for selected-method tile backgrounds without inventing a second public API field.
+ */
+export function deriveAccentSoft(accentColor: string): string {
+  return `color-mix(in srgb, ${accentColor} 14%, transparent)`;
+}
 
 function trimOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -123,13 +134,16 @@ export function resolveVisualStyleCssVars(
     return { ...EMPTY_HOST_VARS };
   }
 
+  const accentColor = sanitizeColor(style.accentColor);
+
   return {
     fontFamily: sanitizeFontFamily(style.fontFamily),
     textColor: sanitizeColor(style.textColor),
     textSecondaryColor: sanitizeColor(style.textSecondaryColor),
     backgroundColor: sanitizeColor(style.backgroundColor),
     surfaceColor: sanitizeColor(style.surfaceColor),
-    accentColor: sanitizeColor(style.accentColor),
+    accentColor,
+    accentSoft: accentColor ? deriveAccentSoft(accentColor) : null,
     borderRadius: sanitizeLength(style.borderRadius),
     spacing: sanitizeLength(style.spacing),
   };

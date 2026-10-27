@@ -10,9 +10,9 @@
   --ep-font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-family: var(--ep-font-family);
   color: var(--ep-text);
-  background: transparent;
+  background: var(--ep-background);
 
-  /* Design tokens — overridable by host apps / [visualStyle] */
+  /* Design tokens — theme defaults; [visualStyle] / host CSS may override */
   --ep-background: transparent;
   --ep-surface: #ffffff;
   --ep-surface-muted: #f8fafc;
@@ -25,8 +25,12 @@
   --ep-accent-soft: #eff6ff;
   --ep-focus: #2563eb;
   --ep-radius: 16px;
-  --ep-radius-md: 10px;
+  /* Keep md hierarchy vs outer radius (16 → 10). */
+  --ep-radius-md: calc(var(--ep-radius) * 0.625);
   --ep-spacing: 16px;
+  /* Shell padding tracks spacing (16 → 20). */
+  --ep-padding: calc(var(--ep-spacing) * 1.25);
+  --ep-spacing-sm: calc(var(--ep-spacing) * 0.625);
   --ep-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
   --ep-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   --ep-cta-bg: #0f172a;
@@ -75,7 +79,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--ep-spacing);
-  padding: 20px;
+  padding: var(--ep-padding);
   border: 1px solid var(--ep-border);
   border-radius: var(--ep-radius);
   background: var(--ep-surface);
@@ -85,6 +89,11 @@
   width: 100%;
 }
 
+/**
+ * Transparent shell: strip outer chrome so the merchant parent shows through.
+ * Does not clear --ep-surface for tiles / inner panels, and does not clear
+ * --ep-background on :host (visualStyle.backgroundColor still applies to host).
+ */
 :host(.ep-appearance-transparent) .ep-checkout {
   padding: 0;
   border: 0;
@@ -177,7 +186,7 @@
 
 .ep-checkout__empty {
   margin: 0;
-  padding: 16px;
+  padding: var(--ep-spacing);
   text-align: center;
   color: var(--ep-text-secondary);
   font-size: 14px;
@@ -187,8 +196,9 @@
 
 @container ep-checkout (max-width: 420px) {
   .ep-checkout {
-    padding: 16px;
-    border-radius: 14px;
+    padding: var(--ep-spacing);
+    /* Preserve prior 14px default when --ep-radius is 16px. */
+    border-radius: calc(var(--ep-radius) * 0.875);
   }
 
   .ep-checkout__title {

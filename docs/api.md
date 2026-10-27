@@ -310,30 +310,40 @@ interface EasyPaymentsVisualStyle {
 }
 ```
 
-Font and text color fields (roadmap items 11–12):
-
-| Field | CSS variable | Notes |
-|-------|--------------|--------|
-| `fontFamily` | `--ep-font-family` | Font stack, `'inherit'`, or `var(--token)`. Host app must load custom fonts. Default stack unchanged when omitted. |
+| Field | CSS variable(s) | Notes |
+|-------|-----------------|--------|
+| `fontFamily` | `--ep-font-family` | Stack, `'inherit'`, or `var(--token)`. Host loads fonts. |
 | `textColor` | `--ep-text` | Primary EP-owned text. |
 | `textSecondaryColor` | `--ep-text-secondary` | Secondary EP-owned text. |
+| `backgroundColor` | `--ep-background` | Host backdrop. `'transparent'` supported. |
+| `surfaceColor` | `--ep-surface` | Default shell + tiles/panels. With `appearance="transparent"`, shell stays clear; tiles still use surface. |
+| `accentColor` | `--ep-accent`, `--ep-focus`, derived `--ep-accent-soft` | Selection / focus. Not provider logos/SDK. |
+| `borderRadius` | `--ep-radius` | `--ep-radius-md = calc(var(--ep-radius) * 0.625)`. |
+| `spacing` | `--ep-spacing` | `--ep-padding = calc(var(--ep-spacing) * 1.25)`; `--ep-spacing-sm = calc(var(--ep-spacing) * 0.625)`. |
+
+**Precedence:** theme defaults → valid `[visualStyle]` inline tokens → `appearance="transparent"` forces shell chrome/background off (host `--ep-background` and tile `--ep-surface` still apply).
 
 ```html
 <easy-payments
   [product]="product"
   [methods]="methods"
+  appearance="default"
   [visualStyle]="{
-    fontFamily: 'inherit',
-    textColor: '#111827',
-    textSecondaryColor: '#6b7280'
+    backgroundColor: 'transparent',
+    surfaceColor: '#ffffff',
+    accentColor: '#0b6e4f',
+    borderRadius: '12px',
+    spacing: '16px'
   }"
 />
 ```
 
 - Independent of `theme` / `appearance`. Explicit overrides stay applied when switching light/dark/system.
 - Removing a field (or setting `visualStyle` to `null`) restores the active theme’s default token.
-- Does **not** change Stripe Elements, PayPal Buttons, wallet sheets, or official marks; those keep provider fonts/colors.
+- Does **not** change Stripe Elements, PayPal Buttons, wallet sheets, or official marks.
 - Does **not** recreate payment provider sessions (session keys exclude visual style).
+
+See [configuration.md](./configuration.md) for the full public `--ep-*` token table.
 
 Public layout constants:
 

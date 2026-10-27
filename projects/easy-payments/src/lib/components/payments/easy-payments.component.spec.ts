@@ -461,8 +461,14 @@ describe('EasyPaymentsComponent', () => {
     expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fefefe');
     expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#0b6e4f');
     expect(host.style.getPropertyValue('--ep-focus').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toContain('color-mix');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toContain('#0b6e4f');
     expect(host.style.getPropertyValue('--ep-radius').trim()).toBe('12px');
-    expect(host.style.getPropertyValue('--ep-radius-md').trim()).toBe('12px');
+    // md radius stays derived in SCSS (not flattened to the same inline value).
+    expect(host.style.getPropertyValue('--ep-radius-md')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-radius-md').trim()).toMatch(
+      /calc\(\s*12px\s*\*\s*0\.625\s*\)/,
+    );
     expect(host.style.getPropertyValue('--ep-spacing').trim()).toBe('20px');
   });
 
@@ -611,6 +617,163 @@ describe('EasyPaymentsComponent', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Courier New', monospace");
   });
+
+  it('applies backgroundColor to the host and surfaceColor to the default shell', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#e2e8f0',
+      surfaceColor: '#fff7ed',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('#e2e8f0');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fff7ed');
+    expect(rgbCloseTo(getComputedStyle(host).backgroundColor, 226, 232, 240)).toBeTrue();
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    expect(rgbCloseTo(getComputedStyle(shell).backgroundColor, 255, 247, 237)).toBeTrue();
+  });
+
+  it('keeps transparent shell clear while surfaceColor still styles tiles', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: 'transparent',
+      surfaceColor: '#fef3c7',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('transparent');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fef3c7');
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    const shellBg = getComputedStyle(shell).backgroundColor;
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+
+    // Unselected tiles use --ep-surface; the selected tile uses accent-soft.
+    const tile = host.querySelector('button.ep-tile[aria-checked="false"]') as HTMLElement;
+    expect(tile).toBeTruthy();
+    expect(rgbCloseTo(getComputedStyle(tile).backgroundColor, 254, 243, 199)).toBeTrue();
+  });
+
+  it('applies accentColor to accent, focus, and soft tokens used by selected tiles', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', { accentColor: '#0b6e4f' });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-focus').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toBe(
+      'color-mix(in srgb, #0b6e4f 14%, transparent)',
+    );
+
+    const selected = host.querySelector('button.ep-tile[aria-checked="true"]') as HTMLElement;
+    expect(selected).toBeTruthy();
+    expect(getComputedStyle(selected).borderColor.toLowerCase()).toContain('11, 110, 79');
+  });
+
+  it('applies borderRadius and spacing to the default shell without flattening md radius', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      borderRadius: '20px',
+      spacing: '24px',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-radius').trim()).toBe('20px');
+    expect(host.style.getPropertyValue('--ep-spacing').trim()).toBe('24px');
+    expect(host.style.getPropertyValue('--ep-radius-md')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-radius-md').trim()).toMatch(
+      /calc\(\s*20px\s*\*\s*0\.625\s*\)/,
+    );
+    expect(getComputedStyle(host).getPropertyValue('--ep-padding').trim()).toMatch(
+      /calc\(\s*24px\s*\*\s*1\.25\s*\)/,
+    );
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    const shellStyle = getComputedStyle(shell);
+    expect(shellStyle.borderRadius).toBe('20px');
+    expect(shellStyle.paddingTop).toBe('30px');
+    expect(shellStyle.rowGap || shellStyle.gap).toBe('24px');
+
+    const tile = host.querySelector('button.ep-tile') as HTMLElement;
+    expect(tile).toBeTruthy();
+    // 20px * 0.625 = 12.5px derived md radius on tiles.
+    expect(getComputedStyle(tile).borderRadius).toBe('12.5px');
+  });
+
+  it('updates and clears background/accent/radius/spacing dynamically', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#ddeeff',
+      surfaceColor: '#ccddee',
+      accentColor: '#1122aa',
+      borderRadius: '8px',
+      spacing: '12px',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ccddee');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#1122aa');
+
+    fixture.componentRef.setInput('theme', 'dark');
+    await render(fixture);
+    expect(host.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ccddee');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#1122aa');
+
+    fixture.componentRef.setInput('visualStyle', null);
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-background')).toBe('');
+    expect(host.style.getPropertyValue('--ep-surface')).toBe('');
+    expect(host.style.getPropertyValue('--ep-accent')).toBe('');
+    expect(host.style.getPropertyValue('--ep-radius')).toBe('');
+    expect(host.style.getPropertyValue('--ep-spacing')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-surface').trim().toLowerCase()).toBe(
+      '#111827',
+    );
+  });
+
+  it('does not leak visualStyle CSS variables between checkout instances', async () => {
+    const fixtureB = TestBed.createComponent(EasyPaymentsComponent);
+    fixtureB.componentRef.setInput('product', { ...SAMPLE_PRODUCT, id: 'other-plan' });
+    fixture.componentRef.setInput('methods', ['card']);
+    fixtureB.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('visualStyle', {
+      surfaceColor: '#ffeeee',
+      accentColor: '#aa0000',
+      borderRadius: '4px',
+    });
+    fixtureB.componentRef.setInput('visualStyle', {
+      surfaceColor: '#eeffee',
+      accentColor: '#00aa00',
+      borderRadius: '24px',
+    });
+    await render(fixture);
+    await render(fixtureB);
+
+    const hostA = fixture.nativeElement as HTMLElement;
+    const hostB = fixtureB.nativeElement as HTMLElement;
+    expect(hostA.style.getPropertyValue('--ep-surface').trim()).toBe('#ffeeee');
+    expect(hostB.style.getPropertyValue('--ep-surface').trim()).toBe('#eeffee');
+    expect(hostA.style.getPropertyValue('--ep-accent').trim()).toBe('#aa0000');
+    expect(hostB.style.getPropertyValue('--ep-accent').trim()).toBe('#00aa00');
+    expect(hostA.style.getPropertyValue('--ep-radius').trim()).toBe('4px');
+    expect(hostB.style.getPropertyValue('--ep-radius').trim()).toBe('24px');
+  });
+
 
 
 

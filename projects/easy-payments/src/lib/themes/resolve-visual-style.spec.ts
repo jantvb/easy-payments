@@ -12,6 +12,7 @@ describe('resolveVisualStyleCssVars', () => {
       backgroundColor: null,
       surfaceColor: null,
       accentColor: null,
+      accentSoft: null,
       borderRadius: null,
       spacing: null,
     });
@@ -38,9 +39,17 @@ describe('resolveVisualStyleCssVars', () => {
       backgroundColor: 'transparent',
       surfaceColor: '#ffffff',
       accentColor: 'hsl(210, 80%, 45%)',
+      accentSoft: 'color-mix(in srgb, hsl(210, 80%, 45%) 14%, transparent)',
       borderRadius: '12px',
       spacing: '1.25rem',
     });
+  });
+
+  it('derives accentSoft only when accentColor is valid', () => {
+    expect(resolveVisualStyleCssVars({ accentColor: '#0b6e4f' }).accentSoft).toBe(
+      'color-mix(in srgb, #0b6e4f 14%, transparent)',
+    );
+    expect(resolveVisualStyleCssVars({ accentColor: 'not-a-color' }).accentSoft).toBeNull();
   });
 
   it('supports fontFamily inherit as an explicit opt-in', () => {

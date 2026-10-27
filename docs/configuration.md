@@ -41,48 +41,90 @@ Use `transparent` to embed checkout inside a merchant modal or branded section.
 
 ---
 
-## Visual style (font & text colors)
+## Visual style
 
-Optional `[visualStyle]` overrides Easy Payments–**owned** typography and text colors.
+Optional `[visualStyle]` overrides Easy Payments–**owned** look (font, text, backgrounds, accent, radius, spacing).
 Independent of `theme` and `appearance`. Omitted or invalid fields leave the built-in light/dark tokens unchanged.
+
+```ts
+visualStyle = {
+  fontFamily: 'inherit', // or "'Inter', system-ui, sans-serif" (host must load Inter)
+  textColor: '#0f172a',
+  textSecondaryColor: '#64748b',
+  backgroundColor: 'transparent',
+  surfaceColor: '#ffffff',
+  accentColor: '#0b6e4f',
+  borderRadius: '12px',
+  spacing: '16px',
+};
+```
 
 ```html
 <easy-payments
   [product]="product"
   [methods]="methods"
   theme="system"
-  [visualStyle]="{
-    fontFamily: 'inherit',
-    textColor: '#0f172a',
-    textSecondaryColor: '#64748b'
-  }"
+  appearance="default"
+  [visualStyle]="visualStyle"
 />
 ```
 
-```ts
-// Host app must load Inter (or any custom face) before checkout renders.
-visualStyle = { fontFamily: "'Inter', system-ui, sans-serif" };
-```
-
-```html
-<easy-payments [product]="product" [methods]="methods" [visualStyle]="visualStyle" />
-```
+### Fields → CSS variables
 
 | Field | Maps to | Notes |
 |-------|---------|--------|
-| `fontFamily` | `--ep-font-family` | CSS font stack, `'inherit'` (host app font), or `var(--your-token)`. **Load custom fonts in the host app** before use — Easy Payments does not fetch fonts. |
+| `fontFamily` | `--ep-font-family` | Stack, `'inherit'`, or `var(--token)`. **Load custom fonts in the host app.** |
 | `textColor` | `--ep-text` | Primary EP-owned copy. |
-| `textSecondaryColor` | `--ep-text-secondary` | Muted EP-owned copy (subtitles, hints). |
+| `textSecondaryColor` | `--ep-text-secondary` | Muted EP-owned copy. |
+| `backgroundColor` | `--ep-background` | Host backdrop (`:host`). `'transparent'` is supported. |
+| `surfaceColor` | `--ep-surface` | Default shell card + tiles / solid EP panels. |
+| `accentColor` | `--ep-accent`, `--ep-focus`, derived `--ep-accent-soft` | Selection / focus. Not logos or provider SDKs. |
+| `borderRadius` | `--ep-radius` | Outer radius. `--ep-radius-md` stays `calc(var(--ep-radius) * 0.625)`. |
+| `spacing` | `--ep-spacing` | Stack gap. Shell padding uses `--ep-padding` (`calc(var(--ep-spacing) * 1.25)`). |
+
+### Precedence
+
+1. **Theme** (`light` / `dark` / `system`) sets default `--ep-*` tokens on the host.
+2. **`[visualStyle]`** sets matching tokens as inline custom properties (only for valid fields).
+3. **`appearance="transparent"`** removes outer shell chrome and forces the shell background to transparent. It does **not** clear `--ep-surface` for tiles/panels, and does **not** clear `--ep-background` on the host.
+4. Host CSS on `<easy-payments>` can also set `--ep-*` variables; avoid fighting the same properties you pass via `[visualStyle]`.
+
+Transparent shell + custom surface example (parent shows through; tiles stay readable):
+
+```html
+<easy-payments
+  appearance="transparent"
+  [visualStyle]="{ surfaceColor: '#f8fafc', accentColor: '#2563eb' }"
+  [product]="product"
+  [methods]="methods"
+/>
+```
+
+### Public CSS token contract (EP-owned)
+
+Stable customization points (set via `[visualStyle]` or CSS on `<easy-payments>`):
+
+| Token | Purpose |
+|-------|---------|
+| `--ep-font-family` | EP-owned typography |
+| `--ep-text` / `--ep-text-secondary` | Primary / muted text |
+| `--ep-background` | Host backdrop |
+| `--ep-surface` | Solid surfaces (shell when `appearance=default`, tiles, panels) |
+| `--ep-accent` / `--ep-focus` / `--ep-accent-soft` | Interactive accent |
+| `--ep-radius` | Outer radius (`--ep-radius-md` derived) |
+| `--ep-spacing` | Vertical stack gap (`--ep-padding` / `--ep-spacing-sm` derived) |
+| `--ep-checkout-max-width` | From `[maxWidth]` |
+
+Theme-managed (override with care): `--ep-surface-muted`, `--ep-surface-hover`, `--ep-border*`, `--ep-shadow*`, `--ep-cta-*`, `--ep-success`, `--ep-danger`, `--ep-demo-*`.
 
 **Limits**
 
-- Does **not** restyle official provider UI (Stripe Payment Element / iframes, PayPal Buttons, Apple Pay / Google Pay sheets, or provider logos/marks).
-- Success / error colors stay on `--ep-success` / `--ep-danger` (not overridden by these fields).
+- Does **not** restyle Stripe Payment Element / iframes, PayPal Buttons, Apple Pay / Google Pay sheets, or provider logos/marks.
+- Success / error colors stay on `--ep-success` / `--ep-danger`.
 - Invalid values are ignored; checkout is not blocked.
 
-Other `visualStyle` keys (`backgroundColor`, `surfaceColor`, `accentColor`, `borderRadius`, `spacing`) exist on the type for later customization steps; prefer documenting them when those features are finalized.
-
 ---
+
 
 ## Max width
 
