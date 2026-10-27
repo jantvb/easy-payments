@@ -45,6 +45,7 @@ import { EasyPaymentsI18nService, EN_TRANSLATIONS } from '../../i18n';
     `
       :host {
         display: block;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-summary {

@@ -88,6 +88,7 @@ import {
       :host {
         display: block;
         width: 100%;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-apay {

@@ -35,6 +35,19 @@ function payCta(fixture: ComponentFixture<EasyPaymentsComponent>): HTMLButtonEle
   ) as HTMLButtonElement | null;
 }
 
+/** Compare computed `rgb()` / `rgba()` colors to expected 8-bit channels. */
+function rgbCloseTo(cssColor: string, r: number, g: number, b: number, tolerance = 2): boolean {
+  const match = cssColor.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (!match) {
+    return false;
+  }
+  return (
+    Math.abs(Number(match[1]) - r) <= tolerance &&
+    Math.abs(Number(match[2]) - g) <= tolerance &&
+    Math.abs(Number(match[3]) - b) <= tolerance
+  );
+}
+
 describe('EasyPaymentsComponent', () => {
   let fixture: ComponentFixture<EasyPaymentsComponent>;
   let browser: FakeBrowserGuard;
@@ -496,6 +509,109 @@ describe('EasyPaymentsComponent', () => {
       shellStyle.backgroundColor === 'rgba(0, 0, 0, 0)' || shellStyle.backgroundColor === 'transparent',
     ).toBeTrue();
   });
+
+  it('applies font and text colors to EP-owned UI and updates them dynamically', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Courier New', monospace",
+      textColor: '#112233',
+      textSecondaryColor: '#445566',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Courier New', monospace");
+    expect(getComputedStyle(host).fontFamily.toLowerCase()).toContain('courier new');
+
+    const title = host.querySelector('.ep-checkout__title') as HTMLElement;
+    const subtitle = host.querySelector('.ep-checkout__subtitle') as HTMLElement;
+    expect(title).toBeTruthy();
+    expect(subtitle).toBeTruthy();
+    expect(rgbCloseTo(getComputedStyle(title).color, 17, 34, 51)).toBeTrue();
+    expect(rgbCloseTo(getComputedStyle(subtitle).color, 68, 85, 102)).toBeTrue();
+
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'inherit',
+      textColor: '#010203',
+      textSecondaryColor: '#040506',
+    });
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe('inherit');
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#010203');
+    expect(host.style.getPropertyValue('--ep-text-secondary').trim()).toBe('#040506');
+  });
+
+  it('restores theme defaults when visualStyle font/text overrides are removed', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'Georgia, serif',
+      textColor: '#123456',
+      textSecondaryColor: '#654321',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe('Georgia, serif');
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#123456');
+
+    fixture.componentRef.setInput('visualStyle', null);
+    await render(fixture);
+
+    expect(host.style.getPropertyValue('--ep-font-family')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text-secondary')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-font-family').trim()).toContain('Segoe UI');
+    expect(getComputedStyle(host).getPropertyValue('--ep-text').trim().toLowerCase()).toBe('#0f172a');
+  });
+
+  it('keeps explicit font/text overrides when switching light and dark themes', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Roboto', sans-serif",
+      textColor: '#0a0a0a',
+      textSecondaryColor: '#4a4a4a',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('ep-theme-light')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Roboto', sans-serif");
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#0a0a0a');
+
+    fixture.componentRef.setInput('theme', 'dark');
+    await render(fixture);
+
+    expect(host.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Roboto', sans-serif");
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#0a0a0a');
+    expect(host.style.getPropertyValue('--ep-text-secondary').trim()).toBe('#4a4a4a');
+  });
+
+  it('does not restyle provider-branded mock Google Pay mark font via visualStyle', async () => {
+    fixture.componentRef.setInput('methods', ['google-pay']);
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Courier New', monospace",
+      textColor: '#ff0000',
+    });
+    await render(fixture);
+
+    const gPayLabel = fixture.nativeElement.querySelector(
+      'easy-google-pay-button span',
+    ) as HTMLElement | null;
+    // Mock mode may show the mock panel CTA instead of the branded button for some flows;
+    // when the branded span is present it must keep Google's font, not the EP override.
+    if (gPayLabel) {
+      expect(gPayLabel.getAttribute('style') ?? '').toContain('Google Sans');
+      expect(getComputedStyle(gPayLabel).fontFamily.toLowerCase()).not.toContain('courier new');
+    }
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Courier New', monospace");
+  });
+
 
 
   it('keeps selected and unselected tiles the same size', async () => {

@@ -18,11 +18,18 @@ const MAX_VISUAL_STYLE_VALUE_LENGTH = 200;
 const UNSAFE_CSS_VALUE =
   /[;{}<>]|\/\*|\*\/|url\s*\(|expression\s*\(|javascript:|@import|@charset|behavior\s*:/i;
 
+/** Hex, rgb/hsl(+ modern units), relative color functions, keywords, named colors. */
 const CSS_COLOR =
-  /^(#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|rgba?\(\s*[\d.%\s,/+-]+\s*\)|hsla?\(\s*[\d.%\s,/+-]+\s*\)|transparent|currentcolor|[a-z]{1,30})$/i;
+  /^(#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(\s*[^;{}()]+\s*\)|transparent|currentcolor|[a-z]{1,32})$/i;
 
 const CSS_LENGTH =
   /^(0|[-+]?(?:\d*\.\d+|\d+)(?:px|rem|em|%|ch|ex|vh|vw|vmin|vmax|cm|mm|in|pt|pc))$/i;
+
+/** `var(--token)` only — no fallback lists (avoids nested injection surface). */
+const CSS_FONT_VAR = /^var\(\s*--[a-zA-Z_][\w-]*\s*\)$/;
+
+/** Conservative font-family list (names, generics, quotes, commas). */
+const CSS_FONT_STACK = /^[a-z0-9\s,'"._-]+$/i;
 
 /**
  * Host-bound CSS custom property values derived from {@link EasyPaymentsVisualStyle}.
@@ -85,8 +92,8 @@ function sanitizeLength(value: unknown): string | null {
 }
 
 /**
- * Accept `'inherit'` or a conservative font-family list (names, quotes, commas,
- * weights tokens like `system-ui`). Rejects urls and multi-declaration payloads.
+ * Accept `'inherit'`, `var(--token)`, or a conservative font-family list
+ * (names, generics, quotes, commas). Rejects urls and multi-declaration payloads.
  */
 function sanitizeFontFamily(value: unknown): string | null {
   const raw = trimOrEmpty(value);
@@ -96,8 +103,10 @@ function sanitizeFontFamily(value: unknown): string | null {
   if (raw.toLowerCase() === 'inherit') {
     return 'inherit';
   }
-  // Letters, digits, spaces, commas, quotes, hyphens, and common CSS font idents.
-  if (!/^[a-z0-9\s,'"_-]+$/i.test(raw)) {
+  if (CSS_FONT_VAR.test(raw)) {
+    return raw;
+  }
+  if (!CSS_FONT_STACK.test(raw)) {
     return null;
   }
   return raw;

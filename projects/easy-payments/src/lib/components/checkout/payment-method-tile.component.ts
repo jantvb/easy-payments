@@ -55,6 +55,7 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
       :host {
         display: block;
         min-width: 0;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-tile {
@@ -154,7 +155,7 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
         font-weight: 600;
         line-height: 1.2;
         text-align: center;
-        color: var(--ep-text-secondary, #475569);
+        color: var(--ep-text-secondary, #64748b);
         min-height: 1.2em;
         max-width: 100%;
         overflow: hidden;

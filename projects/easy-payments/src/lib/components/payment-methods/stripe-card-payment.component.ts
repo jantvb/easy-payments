@@ -96,6 +96,7 @@ import { CheckoutSecurityMessageComponent } from '../checkout/checkout-security-
       :host {
         display: block;
         width: 100%;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-stripe-card {

@@ -48,6 +48,32 @@ describe('resolveVisualStyleCssVars', () => {
     expect(resolveVisualStyleCssVars({ fontFamily: ' Inherit ' }).fontFamily).toBe('inherit');
   });
 
+  it('accepts common font stacks and var(--token) fonts', () => {
+    expect(
+      resolveVisualStyleCssVars({
+        fontFamily: "'Inter', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif",
+      }).fontFamily,
+    ).toBe("'Inter', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif");
+    expect(resolveVisualStyleCssVars({ fontFamily: 'var(--app-font)' }).fontFamily).toBe(
+      'var(--app-font)',
+    );
+  });
+
+  it('accepts common CSS color formats for text colors', () => {
+    expect(resolveVisualStyleCssVars({ textColor: '#abc' }).textColor).toBe('#abc');
+    expect(resolveVisualStyleCssVars({ textColor: '#AABBCCDD' }).textColor).toBe('#AABBCCDD');
+    expect(resolveVisualStyleCssVars({ textColor: 'rebeccapurple' }).textColor).toBe('rebeccapurple');
+    expect(resolveVisualStyleCssVars({ textColor: 'hsl(210deg 80% 45%)' }).textColor).toBe(
+      'hsl(210deg 80% 45%)',
+    );
+    expect(
+      resolveVisualStyleCssVars({ textSecondaryColor: 'rgba(15, 23, 42, 0.72)' }).textSecondaryColor,
+    ).toBe('rgba(15, 23, 42, 0.72)');
+    expect(resolveVisualStyleCssVars({ textColor: 'oklch(0.55 0.12 250)' }).textColor).toBe(
+      'oklch(0.55 0.12 250)',
+    );
+  });
+
   it('exposes the default font stack constant for SCSS parity', () => {
     expect(DEFAULT_EP_FONT_FAMILY).toContain('Segoe UI');
     expect(DEFAULT_EP_FONT_FAMILY).toContain('system-ui');
@@ -74,6 +100,11 @@ describe('resolveVisualStyleCssVars', () => {
     expect(resolved.accentColor).toBeNull();
     expect(resolved.borderRadius).toBeNull();
     expect(resolved.spacing).toBeNull();
+  });
+
+  it('rejects unsafe font var() forms', () => {
+    expect(resolveVisualStyleCssVars({ fontFamily: 'var(--x, url(https://x))' }).fontFamily).toBeNull();
+    expect(resolveVisualStyleCssVars({ fontFamily: 'var(font)' }).fontFamily).toBeNull();
   });
 
   it('accepts partial objects and keeps other fields null', () => {

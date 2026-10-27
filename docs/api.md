@@ -20,6 +20,7 @@ Standalone component. Selector: `easy-payments`.
 | `checkout` | `CheckoutOptions` | `undefined` | No | see below | Optional checkout hints (`successUrl`, `cancelUrl`, `successBehavior`, customer, shipping). |
 | `theme` | `PaymentTheme` | `'system'` | No | `light`, `dark`, `system` | Color theme. `system` follows `prefers-color-scheme` and updates when the preference changes. |
 | `appearance` | `EasyPaymentsAppearance` | `'default'` | No | `default`, `transparent` | Outer shell. Independent of `theme`. `transparent` removes built-in card chrome. |
+| `visualStyle` | `EasyPaymentsVisualStyle \| null` | `null` | No | see [Visual style](#visual-style) | Optional EP-owned font / color / token overrides. Invalid fields ignored. Does not restyle provider SDK chrome. |
 | `maxWidth` | `number \| string \| null \| undefined` | `640` | No | clamped to **320–1200** px | Max checkout width. Component stays `width: 100%` up to this cap. Invalid values fall back to `640`. |
 | `successBehavior` | `CheckoutSuccessBehavior` | `'confirmation'` | No | `confirmation`, `event-only` | Built-in success UI vs emit-only. Overridden by `checkout.successBehavior` when set. |
 | `locale` | `EasyPaymentsLocale` | `'auto'` | No | `auto`, `en`, `es`, `pt` | UI locale. `auto` detects from the browser (`es-*`→es, `pt-*`→pt, `en-*`→en, else English). See [localization.md](./localization.md). |
@@ -293,6 +294,46 @@ type EasyPaymentsAppearance = 'default' | 'transparent';
 
 - `theme` and `appearance` are **independent**.
 - Layout reflows from the **component container width** (not only the viewport), via `[maxWidth]` (320–1200, default 640).
+
+### Visual style
+
+```ts
+interface EasyPaymentsVisualStyle {
+  fontFamily?: string;
+  textColor?: string;
+  textSecondaryColor?: string;
+  backgroundColor?: string;
+  surfaceColor?: string;
+  accentColor?: string;
+  borderRadius?: string;
+  spacing?: string;
+}
+```
+
+Font and text color fields (roadmap items 11–12):
+
+| Field | CSS variable | Notes |
+|-------|--------------|--------|
+| `fontFamily` | `--ep-font-family` | Font stack, `'inherit'`, or `var(--token)`. Host app must load custom fonts. Default stack unchanged when omitted. |
+| `textColor` | `--ep-text` | Primary EP-owned text. |
+| `textSecondaryColor` | `--ep-text-secondary` | Secondary EP-owned text. |
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  [visualStyle]="{
+    fontFamily: 'inherit',
+    textColor: '#111827',
+    textSecondaryColor: '#6b7280'
+  }"
+/>
+```
+
+- Independent of `theme` / `appearance`. Explicit overrides stay applied when switching light/dark/system.
+- Removing a field (or setting `visualStyle` to `null`) restores the active theme’s default token.
+- Does **not** change Stripe Elements, PayPal Buttons, wallet sheets, or official marks; those keep provider fonts/colors.
+- Does **not** recreate payment provider sessions (session keys exclude visual style).
 
 Public layout constants:
 

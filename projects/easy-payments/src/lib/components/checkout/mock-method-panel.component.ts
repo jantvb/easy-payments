@@ -51,6 +51,7 @@ import { PaymentMethodIconComponent } from './payment-method-icon.component';
     `
       :host {
         display: block;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-mock-panel {

@@ -41,6 +41,49 @@ Use `transparent` to embed checkout inside a merchant modal or branded section.
 
 ---
 
+## Visual style (font & text colors)
+
+Optional `[visualStyle]` overrides Easy Payments–**owned** typography and text colors.
+Independent of `theme` and `appearance`. Omitted or invalid fields leave the built-in light/dark tokens unchanged.
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  theme="system"
+  [visualStyle]="{
+    fontFamily: 'inherit',
+    textColor: '#0f172a',
+    textSecondaryColor: '#64748b'
+  }"
+/>
+```
+
+```ts
+// Host app must load Inter (or any custom face) before checkout renders.
+visualStyle = { fontFamily: "'Inter', system-ui, sans-serif" };
+```
+
+```html
+<easy-payments [product]="product" [methods]="methods" [visualStyle]="visualStyle" />
+```
+
+| Field | Maps to | Notes |
+|-------|---------|--------|
+| `fontFamily` | `--ep-font-family` | CSS font stack, `'inherit'` (host app font), or `var(--your-token)`. **Load custom fonts in the host app** before use — Easy Payments does not fetch fonts. |
+| `textColor` | `--ep-text` | Primary EP-owned copy. |
+| `textSecondaryColor` | `--ep-text-secondary` | Muted EP-owned copy (subtitles, hints). |
+
+**Limits**
+
+- Does **not** restyle official provider UI (Stripe Payment Element / iframes, PayPal Buttons, Apple Pay / Google Pay sheets, or provider logos/marks).
+- Success / error colors stay on `--ep-success` / `--ep-danger` (not overridden by these fields).
+- Invalid values are ignored; checkout is not blocked.
+
+Other `visualStyle` keys (`backgroundColor`, `surfaceColor`, `accentColor`, `borderRadius`, `spacing`) exist on the type for later customization steps; prefer documenting them when those features are finalized.
+
+---
+
 ## Max width
 
 ```html

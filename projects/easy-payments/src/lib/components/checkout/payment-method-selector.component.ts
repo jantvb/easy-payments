@@ -51,6 +51,7 @@ import { PaymentMethodTileComponent } from './payment-method-tile.component';
     `
       :host {
         display: block;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-selector__label {
