@@ -231,4 +231,68 @@ describe('PayPalService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('verifies webhook signatures through the PayPal API', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'token', expires_in: 300 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ verification_status: 'SUCCESS' }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [PayPalService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    const ok = await module.get(PayPalService).verifyWebhookSignature({
+      authAlgo: 'SHA256withRSA',
+      certUrl: 'https://api.sandbox.paypal.com/cert',
+      transmissionId: 'tx-1',
+      transmissionSig: 'sig',
+      transmissionTime: '2026-10-26T00:00:00Z',
+      webhookId: 'WH-ID',
+      webhookEvent: { id: 'WH-1', event_type: 'PAYMENT.CAPTURE.COMPLETED' },
+    });
+
+    expect(ok).toBe(true);
+    expect(fetchMock.mock.calls[1][0]).toContain('/v1/notifications/verify-webhook-signature');
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(body.webhook_id).toBe('WH-ID');
+    expect(body.webhook_event.event_type).toBe('PAYMENT.CAPTURE.COMPLETED');
+  });
+
+  it('returns false when PayPal verification_status is FAILURE', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'token', expires_in: 300 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ verification_status: 'FAILURE' }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [PayPalService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    await expect(
+      module.get(PayPalService).verifyWebhookSignature({
+        authAlgo: 'SHA256withRSA',
+        certUrl: 'https://api.sandbox.paypal.com/cert',
+        transmissionId: 'tx-1',
+        transmissionSig: 'sig',
+        transmissionTime: '2026-10-26T00:00:00Z',
+        webhookId: 'WH-ID',
+        webhookEvent: { id: 'WH-1' },
+      }),
+    ).resolves.toBe(false);
+  });
 });

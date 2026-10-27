@@ -225,17 +225,59 @@ createPaymentUrl: 'https://payments.other-provider.com/create'
 
 ---
 
-## Server env (demo)
+## Webhooks (reference)
 
-See [`server/.env.example`](../server/.env.example):
+The NestJS demo server includes **optional** verified webhook receivers. They are independent of the Angular library. Frontend `success` / `started` events are **not** authoritative for fulfillment — use verified webhooks (or your own reconciliation) before shipping goods or unlocking entitlements.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/webhooks/stripe` | Stripe-signed PaymentIntent events |
+| `POST` | `/api/webhooks/paypal` | PayPal-verified capture / order events |
+| `GET` | `/api/webhooks/status/:provider/:paymentId` | Local inspection of derived status (in-memory) |
+
+### Stripe
+
+1. Set `STRIPE_WEBHOOK_SECRET=whsec_...` (Dashboard → Developers → Webhooks, or `stripe listen --forward-to localhost:3000/api/webhooks/stripe`).
+2. The handler verifies `Stripe-Signature` against the **exact raw body** (`NestFactory` `rawBody: true`). Missing secret → **503**. Invalid signature → **400**.
+3. Supported reference events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.processing`, `payment_intent.canceled`. Other types are acknowledged without changing status.
+4. Local CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe` then trigger a test PaymentIntent.
+
+### PayPal
+
+1. Create a Sandbox webhook in the PayPal developer dashboard pointing at your public HTTPS URL (or a tunnel) for `POST /api/webhooks/paypal`.
+2. Set `PAYPAL_WEBHOOK_ID` to that webhook’s id. Missing id → **503**.
+3. The handler requires PayPal transmission headers, allowlists `PAYPAL-CERT-URL` to `https://api.paypal.com` or `https://api.sandbox.paypal.com` only (no userinfo, no non-443 ports, no `*.paypal.com` wildcards), then calls `POST /v1/notifications/verify-webhook-signature` with server credentials. **This backend never downloads the certificate URL**; PayPal’s verify API consumes it. Verification must return `verification_status: SUCCESS`.
+4. Capture events: `PAYMENT.CAPTURE.COMPLETED` → `SUCCEEDED`, `DENIED` → `FAILED`, `PENDING` → `PROCESSING`, `REFUNDED` → `REFUNDED`.
+5. `CHECKOUT.ORDER.APPROVED` is recorded as `PENDING` only (order approval ≠ captured payment).
+
+### In-memory status store
+
+Verified events update a **process-local** `PaymentStatusStore`:
+
+- States: `PENDING`, `PROCESSING`, `SUCCEEDED`, `FAILED`, `CANCELED`, `REFUNDED`
+- Deduped by provider event id (at-most-once side effects **per process**)
+- `SUCCEEDED` is not downgraded by delayed `PROCESSING` / failure events; `REFUNDED` may follow `SUCCEEDED`
+- **Not durable**, **not multi-instance safe**, **not exactly-once** across restarts
+
+Replace this store with a durable database (and idempotent consumer) before production. Webhook HTTP 200 means the event was accepted for reference processing — not that business fulfillment succeeded.
+
+### Environment
 
 ```env
 STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET=YOUR_STRIPE_WEBHOOK_SECRET
 PAYPAL_CLIENT_ID=YOUR_PAYPAL_CLIENT_ID
 PAYPAL_CLIENT_SECRET=YOUR_PAYPAL_CLIENT_SECRET
 PAYPAL_MODE=sandbox
+PAYPAL_WEBHOOK_ID=YOUR_PAYPAL_WEBHOOK_ID
 PORT=3000
 FRONTEND_ORIGIN=http://localhost:4200
 ```
+
+Webhook secrets are optional for server startup. Payment create/capture keep working without them. Verification is never skipped when a webhook request arrives without configuration.
+
+## Server env (demo)
+
+See [`server/.env.example`](../server/.env.example) for the full placeholder list (including optional webhook variables above).
 
 Never commit real `.env` files.

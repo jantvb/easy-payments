@@ -14,7 +14,9 @@ Card number, CVC, and expiry stay inside **Stripe Elements** (provider-hosted fi
 ## Never put in Angular
 
 - Stripe **secret** key (`sk_test_...` / `sk_live_...`)
+- Stripe **webhook signing** secret (`whsec_...`)
 - PayPal **Client Secret**
+- PayPal **webhook id** used for signature verification
 - Private keys / certificates
 - Access tokens / passwords
 - Any backend-only credential
@@ -56,3 +58,13 @@ The Angular library and the reference NestJS server both reject more than 10 ent
 Server-owned PaymentIntent fields are applied after the merchant map. PayPal receives only `orderId`, mapped to `custom_id`. That reference is not proof the order belongs to the current user.
 
 Do not put card data, passwords, tokens, or other personal data in metadata. Diagnostics snapshots and payment lifecycle events do not include this map. `PaymentResult.metadata` is a separate provider-result field and is unchanged.
+
+## Webhooks
+
+The reference NestJS server can verify Stripe and PayPal webhooks (`POST /api/webhooks/stripe`, `POST /api/webhooks/paypal`). Signatures (or PayPal’s verify API) run **before** any status update. Unverified payloads are rejected. Raw webhook bodies and signing secrets are not written to logs.
+
+PayPal `PAYPAL-CERT-URL` is allowlisted to `api.paypal.com` / `api.sandbox.paypal.com` over HTTPS only. The Nest server does **not** fetch that URL; it is passed to PayPal’s official verification API. Stripe uses the Nest `rawBody` buffer with a 300-second signature tolerance.
+
+Angular checkout events (`started`, `success`, `cancel`, `error`) are UX signals only. Do **not** fulfill orders from them alone. Prefer verified webhooks (or server-side retrieval of PaymentIntent / capture status) as the source of truth.
+
+The demo payment-status map is in-memory: not durable, not shared across instances, and not exactly-once across restarts. Production needs a persistent idempotent store. Merchant metadata / PayPal `custom_id` on webhook resources is descriptive — never proof of ownership.

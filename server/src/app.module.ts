@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { CatalogModule } from './catalog/catalog.module';
 import { PayPalModule } from './paypal/paypal.module';
 import { StripeModule } from './stripe/stripe.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { StripeModule } from './stripe/stripe.module';
     CatalogModule,
     StripeModule,
     PayPalModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
