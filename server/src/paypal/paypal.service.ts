@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { formatMajorAmount, getCatalogProduct } from '../catalog/product-catalog';
+import { acceptPayPalOrderReference } from '../metadata/merchant-metadata';
 import { CreatePayPalOrderDto } from './dto/create-paypal-order.dto';
 
 export interface CreatePayPalOrderResult {
@@ -96,13 +97,16 @@ export class PayPalService {
       throw new BadRequestException('Computed order amount is invalid.');
     }
 
+    const orderReference = acceptPayPalOrderReference(dto.orderReference);
+    const customId = orderReference ?? product.id.slice(0, 127);
+
     const body = {
       intent: 'CAPTURE',
       purchase_units: [
         {
           reference_id: product.id,
           description: product.name,
-          custom_id: product.id.slice(0, 127),
+          custom_id: customId,
           amount: {
             currency_code: product.currency,
             value: formatMajorAmount(total),

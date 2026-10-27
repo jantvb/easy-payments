@@ -169,7 +169,7 @@ interface PaymentProduct {
 | `currency` | `string` | Yes | ISO currency code (e.g. `USD`). |
 | `quantity` | `number` | No | Quantity (defaults treated as 1 when omitted/invalid in demo flows). |
 | `imageUrl` | `string` | No | Optional product image URL. |
-| `metadata` | `Record<string, string>` | No | Optional non-sensitive metadata. |
+| `metadata` | `EasyPaymentsMerchantMetadata` | No | Optional flat string map. See [Merchant metadata](#merchant-metadata). |
 
 ### Minimal
 
@@ -193,9 +193,51 @@ const product: PaymentProduct = {
   currency: 'USD',
   quantity: 1,
   imageUrl: 'https://example.com/premium.png',
-  metadata: { sku: 'PREM-1' },
+  metadata: { orderId: 'ORDER-12345', customerReference: 'CUSTOMER-789' },
 };
 ```
+
+---
+
+## Merchant metadata
+
+`PaymentProduct.metadata` is optional merchant reference data. It is a flat `Record<string, string>` (`EasyPaymentsMerchantMetadata`). It is not `PaymentResult.metadata`, which stays the provider result payload (`mock`, `stripeStatus`, `paypalStatus`, and similar).
+
+```ts
+metadata: {
+  orderId: 'ORDER-12345',
+  customerReference: 'CUSTOMER-789',
+}
+```
+
+`validateMerchantMetadata()` enforces the same limits the reference backend enforces:
+
+| Rule | Limit |
+|------|--------|
+| Entries | At most 10 |
+| Key | 1–40 characters, starting with a letter, then letters, digits, `_`, or `-` |
+| Value | Non-empty string, at most 500 characters |
+| Shape | No arrays, numbers, booleans, or nested objects |
+| Reserved keys | `amount`, `currency`, `productId`, `quantity`, `source`, `unitAmount`, `catalogUnitAmount`, `trustedUnitAmount`, `paymentMethod`, `provider`, and credential or card-like names |
+| Unsafe values | Secret-key shapes, bearer tokens, and card-number shapes are rejected |
+
+Invalid metadata throws `CONFIG_INVALID` from the payment adapters and `PRODUCT_INVALID` from `validatePaymentProduct()`. Messages do not include the raw key or value. Values are not truncated.
+
+Omitted metadata keeps the previous request shape. No new configuration is required.
+
+### Where it is sent
+
+| Method | Behavior |
+|--------|----------|
+| Card, Apple Pay, Google Pay | Validated metadata is sent on `POST /api/payments/create` and stored on the Stripe PaymentIntent. The server writes `productId`, `quantity`, `source`, and the trusted unit amount after the merchant map, so those fields cannot be overridden. |
+| Klarna, Affirm | Same validated map on their Stripe PaymentIntent create routes. Klarna and Affirm do not have a separate metadata API. |
+| PayPal | Only `orderId` is sent, as `orderReference`, and the backend maps it to PayPal `custom_id` (127 characters). Other keys are not sent. `invoice_id` is not set. An `orderId` longer than 127 characters is rejected for PayPal and is not truncated. |
+
+Merchant metadata is not copied into diagnostics snapshots or into `started`, `success`, `cancel`, or `error` payloads.
+
+Do not put card numbers, secrets, or personal data in metadata. Metadata does not prove that an order or customer belongs to the current user.
+
+In the Stripe test dashboard, open the PaymentIntent and read **Metadata**. In the PayPal sandbox transaction, read `custom_id`. Klarna and Affirm metadata is on the Stripe PaymentIntent used for that method.
 
 ---
 
@@ -488,7 +530,8 @@ From `@easy-payments/angular` (see `public-api.ts`):
 - `PaymentStartedEvent`, `PaymentMethodChangeEvent`
 - `EasyPaymentsDiagnosticsService`, `EASY_PAYMENTS_DIAGNOSTIC_CODES`
 - `EasyPaymentsDiagnosticsSnapshot`, `PaymentMethodDiagnostic`, `EasyPaymentsDiagnosticCode`, `MethodReadinessState`
-- `validatePaymentProduct`, `EasyPaymentsConfigValidator`
+- `validatePaymentProduct`, `validateMerchantMetadata`, `EasyPaymentsConfigValidator`
+- `EasyPaymentsMerchantMetadata`, `MERCHANT_METADATA_LIMITS`
 - `MockPaymentController` (demo/testing)
 - Klarna/Stripe return helpers (`isKlarnaReturnAttempt`, `detectStripeReturnMethod`, …)
 - Layout helpers: `resolveCheckoutMaxWidth`, width constants

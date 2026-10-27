@@ -30,4 +30,15 @@ describe('validatePaymentProduct', () => {
     expect(result.valid).toBeFalse();
     expect(result.errors.some((error) => error.includes('currency'))).toBeTrue();
   });
+
+  it('rejects invalid merchant metadata without including the value', () => {
+    const secret = ['sk', '_test_', 'example'].join('');
+    const result = validatePaymentProduct({
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: secret },
+    });
+    expect(result.valid).toBeFalse();
+    expect(result.errors.join(' ')).not.toContain(secret);
+    expect(result.errors).toContain('Merchant metadata contains an unsafe value.');
+  });
 });

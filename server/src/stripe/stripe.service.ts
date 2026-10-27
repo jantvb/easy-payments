@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { getCatalogProduct, resolveUnitAmount } from '../catalog/product-catalog';
+import { mergePaymentIntentMetadata } from '../metadata/merchant-metadata';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { CreateKlarnaPaymentIntentDto } from './dto/create-klarna-payment-intent.dto';
 import { CreateAffirmPaymentIntentDto } from './dto/create-affirm-payment-intent.dto';
@@ -93,21 +94,13 @@ export class StripeService {
         ? String(dto.metadata['productName'])
         : `Easy Payments demo: ${dto.productId}`);
 
-    const safeMetadata: Record<string, string> = {
+    const safeMetadata = mergePaymentIntentMetadata(dto.metadata, {
       productId: dto.productId,
       quantity: String(dto.quantity),
       source: 'easy-payments-demo',
       unitAmount: String(unitAmount),
       catalogUnitAmount: String(catalogProduct.unitAmount),
-    };
-
-    if (dto.metadata) {
-      for (const [key, value] of Object.entries(dto.metadata)) {
-        if (typeof value === 'string' && value.length <= 500 && key.length <= 40) {
-          safeMetadata[key] = value;
-        }
-      }
-    }
+    });
 
     try {
       const intent = await this.stripe.paymentIntents.create({
@@ -192,21 +185,13 @@ export class StripeService {
     const description =
       dto.description?.trim() || catalogProduct.name || `Easy Payments Klarna: ${dto.productId}`;
 
-    const safeMetadata: Record<string, string> = {
+    const safeMetadata = mergePaymentIntentMetadata(dto.metadata, {
       productId: dto.productId,
       quantity: String(dto.quantity),
       source: 'easy-payments-demo',
       paymentMethod: 'klarna',
       trustedUnitAmount: String(catalogProduct.unitAmount),
-    };
-
-    if (dto.metadata) {
-      for (const [key, value] of Object.entries(dto.metadata)) {
-        if (typeof value === 'string' && value.length <= 500 && key.length <= 40) {
-          safeMetadata[key] = value;
-        }
-      }
-    }
+    });
 
     try {
       const intent = await this.stripe.paymentIntents.create({
@@ -321,21 +306,13 @@ export class StripeService {
     const description =
       dto.description?.trim() || catalogProduct.name || `Easy Payments Affirm: ${dto.productId}`;
 
-    const safeMetadata: Record<string, string> = {
+    const safeMetadata = mergePaymentIntentMetadata(dto.metadata, {
       productId: dto.productId,
       quantity: String(dto.quantity),
       source: 'easy-payments-demo',
       paymentMethod: 'affirm',
       trustedUnitAmount: String(catalogProduct.unitAmount),
-    };
-
-    if (dto.metadata) {
-      for (const [key, value] of Object.entries(dto.metadata)) {
-        if (typeof value === 'string' && value.length <= 500 && key.length <= 40) {
-          safeMetadata[key] = value;
-        }
-      }
-    }
+    });
 
     try {
       const intent = await this.stripe.paymentIntents.create({

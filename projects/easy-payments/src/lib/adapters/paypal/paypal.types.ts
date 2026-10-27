@@ -1,3 +1,4 @@
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { CheckoutOptions, PaymentProduct } from '../../models';
 
 /**
@@ -14,7 +15,10 @@ export function buildPayPalRenderKey(
   const name = checkout?.customer?.name ?? '';
   const success = checkout?.successUrl ?? '';
   const cancel = checkout?.cancelUrl ?? '';
-  return `${product.id}|${quantity}|${currency}|${email}|${name}|${success}|${cancel}`;
+  return appendMetadataSessionPart(
+    `${product.id}|${quantity}|${currency}|${email}|${name}|${success}|${cancel}`,
+    product.metadata,
+  );
 }
 
 export type PayPalUiState =

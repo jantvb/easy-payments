@@ -17,6 +17,7 @@ import {
   normalizePaymentResult,
 } from '../../models';
 import { CreatePaymentRequest } from '../../models/create-payment.model';
+import { buildStripeRequestMetadata } from '../../metadata/merchant-metadata';
 import { PaymentError } from '../../errors/payment-error';
 import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
@@ -532,11 +533,16 @@ export class ApplePayAdapter extends BaseProviderAdapter {
       quantity: product.quantity ?? 1,
       currency: product.currency.trim().toUpperCase(),
       amount: product.amount,
-      metadata: {
-        productName: product.name,
-        checkoutMethod: 'apple-pay',
-        ...(checkout?.customer?.email ? { customerEmail: checkout.customer.email } : {}),
-      },
+      metadata: buildStripeRequestMetadata(
+        product.metadata,
+        {
+          productName: product.name,
+          checkoutMethod: 'apple-pay',
+          customerEmail: checkout?.customer?.email,
+        },
+        'apple-pay',
+        'applePay',
+      ),
     };
 
     try {

@@ -51,9 +51,16 @@ Request (validated by Nest DTO):
   "currency": "USD",
   "amount": 99,
   "description": "optional",
-  "metadata": { "optional": "string map" }
+  "metadata": {
+    "orderId": "ORDER-12345",
+    "customerReference": "CUSTOMER-789"
+  }
 }
 ```
+
+`metadata` is optional. The reference server accepts at most 10 string entries, keys of at most 40 characters, and values of at most 500 characters. Reserved keys such as `amount`, `currency`, `productId`, `quantity`, and `source` are rejected. Invalid metadata returns a fixed error and is not truncated or attached to Stripe.
+
+The PaymentIntent amount and currency still come from the catalog (or the bounded demo `amount` field). Trusted metadata (`productId`, `quantity`, `source`, `unitAmount`, `catalogUnitAmount`) is written after the merchant map.
 
 Response shape expected by the library:
 
@@ -81,11 +88,14 @@ Request:
   "provider": "paypal",
   "productId": "premium-plan",
   "quantity": 1,
-  "currency": "USD"
+  "currency": "USD",
+  "orderReference": "ORDER-12345"
 }
 ```
 
-> Client-supplied charge amounts are **not** accepted on this route.
+> Client-supplied charge amounts are **not** accepted on this route. A metadata map is also rejected by the DTO whitelist.
+
+`orderReference` is optional. It is the merchant `orderId` and is stored as PayPal `custom_id` (maximum 127 characters). Other metadata keys are not sent. `invoice_id` is not set. When `orderReference` is omitted, `custom_id` stays the catalog product id.
 
 Response:
 
@@ -132,11 +142,12 @@ Request:
   "provider": "klarna",
   "productId": "premium-plan",
   "quantity": 1,
-  "currency": "USD"
+  "currency": "USD",
+  "metadata": { "orderId": "ORDER-12345" }
 }
 ```
 
-Amount is resolved **server-side** from the catalog (no trusted client amount).
+Amount is resolved **server-side** from the catalog (no trusted client amount). Optional `metadata` uses the same string-map rules as the card PaymentIntent and is stored on that Klarna PaymentIntent. Browser metadata cannot replace `productId`, `paymentMethod`, or `trustedUnitAmount`.
 
 Response:
 
@@ -155,7 +166,7 @@ Response:
 
 `POST /api/payments/affirm/create` → **201**
 
-Same shape as Klarna with `"provider": "affirm"`. Catalog-priced. Affirm eligibility / minimums may hide the method in the UI (library applies ~$35 minimum presentment).
+Same shape as Klarna with `"provider": "affirm"`. Catalog-priced. Optional metadata is stored on the Affirm PaymentIntent with the same validation. Affirm eligibility / minimums may hide the method in the UI (library applies ~$35 minimum presentment).
 
 ---
 

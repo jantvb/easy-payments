@@ -135,6 +135,45 @@ describe('PayPalAdapter', () => {
     expect(sent['metadata']).toBeUndefined();
   });
 
+  it('maps orderId metadata to orderReference and drops the other keys', async () => {
+    backend.createPayPalOrder.and.resolveTo({ provider: 'paypal', orderId: 'ORDER-9' });
+
+    await adapter.createOrder({
+      id: 'premium-plan',
+      name: 'Premium',
+      amount: 99,
+      currency: 'USD',
+      quantity: 1,
+      metadata: {
+        orderId: 'ORDER-12345',
+        customerReference: 'CUSTOMER-789',
+      },
+    });
+
+    const sent = backend.createPayPalOrder.calls.mostRecent().args[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(sent['orderReference']).toBe('ORDER-12345');
+    expect(sent['metadata']).toBeUndefined();
+    expect(sent['amount']).toBeUndefined();
+    expect(sent['customerReference']).toBeUndefined();
+  });
+
+  it('rejects an orderId that is longer than PayPal allows', async () => {
+    await expectAsync(
+      adapter.createOrder({
+        id: 'premium-plan',
+        name: 'Premium',
+        amount: 99,
+        currency: 'USD',
+        quantity: 1,
+        metadata: { orderId: 'A'.repeat(128) },
+      }),
+    ).toBeRejectedWith(jasmine.objectContaining({ code: 'CONFIG_INVALID' }));
+    expect(backend.createPayPalOrder).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid create-order backend responses via BackendService errors', async () => {
     backend.createPayPalOrder.and.rejectWith(
       new PaymentError({

@@ -1,4 +1,5 @@
 import type { StripePaymentElementOptions } from '@stripe/stripe-js';
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 
 export type KlarnaUiState =
   | 'idle'
@@ -40,11 +41,15 @@ export function buildKlarnaSessionKey(
     id: string;
     currency: string;
     quantity?: number;
+    metadata?: Record<string, string>;
   },
   checkout?: { customer?: { email?: string; name?: string } } | null,
 ): string {
   const quantity = product.quantity ?? 1;
   const email = checkout?.customer?.email ?? '';
   const name = checkout?.customer?.name ?? '';
-  return [product.id, quantity, product.currency, email, name].join('|');
+  return appendMetadataSessionPart(
+    [product.id, quantity, product.currency, email, name].join('|'),
+    product.metadata,
+  );
 }

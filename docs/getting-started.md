@@ -252,7 +252,7 @@ export class AppComponent {
 }
 ```
 
-`PaymentProduct` fields: `id`, `name`, `amount`, `currency` (required); `quantity?`, `description?`, `imageUrl?`, `metadata?`.
+`PaymentProduct` fields: `id`, `name`, `amount`, `currency` (required); `quantity?`, `description?`, `imageUrl?`, `metadata?`. `metadata` is an optional flat string map and is not payment-result metadata. Limits and provider behavior are in [api.md](./api.md#merchant-metadata).
 
 **Amount is major currency units** (dollars, not cents). Example: `amount: 99` + `currency: 'USD'` → **$99.00**.
 

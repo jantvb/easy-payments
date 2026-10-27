@@ -17,6 +17,15 @@ describe('buildStripeSessionKey', () => {
     expect(buildStripeSessionKey({ ...product, amount: 10 })).not.toBe(base);
     expect(buildStripeSessionKey({ ...product, quantity: 2 })).not.toBe(base);
     expect(buildStripeSessionKey({ ...product, currency: 'EUR' })).not.toBe(base);
+    expect(
+      buildStripeSessionKey({ ...product, metadata: { orderId: 'ORDER-12345' } }),
+    ).not.toBe(base);
+    expect(
+      buildStripeSessionKey({ ...product, metadata: { orderId: 'ORDER-12345' } }),
+    ).toBe(buildStripeSessionKey({ ...product, metadata: { orderId: 'ORDER-12345' } }));
+    expect(
+      buildStripeSessionKey({ ...product, metadata: { a: '1&b=2' } }),
+    ).not.toBe(buildStripeSessionKey({ ...product, metadata: { a: '1', b: '2' } }));
   });
 
   it('does not depend on theme (theme must not recreate PaymentIntents)', () => {

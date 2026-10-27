@@ -15,13 +15,19 @@ export interface CreatePaymentRequest {
 
 /**
  * Minimal wire contract for PayPal create-order.
- * Never includes browser-controlled amount or arbitrary metadata.
+ * Never includes a browser-controlled amount or a metadata map.
+ * `orderReference` is the only merchant reference sent to PayPal.
  */
 export interface PayPalCreateOrderRequest {
   provider: 'paypal';
   productId: string;
   quantity: number;
   currency: string;
+  /**
+   * Merchant `orderId` metadata, mapped to PayPal `custom_id`.
+   * Other metadata keys are not sent to PayPal.
+   */
+  orderReference?: string;
 }
 
 /**
@@ -32,18 +38,23 @@ export function toPayPalCreateOrderRequest(input: {
   productId: string;
   quantity: number;
   currency: string;
+  orderReference?: string;
 }): PayPalCreateOrderRequest {
-  return {
+  const body: PayPalCreateOrderRequest = {
     provider: 'paypal',
     productId: input.productId.trim(),
     quantity: input.quantity,
     currency: input.currency.trim().toUpperCase(),
   };
+  if (input.orderReference) {
+    body.orderReference = input.orderReference;
+  }
+  return body;
 }
 
 /**
  * Minimal wire contract for Klarna-via-Stripe create PaymentIntent.
- * Never includes browser-controlled amount or arbitrary metadata.
+ * Never includes a browser-controlled amount. Metadata is a validated string map.
  */
 export interface KlarnaCreatePaymentRequest {
   provider: 'klarna';
@@ -55,17 +66,20 @@ export interface KlarnaCreatePaymentRequest {
    * Localization hint only — never affects pricing.
    */
   preferredLocale?: string;
+  /** Validated merchant metadata. Amount and currency are not accepted here. */
+  metadata?: Record<string, string>;
 }
 
 /**
  * Maps product identity fields into the Klarna create-payment HTTP body.
- * Strips amount, metadata, and any other internal fields.
+ * Strips amount and any fields other than the validated metadata map.
  */
 export function toKlarnaCreatePaymentRequest(input: {
   productId: string;
   quantity: number;
   currency: string;
   preferredLocale?: string;
+  metadata?: Record<string, string>;
 }): KlarnaCreatePaymentRequest {
   const body: KlarnaCreatePaymentRequest = {
     provider: 'klarna',
@@ -76,6 +90,9 @@ export function toKlarnaCreatePaymentRequest(input: {
   const preferredLocale = input.preferredLocale?.trim();
   if (preferredLocale) {
     body.preferredLocale = preferredLocale;
+  }
+  if (input.metadata && Object.keys(input.metadata).length > 0) {
+    body.metadata = { ...input.metadata };
   }
   return body;
 }
@@ -123,7 +140,7 @@ export interface CreateKlarnaPaymentResponse {
 
 /**
  * Minimal wire contract for Affirm-via-Stripe create PaymentIntent.
- * Never includes browser-controlled amount or arbitrary metadata.
+ * Never includes a browser-controlled amount. Metadata is a validated string map.
  */
 export interface AffirmCreatePaymentRequest {
   provider: 'affirm';
@@ -135,17 +152,20 @@ export interface AffirmCreatePaymentRequest {
    * Localization hint only — never affects pricing.
    */
   preferredLocale?: string;
+  /** Validated merchant metadata. Amount and currency are not accepted here. */
+  metadata?: Record<string, string>;
 }
 
 /**
  * Maps product identity fields into the Affirm create-payment HTTP body.
- * Strips amount, metadata, and any other internal fields.
+ * Strips amount and any fields other than the validated metadata map.
  */
 export function toAffirmCreatePaymentRequest(input: {
   productId: string;
   quantity: number;
   currency: string;
   preferredLocale?: string;
+  metadata?: Record<string, string>;
 }): AffirmCreatePaymentRequest {
   const body: AffirmCreatePaymentRequest = {
     provider: 'affirm',
@@ -156,6 +176,9 @@ export function toAffirmCreatePaymentRequest(input: {
   const preferredLocale = input.preferredLocale?.trim();
   if (preferredLocale) {
     body.preferredLocale = preferredLocale;
+  }
+  if (input.metadata && Object.keys(input.metadata).length > 0) {
+    body.metadata = { ...input.metadata };
   }
   return body;
 }

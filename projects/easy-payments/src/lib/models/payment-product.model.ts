@@ -1,3 +1,9 @@
+/**
+ * Optional merchant metadata on a product.
+ * Flat strings only. This is not `PaymentResult.metadata`.
+ */
+export type EasyPaymentsMerchantMetadata = Record<string, string>;
+
 export interface PaymentProduct {
   id: string;
   name: string;
@@ -6,5 +12,5 @@ export interface PaymentProduct {
   currency: string;
   quantity?: number;
   imageUrl?: string;
-  metadata?: Record<string, string>;
+  metadata?: EasyPaymentsMerchantMetadata;
 }

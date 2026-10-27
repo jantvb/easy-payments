@@ -172,6 +172,15 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Demo Mode');
     expect(fixture.componentInstance.mode()).toBe('demo');
     expect(compiled.querySelector('easy-payments')).toBeTruthy();
+    expect(fixture.componentInstance.product().metadata).toEqual({
+      orderId: 'ORDER-12345',
+      customerReference: 'CUSTOMER-789',
+    });
+    const metadataExample = compiled.querySelector('[data-testid="merchant-metadata-example"]');
+    expect(metadataExample?.textContent).toContain('ORDER-12345');
+    expect(
+      compiled.querySelector('[data-testid="developer-diagnostics"]')?.textContent,
+    ).not.toContain('ORDER-12345');
   });
 
   it('shows developer diagnostics separately from the checkout', async () => {

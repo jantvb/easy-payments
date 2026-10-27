@@ -12,6 +12,7 @@ import {
   normalizePaymentResult,
 } from '../../models';
 import { CreatePaymentRequest, CreateStripePaymentResponse } from '../../models/create-payment.model';
+import { buildStripeRequestMetadata } from '../../metadata/merchant-metadata';
 import { PaymentError } from '../../errors/payment-error';
 import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
@@ -204,13 +205,17 @@ export class StripeCardAdapter extends BaseProviderAdapter {
       currency: product.currency,
       // Sent for local demos only — production backends must re-price server-side.
       amount: product.amount,
-      metadata: {
-        ...(product.metadata ?? {}),
-        ...(product.name ? { productName: product.name } : {}),
-        ...(product.description ? { productDescription: product.description } : {}),
-        ...(checkout?.customer?.email ? { customerEmail: checkout.customer.email } : {}),
-        ...(checkout?.customer?.name ? { customerName: checkout.customer.name } : {}),
-      },
+      metadata: buildStripeRequestMetadata(
+        product.metadata,
+        {
+          productName: product.name,
+          productDescription: product.description,
+          customerEmail: checkout?.customer?.email,
+          customerName: checkout?.customer?.name,
+        },
+        'card',
+        'stripe',
+      ),
     };
 
     const response = await this.backend.createStripePayment(payload);

@@ -50,6 +50,11 @@ interface TrustedCatalogProduct {
   currency: string;
 }
 
+const DEMO_MERCHANT_METADATA = {
+  orderId: 'ORDER-12345',
+  customerReference: 'CUSTOMER-789',
+} as const;
+
 const DEFAULT_PRODUCT: PaymentProduct = {
   id: 'premium-plan',
   name: 'Premium Plan',
@@ -128,6 +133,7 @@ export class App {
       amount: Number(this.productAmount()),
       currency: this.productCurrency().trim().toUpperCase(),
       quantity: Number.isFinite(quantity) && quantity >= 1 ? quantity : 1,
+      metadata: { ...DEMO_MERCHANT_METADATA },
     };
   });
 

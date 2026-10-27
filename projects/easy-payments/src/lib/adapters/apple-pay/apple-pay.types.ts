@@ -1,3 +1,4 @@
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { PaymentProduct } from '../../models';
 
 export type ApplePayUiState =
@@ -33,10 +34,10 @@ export function toStripeAmountCents(product: PaymentProduct): number {
 }
 
 export function buildApplePayRenderKey(product: PaymentProduct): string {
-  return [
-    product.id,
-    product.quantity ?? 1,
-    product.currency.trim().toUpperCase(),
-    product.amount,
-  ].join('|');
+  return appendMetadataSessionPart(
+    [product.id, product.quantity ?? 1, product.currency.trim().toUpperCase(), product.amount].join(
+      '|',
+    ),
+    product.metadata,
+  );
 }
