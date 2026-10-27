@@ -401,11 +401,14 @@ Details: **[localization.md](./localization.md)**
 | Full Angular demo | [`projects/demo`](../projects/demo) |
 | Library source | [`projects/easy-payments`](../projects/easy-payments) |
 | NestJS reference backend | [`server`](../server) |
+| Stripe / PayPal webhook reference | [`backend.md` — Webhooks](./backend.md#webhooks-reference) |
 | Localization | [`localization.md`](./localization.md) |
 | API reference | [`api.md`](./api.md) |
 | Configuration recipes | [`configuration.md`](./configuration.md) |
 | Backend contract | [`backend.md`](./backend.md) |
 | Security | [`security.md`](./security.md) |
+
+Checkout `success` events are not fulfillment. For production settlement, verify Stripe/PayPal webhooks on your backend (see the NestJS webhook reference).
 
 ---
 

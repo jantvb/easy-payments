@@ -149,6 +149,51 @@ export class PayPalService {
     }
   }
 
+  /**
+   * Verifies a PayPal webhook using the official verify-webhook-signature API.
+   * Returns false on FAILURE. Throws on transport / config errors.
+   */
+  async verifyWebhookSignature(input: {
+    authAlgo: string;
+    certUrl: string;
+    transmissionId: string;
+    transmissionSig: string;
+    transmissionTime: string;
+    webhookId: string;
+    webhookEvent: unknown;
+  }): Promise<boolean> {
+    this.ensureConfigured();
+
+    const body = {
+      auth_algo: input.authAlgo,
+      cert_url: input.certUrl,
+      transmission_id: input.transmissionId,
+      transmission_sig: input.transmissionSig,
+      transmission_time: input.transmissionTime,
+      webhook_id: input.webhookId,
+      webhook_event: input.webhookEvent,
+    };
+
+    try {
+      const result = await this.paypalRequest<{ verification_status?: string }>(
+        'POST',
+        '/v1/notifications/verify-webhook-signature',
+        body,
+      );
+      return result.verification_status === 'SUCCESS';
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      this.logger.error('PayPal webhook verification request failed.');
+      throw new InternalServerErrorException('PayPal webhook verification failed.');
+    }
+  }
+
   async captureOrder(orderId: string): Promise<CapturePayPalOrderResult> {
     this.ensureConfigured();
 
