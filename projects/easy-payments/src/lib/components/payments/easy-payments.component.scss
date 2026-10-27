@@ -6,16 +6,13 @@
   /* Embeddable layout: payment grid responds to THIS component's width. */
   container-type: inline-size;
   container-name: ep-checkout;
-  font-family:
-    'Segoe UI',
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  /* Default stack also assigned to --ep-font-family so visualStyle can override. */
+  --ep-font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--ep-font-family);
   color: var(--ep-text);
   background: transparent;
 
-  /* Design tokens — overridable by host apps */
+  /* Design tokens — overridable by host apps / [visualStyle] */
   --ep-background: transparent;
   --ep-surface: #ffffff;
   --ep-surface-muted: #f8fafc;

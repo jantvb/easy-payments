@@ -101,6 +101,7 @@ export type {
 export { ApplePayAdapter } from './lib/adapters/apple-pay/apple-pay.adapter';
 export type { ApplePayAvailabilityState } from './lib/adapters/apple-pay/apple-pay.types';
 export type { EasyPaymentsAppearance } from './lib/models/easy-payments-appearance.model';
+export type { EasyPaymentsVisualStyle } from './lib/models/easy-payments-visual-style.model';
 
 export type {
   EasyPaymentsLocale,
