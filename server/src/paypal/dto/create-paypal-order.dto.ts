@@ -26,4 +26,10 @@ export class CreatePayPalOrderDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @Matches(/^[A-Z]{3}$/, { message: 'currency must be a 3-letter ISO code (e.g. USD)' })
   currency?: string;
+
+  /** Merchant orderId. Mapped to PayPal custom_id. Not a price or invoice id. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(127)
+  orderReference?: string;
 }

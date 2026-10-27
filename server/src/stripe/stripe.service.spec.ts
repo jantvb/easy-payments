@@ -375,4 +375,97 @@ describe('StripeService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(createMock).not.toHaveBeenCalled();
   });
+
+  it('attaches validated metadata without letting it replace trusted pricing', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_meta',
+      client_secret: 'pi_meta_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    await expect(
+      module.get(StripeService).createPaymentIntent({
+        provider: 'stripe',
+        productId: 'premium-plan',
+        quantity: 1,
+        currency: 'USD',
+        amount: 99,
+        metadata: {
+          orderId: 'ORDER-12345',
+          customerReference: 'CUSTOMER-789',
+          productId: 'cheap-plan',
+        },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('stores merchant references on the PaymentIntent and keeps the catalog amount', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_meta',
+      client_secret: 'pi_meta_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    await module.get(StripeService).createPaymentIntent({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 2,
+      currency: 'USD',
+      amount: 1,
+      metadata: { orderId: 'ORDER-12345', productName: 'Browser name' },
+    });
+
+    const params = createMock.mock.calls[0][0];
+    expect(params.amount).toBe(200);
+    expect(params.currency).toBe('usd');
+    expect(params.metadata.orderId).toBe('ORDER-12345');
+    expect(params.metadata.productId).toBe('premium-plan');
+    expect(params.metadata.source).toBe('easy-payments-demo');
+    expect(params.metadata.unitAmount).toBe('1');
+    expect(params.metadata.catalogUnitAmount).toBe('99');
+  });
+
+  it('adds the same merchant metadata to Klarna and Affirm PaymentIntents', async () => {
+    createMock.mockResolvedValue({
+      id: 'pi_bnpl',
+      client_secret: 'pi_bnpl_secret',
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StripeService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+    const service = module.get(StripeService);
+
+    await service.createKlarnaPaymentIntent({
+      provider: 'klarna',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      metadata: { orderId: 'ORDER-12345' },
+    });
+    await service.createAffirmPaymentIntent({
+      provider: 'affirm',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      metadata: { orderId: 'ORDER-12345', customerReference: 'CUSTOMER-789' },
+    });
+
+    expect(createMock.mock.calls[0][0].amount).toBe(9900);
+    expect(createMock.mock.calls[0][0].payment_method_types).toEqual(['klarna']);
+    expect(createMock.mock.calls[0][0].metadata.orderId).toBe('ORDER-12345');
+    expect(createMock.mock.calls[0][0].metadata.paymentMethod).toBe('klarna');
+    expect(createMock.mock.calls[1][0].amount).toBe(9900);
+    expect(createMock.mock.calls[1][0].payment_method_types).toEqual(['affirm']);
+    expect(createMock.mock.calls[1][0].metadata.customerReference).toBe('CUSTOMER-789');
+    expect(createMock.mock.calls[1][0].metadata.paymentMethod).toBe('affirm');
+  });
 });

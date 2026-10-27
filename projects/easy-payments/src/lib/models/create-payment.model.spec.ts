@@ -37,6 +37,19 @@ describe('toPayPalCreateOrderRequest', () => {
     expect(Object.keys(body)).not.toContain('amount');
     expect(Object.keys(body)).not.toContain('metadata');
   });
+
+  it('copies an explicit order reference and still drops a metadata map', () => {
+    const body = toPayPalCreateOrderRequest({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      orderReference: 'ORDER-12345',
+    });
+
+    expect(body.orderReference).toBe('ORDER-12345');
+    expect(Object.keys(body)).not.toContain('metadata');
+    expect(Object.keys(body)).not.toContain('amount');
+  });
 });
 
 describe('toKlarnaCreatePaymentRequest', () => {
@@ -65,6 +78,17 @@ describe('toKlarnaCreatePaymentRequest', () => {
       preferredLocale: 'es-US',
     });
     expect(body.preferredLocale).toBe('es-US');
+  });
+
+  it('copies validated metadata and still omits amount', () => {
+    const body = toKlarnaCreatePaymentRequest({
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      metadata: { orderId: 'ORDER-12345' },
+    });
+    expect(body.metadata).toEqual({ orderId: 'ORDER-12345' });
+    expect(Object.keys(body)).not.toContain('amount');
   });
 });
 

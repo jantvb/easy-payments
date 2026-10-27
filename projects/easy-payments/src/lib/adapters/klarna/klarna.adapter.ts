@@ -12,6 +12,7 @@ import {
   normalizePaymentResult,
 } from '../../models';
 import { CreateKlarnaPaymentResponse } from '../../models/create-payment.model';
+import { assertMerchantMetadata } from '../../metadata/merchant-metadata';
 import { PaymentError } from '../../errors/payment-error';
 import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
@@ -218,11 +219,13 @@ export class KlarnaAdapter extends BaseProviderAdapter {
       });
     }
 
+    const metadata = assertMerchantMetadata(product.metadata, 'klarna', 'klarna');
     const response = await this.backend.createKlarnaPayment({
       productId: product.id,
       quantity: product.quantity ?? 1,
       currency: product.currency,
       ...(preferredLocale?.trim() ? { preferredLocale: preferredLocale.trim() } : {}),
+      ...(metadata ? { metadata } : {}),
     });
     this.assertValidKlarnaResponse(response);
 

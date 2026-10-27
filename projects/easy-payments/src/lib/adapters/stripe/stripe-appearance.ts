@@ -1,4 +1,5 @@
 import type { Appearance, StripeElementLocale, StripePaymentElementOptions } from '@stripe/stripe-js';
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { ResolvedPaymentTheme } from '../../models';
 
 export type StripeAppearanceTheme = NonNullable<Appearance['theme']>;
@@ -47,18 +48,15 @@ export function buildStripeSessionKey(
     amount: number;
     currency: string;
     quantity?: number;
+    metadata?: Record<string, string>;
   },
   checkout?: { customer?: { email?: string; name?: string } } | null,
 ): string {
   const quantity = product.quantity ?? 1;
   const email = checkout?.customer?.email ?? '';
   const name = checkout?.customer?.name ?? '';
-  return [
-    product.id,
-    quantity,
-    product.currency,
-    product.amount,
-    email,
-    name,
-  ].join('|');
+  return appendMetadataSessionPart(
+    [product.id, quantity, product.currency, product.amount, email, name].join('|'),
+    product.metadata,
+  );
 }

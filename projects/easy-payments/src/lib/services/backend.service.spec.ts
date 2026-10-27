@@ -157,7 +157,7 @@ describe('BackendService', () => {
       currency: 'USD',
       ...( {
         amount: 1,
-        metadata: { productName: 'Premium Plan' },
+        metadata: { orderId: 'ORDER-12345' },
       } as object),
     } as never);
 
@@ -167,9 +167,9 @@ describe('BackendService', () => {
       productId: 'premium-plan',
       quantity: 1,
       currency: 'USD',
+      metadata: { orderId: 'ORDER-12345' },
     });
     expect(req.request.body.amount).toBeUndefined();
-    expect(req.request.body.metadata).toBeUndefined();
     req.flush({
       provider: 'klarna',
       clientSecret: 'pi_klarna_secret',
@@ -189,7 +189,7 @@ describe('BackendService', () => {
       currency: 'USD',
       ...( {
         amount: 1,
-        metadata: { productName: 'Premium Plan' },
+        metadata: { orderId: 'ORDER-12345' },
       } as object),
     } as never);
 
@@ -199,9 +199,9 @@ describe('BackendService', () => {
       productId: 'premium-plan',
       quantity: 1,
       currency: 'USD',
+      metadata: { orderId: 'ORDER-12345' },
     });
     expect(req.request.body.amount).toBeUndefined();
-    expect(req.request.body.metadata).toBeUndefined();
     req.flush({
       provider: 'affirm',
       clientSecret: 'pi_affirm_secret',
@@ -211,6 +211,44 @@ describe('BackendService', () => {
     await expectAsync(promise).toBeResolvedTo(
       jasmine.objectContaining({ clientSecret: 'pi_affirm_secret' }),
     );
+  });
+
+  it('rejects reserved metadata before any payment request', async () => {
+    const promise = backend.createStripePayment({
+      provider: 'stripe',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      metadata: { amount: '1' },
+    });
+
+    await expectAsync(promise).toBeRejectedWith(
+      jasmine.objectContaining({ code: 'CONFIG_INVALID' }),
+    );
+    http.expectNone('/api/payments/create');
+  });
+
+  it('forwards a PayPal order reference and not the metadata map', async () => {
+    const promise = backend.createPayPalOrder({
+      provider: 'paypal',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      orderReference: 'ORDER-12345',
+    });
+
+    const req = http.expectOne('/api/payments/paypal/create');
+    expect(req.request.body).toEqual({
+      provider: 'paypal',
+      productId: 'premium-plan',
+      quantity: 1,
+      currency: 'USD',
+      orderReference: 'ORDER-12345',
+    });
+    expect(req.request.body.metadata).toBeUndefined();
+    expect(req.request.body.amount).toBeUndefined();
+    req.flush({ provider: 'paypal', orderId: 'ORDER-1' });
+    await expectAsync(promise).toBeResolved();
   });
 });
 

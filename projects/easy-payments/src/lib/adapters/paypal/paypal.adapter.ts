@@ -10,6 +10,11 @@ import {
   normalizePaymentResult,
 } from '../../models';
 import { toPayPalCreateOrderRequest } from '../../models/create-payment.model';
+import {
+  assertMerchantMetadata,
+  assertPayPalOrderReference,
+  PAYPAL_ORDER_REFERENCE_KEY,
+} from '../../metadata/merchant-metadata';
 import { PaymentError } from '../../errors/payment-error';
 import { SdkLoaderService } from '../../loaders/sdk-loader.service';
 import { BackendService } from '../../services/backend.service';
@@ -178,10 +183,13 @@ export class PayPalAdapter extends BaseProviderAdapter {
 
     this.creatingOrder = true;
     try {
+      const metadata = assertMerchantMetadata(product.metadata, 'paypal', 'paypal');
+      const orderId = metadata?.[PAYPAL_ORDER_REFERENCE_KEY];
       const payload = toPayPalCreateOrderRequest({
         productId: product.id,
         quantity: product.quantity ?? 1,
         currency: product.currency,
+        ...(orderId ? { orderReference: assertPayPalOrderReference(orderId) } : {}),
       });
 
       const response = await this.backend.createPayPalOrder(payload);

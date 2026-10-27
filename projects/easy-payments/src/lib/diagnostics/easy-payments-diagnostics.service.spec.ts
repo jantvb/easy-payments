@@ -80,6 +80,21 @@ describe('EasyPaymentsDiagnosticsService', () => {
     expect(snapshot.methods.every((entry) => entry.mock)).toBeTrue();
   });
 
+  it('does not copy merchant metadata into a diagnostics snapshot', async () => {
+    configure({ enableMockMode: true, providers: {} });
+    const orchestrator = TestBed.inject(PaymentOrchestratorService);
+    const diagnostics = TestBed.inject(EasyPaymentsDiagnosticsService);
+    await orchestrator.refreshAvailability(['card', 'paypal'], {
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: 'ORDER-12345', customerReference: 'CUSTOMER-789' },
+    });
+
+    const snapshot = JSON.stringify(diagnostics.snapshot());
+    expect(snapshot).not.toContain('ORDER-12345');
+    expect(snapshot).not.toContain('CUSTOMER-789');
+    expect(diagnostics.snapshot().methods.map((entry) => entry.readiness)).toEqual(['ready', 'ready']);
+  });
+
   it('maps each method to its provider', async () => {
     const { diagnostics } = await publish(
       ['card', 'paypal', 'apple-pay', 'google-pay', 'klarna', 'affirm'],

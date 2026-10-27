@@ -98,6 +98,58 @@ describe('PayPalService', () => {
     expect(body.intent).toBe('CAPTURE');
     expect(body.purchase_units[0].amount.value).toBe('198.00');
     expect(body.purchase_units[0].amount.currency_code).toBe('USD');
+    expect(body.purchase_units[0].custom_id).toBe('premium-plan');
+    expect(body.purchase_units[0].invoice_id).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
+  });
+
+  it('maps orderReference to custom_id and keeps the catalog price', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'token', expires_in: 300 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'ORDER-123', status: 'CREATED' }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [PayPalService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    await module.get(PayPalService).createOrder({
+      provider: 'paypal',
+      productId: 'premium-plan',
+      quantity: 2,
+      currency: 'USD',
+      orderReference: 'ORDER-12345',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(body.purchase_units[0].amount.value).toBe('198.00');
+    expect(body.purchase_units[0].custom_id).toBe('ORDER-12345');
+    expect(body.purchase_units[0].reference_id).toBe('premium-plan');
+    expect(body.purchase_units[0].invoice_id).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
+  });
+
+  it('rejects an order reference that is too long', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [PayPalService, { provide: ConfigService, useValue: mockConfig() }],
+    }).compile();
+
+    await expect(
+      module.get(PayPalService).createOrder({
+        provider: 'paypal',
+        productId: 'premium-plan',
+        quantity: 1,
+        currency: 'USD',
+        orderReference: 'A'.repeat(128),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('captures an approved order and returns captureId', async () => {

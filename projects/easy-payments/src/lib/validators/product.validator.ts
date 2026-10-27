@@ -1,3 +1,5 @@
+import { validateMerchantMetadata } from '../metadata/merchant-metadata';
+
 const VALID_CURRENCY = /^[A-Z]{3}$/;
 
 export interface ProductValidationResult {
@@ -33,6 +35,13 @@ export function validatePaymentProduct(product: unknown): ProductValidationResul
   if (p['quantity'] !== undefined) {
     if (typeof p['quantity'] !== 'number' || !Number.isInteger(p['quantity']) || p['quantity'] < 1) {
       errors.push('Product quantity must be a positive integer when provided.');
+    }
+  }
+
+  if (p['metadata'] !== undefined) {
+    const metadata = validateMerchantMetadata(p['metadata']);
+    if (!metadata.valid) {
+      errors.push(...metadata.errors);
     }
   }
 

@@ -12,6 +12,7 @@ import {
   normalizePaymentResult,
 } from '../../models';
 import { CreatePaymentRequest } from '../../models/create-payment.model';
+import { buildStripeRequestMetadata } from '../../metadata/merchant-metadata';
 import { PaymentError } from '../../errors/payment-error';
 import { BackendService } from '../../services/backend.service';
 import { BrowserGuard } from '../../utils/browser-guard';
@@ -317,11 +318,16 @@ export class GooglePayAdapter extends BaseProviderAdapter {
       currency: product.currency.trim().toUpperCase(),
       // Display only — Nest ignores and uses trusted catalog.
       amount: product.amount,
-      metadata: {
-        productName: product.name,
-        checkoutMethod: 'google-pay',
-        ...(checkout?.customer?.email ? { customerEmail: checkout.customer.email } : {}),
-      },
+      metadata: buildStripeRequestMetadata(
+        product.metadata,
+        {
+          productName: product.name,
+          checkoutMethod: 'google-pay',
+          customerEmail: checkout?.customer?.email,
+        },
+        'google-pay',
+        'googlePay',
+      ),
     };
 
     try {

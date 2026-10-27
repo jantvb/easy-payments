@@ -482,6 +482,28 @@ describe('EasyPaymentsComponent', () => {
     expect(successes[0].metadata?.['mock']).toBeTrue();
   });
 
+  it('keeps merchant metadata out of public payment events', async () => {
+    const successes: PaymentResult[] = [];
+    const starts: unknown[] = [];
+    fixture.componentInstance.success.subscribe((result) => successes.push(result));
+    fixture.componentInstance.started.subscribe((event) => starts.push(event));
+    fixture.componentRef.setInput('product', {
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: 'ORDER-12345', customerReference: 'CUSTOMER-789' },
+    });
+    fixture.componentRef.setInput('methods', ['card']);
+    await render(fixture);
+
+    payCta(fixture)!.click();
+    await fixture.whenStable();
+
+    expect(successes.length).toBe(1);
+    expect(JSON.stringify(starts)).not.toContain('ORDER-12345');
+    expect(JSON.stringify(successes[0])).not.toContain('ORDER-12345');
+    expect(JSON.stringify(successes[0])).not.toContain('CUSTOMER-789');
+    expect(successes[0].metadata?.['mock']).toBeTrue();
+  });
+
   it('emits cancel for a mock cancellation', async () => {
     TestBed.inject(MockPaymentController).setOutcome('cancelled');
     const cancellations: PaymentResult[] = [];

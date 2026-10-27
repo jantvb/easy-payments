@@ -128,6 +128,36 @@ describe('KlarnaAdapter', () => {
     expect(session.clientSecret).toBe('pi_klarna_secret');
   });
 
+  it('forwards validated metadata and rejects reserved keys before the backend call', async () => {
+    backend.createKlarnaPayment.and.resolveTo({
+      provider: 'klarna',
+      clientSecret: 'pi_klarna_secret',
+      paymentIntentId: 'pi_klarna_1',
+    });
+
+    await adapter.createPaymentSession({
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: 'ORDER-12345' },
+    });
+    expect(backend.createKlarnaPayment.calls.mostRecent().args[0]).toEqual(
+      jasmine.objectContaining({
+        metadata: { orderId: 'ORDER-12345' },
+      }),
+    );
+    expect(
+      (backend.createKlarnaPayment.calls.mostRecent().args[0] as { amount?: number }).amount,
+    ).toBeUndefined();
+
+    backend.createKlarnaPayment.calls.reset();
+    await expectAsync(
+      adapter.createPaymentSession({
+        ...SAMPLE_PRODUCT,
+        metadata: { currency: 'EUR' },
+      }),
+    ).toBeRejectedWith(jasmine.objectContaining({ code: 'CONFIG_INVALID' }));
+    expect(backend.createKlarnaPayment).not.toHaveBeenCalled();
+  });
+
   it('normalizes a successful Klarna confirmation', async () => {
     backend.createKlarnaPayment.and.resolveTo({
       provider: 'klarna',

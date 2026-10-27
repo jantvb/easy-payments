@@ -1,3 +1,5 @@
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
+
 /** Google's documented TEST merchantId (numeric). Not a production merchant. */
 export const GOOGLE_PAY_TEST_MERCHANT_ID = '12345678901234567890';
 
@@ -123,7 +125,11 @@ export function buildGooglePayRenderKey(product: {
   currency: string;
   quantity?: number;
   amount: number;
+  metadata?: Record<string, string>;
 }): string {
   const quantity = product.quantity ?? 1;
-  return `${product.id}|${quantity}|${product.currency.trim().toUpperCase()}|${product.amount}`;
+  return appendMetadataSessionPart(
+    `${product.id}|${quantity}|${product.currency.trim().toUpperCase()}|${product.amount}`,
+    product.metadata,
+  );
 }

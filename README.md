@@ -376,6 +376,8 @@ export class AppComponent {
 
 `PaymentProduct`: `id`, `name`, `amount`, `currency` required; optional `quantity`, `description`, `imageUrl`, `metadata`.
 
+`metadata` is an optional flat string map (`orderId`, `customerReference`, and similar). At most 10 entries, keys up to 40 characters, values up to 500 characters. It does not change the charged amount. PayPal receives only `orderId` as `custom_id`. Card, Apple Pay, Google Pay, Klarna, and Affirm store the validated map on the Stripe PaymentIntent. Do not put secrets or personal data in metadata. See [docs/api.md](docs/api.md#merchant-metadata).
+
 **Amount is major currency units** (dollars, not cents). Example: `amount: 99` with `currency: 'USD'` means **$99.00**.
 
 ### 4. `app.component.html` — render `<easy-payments>`

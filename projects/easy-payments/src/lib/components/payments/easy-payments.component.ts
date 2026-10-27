@@ -31,6 +31,7 @@ import {
   isIsolatedProviderFailure,
   warnProviderDiagnostic,
 } from '../../diagnostics/provider-diagnostics';
+import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { ThemeService } from '../../themes/theme.service';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
@@ -489,13 +490,12 @@ export class EasyPaymentsComponent {
       // before Stripe reports `ready` (~500ms) permanently keeps availability at
       // `checking`, which is exactly what hides the tile.
       const elementsLocale = toStripeElementsLocale(this.i18n.effectiveLocale());
-      const sessionKey = [
-        product.id,
-        product.quantity ?? 1,
-        product.currency,
-        product.amount,
-        elementsLocale,
-      ].join('|');
+      const sessionKey = appendMetadataSessionPart(
+        [product.id, product.quantity ?? 1, product.currency, product.amount, elementsLocale].join(
+          '|',
+        ),
+        product.metadata,
+      );
       const host = hostRef.nativeElement;
 
       if (

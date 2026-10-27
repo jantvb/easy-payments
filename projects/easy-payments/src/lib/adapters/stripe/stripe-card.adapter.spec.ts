@@ -122,6 +122,33 @@ describe('StripeCardAdapter', () => {
     expect(session.clientSecret).toBe('pi_test_secret');
   });
 
+  it('sends validated merchant metadata and does not call the backend when it is invalid', async () => {
+    backend.createStripePayment.and.resolveTo({
+      provider: 'stripe',
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_123',
+    });
+
+    await adapter.createPaymentSession({
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: 'ORDER-12345' },
+    });
+
+    const sent = backend.createStripePayment.calls.mostRecent().args[0];
+    expect(sent.metadata?.['orderId']).toBe('ORDER-12345');
+    expect(sent.metadata?.['productName']).toBe(SAMPLE_PRODUCT.name);
+    expect(sent.amount).toBe(SAMPLE_PRODUCT.amount);
+
+    backend.createStripePayment.calls.reset();
+    await expectAsync(
+      adapter.createPaymentSession({
+        ...SAMPLE_PRODUCT,
+        metadata: { productId: 'other-plan' },
+      }),
+    ).toBeRejectedWith(jasmine.objectContaining({ code: 'CONFIG_INVALID' }));
+    expect(backend.createStripePayment).not.toHaveBeenCalled();
+  });
+
   it('rejects backend responses without clientSecret', async () => {
     backend.createStripePayment.and.resolveTo({
       provider: 'stripe',

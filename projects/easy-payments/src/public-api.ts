@@ -20,7 +20,7 @@ export type {
   StripeProviderConfig,
 } from './lib/config/easy-payments.config';
 
-export type { PaymentProduct } from './lib/models/payment-product.model';
+export type { PaymentProduct, EasyPaymentsMerchantMetadata } from './lib/models/payment-product.model';
 export type { PaymentMethod, PaymentProviderName } from './lib/models/payment-method.model';
 export { PAYMENT_METHOD_LABELS } from './lib/models/payment-method.model';
 export type { PaymentTheme, ResolvedPaymentTheme } from './lib/models/payment-theme.model';
@@ -78,6 +78,14 @@ export type { StripeRedirectMethod } from './lib/adapters/stripe/stripe-redirect
 export { EasyPaymentsConfigValidator } from './lib/validators/config.validator';
 export { validatePaymentProduct } from './lib/validators/product.validator';
 export type { ProductValidationResult } from './lib/validators/product.validator';
+export {
+  MERCHANT_METADATA_LIMITS,
+  MERCHANT_METADATA_RESERVED_KEYS,
+  PAYPAL_ORDER_REFERENCE_KEY,
+  PAYPAL_ORDER_REFERENCE_MAX_LENGTH,
+  validateMerchantMetadata,
+} from './lib/metadata/merchant-metadata';
+export type { MerchantMetadataValidationResult } from './lib/metadata/merchant-metadata';
 
 export { PaymentOrchestratorService } from './lib/services/payment-orchestrator.service';
 export type { AvailablePaymentMethod } from './lib/services/payment-orchestrator.service';

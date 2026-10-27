@@ -160,6 +160,33 @@ describe('AffirmAdapter', () => {
     expect(session.clientSecret).toBe('pi_affirm_secret');
   });
 
+  it('forwards validated metadata and rejects nested values before the backend call', async () => {
+    backend.createAffirmPayment.and.resolveTo({
+      provider: 'affirm',
+      clientSecret: 'pi_affirm_secret',
+      paymentIntentId: 'pi_affirm_1',
+    });
+
+    await adapter.createPaymentSession({
+      ...SAMPLE_PRODUCT,
+      metadata: { orderId: 'ORDER-12345' },
+    });
+    expect(backend.createAffirmPayment.calls.mostRecent().args[0]).toEqual(
+      jasmine.objectContaining({
+        metadata: { orderId: 'ORDER-12345' },
+      }),
+    );
+
+    backend.createAffirmPayment.calls.reset();
+    await expectAsync(
+      adapter.createPaymentSession({
+        ...SAMPLE_PRODUCT,
+        metadata: { orderId: { nested: 'no' } as unknown as string },
+      }),
+    ).toBeRejectedWith(jasmine.objectContaining({ code: 'CONFIG_INVALID' }));
+    expect(backend.createAffirmPayment).not.toHaveBeenCalled();
+  });
+
   it('normalizes a successful Affirm confirmation', async () => {
     backend.createAffirmPayment.and.resolveTo({
       provider: 'affirm',

@@ -8,6 +8,10 @@ import {
   warnBackendUrlIssue,
 } from '../config/resolve-backend-url';
 import { PaymentError } from '../errors/payment-error';
+import {
+  assertMerchantMetadata,
+  assertPayPalOrderReference,
+} from '../metadata/merchant-metadata';
 import { PaymentMethod, PaymentProviderName } from '../models';
 import {
   AffirmCreatePaymentRequest,
@@ -62,29 +66,37 @@ export class BackendService {
       'stripe',
     );
 
-    return this.postJson<CreateStripePaymentResponse>(url, payload, 'card', 'stripe', {
-      successMessage: 'Failed to create payment on backend.',
-      networkMessage: 'A network error occurred while creating the payment session.',
-      validate: (response) => {
-        if (
-          response?.provider !== 'stripe' ||
-          typeof response.clientSecret !== 'string' ||
-          !response.clientSecret.trim()
-        ) {
-          throw new PaymentError({
-            code: 'BACKEND_ERROR',
-            message: 'Invalid Stripe create-payment response from backend.',
-            method: 'card',
-            provider: 'stripe',
-          });
-        }
+    const { metadata, ...rest } = payload;
+    const validatedMetadata = assertMerchantMetadata(metadata, 'card', 'stripe');
+    return this.postJson<CreateStripePaymentResponse>(
+      url,
+      validatedMetadata ? { ...rest, metadata: validatedMetadata } : rest,
+      'card',
+      'stripe',
+      {
+        successMessage: 'Failed to create payment on backend.',
+        networkMessage: 'A network error occurred while creating the payment session.',
+        validate: (response) => {
+          if (
+            response?.provider !== 'stripe' ||
+            typeof response.clientSecret !== 'string' ||
+            !response.clientSecret.trim()
+          ) {
+            throw new PaymentError({
+              code: 'BACKEND_ERROR',
+              message: 'Invalid Stripe create-payment response from backend.',
+              method: 'card',
+              provider: 'stripe',
+            });
+          }
+        },
       },
-    });
+    );
   }
 
   /**
-   * Posts the minimal PayPal create-order wire contract.
-   * Never forwards amount / metadata even if callers pass extra fields.
+   * Posts the PayPal create-order wire contract.
+   * Forwards `orderReference` only. Never forwards a metadata map or a client amount.
    */
   async createPayPalOrder(
     payload: PayPalCreateOrderRequest | { productId: string; quantity: number; currency: string },
@@ -97,6 +109,9 @@ export class BackendService {
     );
 
     const body = toPayPalCreateOrderRequest(payload);
+    if (body.orderReference) {
+      body.orderReference = assertPayPalOrderReference(body.orderReference);
+    }
 
     return this.postJson<CreatePayPalOrderResponse>(url, body, 'paypal', 'paypal', {
       successMessage: 'Failed to create PayPal order on backend.',
@@ -165,8 +180,8 @@ export class BackendService {
   }
 
   /**
-   * Posts the minimal Klarna create-payment wire contract.
-   * Never forwards amount / metadata even if callers pass extra fields.
+   * Posts the Klarna create-payment wire contract.
+   * Forwards validated merchant metadata only. Never forwards a client amount.
    */
   async createKlarnaPayment(
     payload: KlarnaCreatePaymentRequest | { productId: string; quantity: number; currency: string },
@@ -179,6 +194,9 @@ export class BackendService {
     );
 
     const body = toKlarnaCreatePaymentRequest(payload);
+    if (body.metadata) {
+      body.metadata = assertMerchantMetadata(body.metadata, 'klarna', 'klarna');
+    }
 
     return this.postJson<CreateKlarnaPaymentResponse>(url, body, 'klarna', 'klarna', {
       successMessage: 'Failed to create Klarna payment on backend.',
@@ -201,8 +219,8 @@ export class BackendService {
   }
 
   /**
-   * Posts the minimal Affirm create-payment wire contract.
-   * Never forwards amount / metadata even if callers pass extra fields.
+   * Posts the Affirm create-payment wire contract.
+   * Forwards validated merchant metadata only. Never forwards a client amount.
    */
   async createAffirmPayment(
     payload: AffirmCreatePaymentRequest | { productId: string; quantity: number; currency: string },
@@ -215,6 +233,9 @@ export class BackendService {
     );
 
     const body = toAffirmCreatePaymentRequest(payload);
+    if (body.metadata) {
+      body.metadata = assertMerchantMetadata(body.metadata, 'affirm', 'affirm');
+    }
 
     return this.postJson<CreateAffirmPaymentResponse>(url, body, 'affirm', 'affirm', {
       successMessage: 'Failed to create Affirm payment on backend.',

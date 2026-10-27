@@ -46,3 +46,13 @@ PayPal, Klarna, and Affirm create routes in the reference backend **reject clien
 ## Payment events
 
 `started` carries the checkout method, provider, and the current product amount and currency. It does not carry secrets or provider responses. `success` and `cancel` keep the existing `PaymentResult` fields. Prefer `transactionId` or `sessionId` over free-form messages. Prefer `PaymentError.code` over `PaymentError.message` when logging failures. Payment events are not diagnostics: a provider that is not ready does not emit `started` or `cancel`.
+
+## Merchant metadata
+
+`PaymentProduct.metadata` is an optional flat string map. The browser value is untrusted. It must not change the amount, currency, catalog price, product id, payment status, credentials, capture behavior, customer ownership, or backend URL.
+
+The Angular library and the reference NestJS server both reject more than 10 entries, keys outside 1–40 characters, values outside 1–500 characters, empty keys, nested values, reserved keys, and values that look like secret keys or card numbers. Errors use a fixed message and do not include the raw value. The server validates again even when the browser already did.
+
+Server-owned PaymentIntent fields are applied after the merchant map. PayPal receives only `orderId`, mapped to `custom_id`. That reference is not proof the order belongs to the current user.
+
+Do not put card data, passwords, tokens, or other personal data in metadata. Diagnostics snapshots and payment lifecycle events do not include this map. `PaymentResult.metadata` is a separate provider-result field and is unchanged.
