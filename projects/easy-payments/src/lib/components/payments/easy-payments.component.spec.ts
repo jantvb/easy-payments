@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { signal } from '@angular/core';
+import { isDevMode, signal } from '@angular/core';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { MockPaymentController } from '../../adapters/mock/mock-payment.controller';
 import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
@@ -773,6 +773,69 @@ describe('EasyPaymentsComponent', () => {
     expect(hostA.style.getPropertyValue('--ep-radius').trim()).toBe('4px');
     expect(hostB.style.getPropertyValue('--ep-radius').trim()).toBe('24px');
   });
+
+  it('emits developer-only contrast warnings without changing colors or buyer UI', async () => {
+    if (!isDevMode()) {
+      pending('development diagnostics are disabled outside dev mode');
+      return;
+    }
+
+    const warn = spyOn(console, 'warn');
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#dddddd',
+      surfaceColor: '#ffffff',
+    });
+    await render(fixture);
+
+    expect(warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast'))).toBeTrue();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#dddddd');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ffffff');
+    expect(host.textContent).not.toContain('Low contrast');
+    expect(host.textContent).not.toContain('WCAG');
+    expect(host.textContent).not.toContain('Recommended minimum');
+
+    warn.calls.reset();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(
+      warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast')),
+    ).toBeFalse();
+  });
+
+  it('re-checks contrast when theme or visualStyle changes and skips unknown transparent hosts', async () => {
+    if (!isDevMode()) {
+      pending('development diagnostics are disabled outside dev mode');
+      return;
+    }
+
+    const warn = spyOn(console, 'warn');
+    const info = spyOn(console, 'info');
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#000000',
+      backgroundColor: 'transparent',
+    });
+    await render(fixture);
+
+    expect(
+      info.calls.allArgs().some((args) => String(args[0]).includes('Contrast check skipped')),
+    ).toBeTrue();
+
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#eeeeee',
+      surfaceColor: '#ffffff',
+    });
+    await render(fixture);
+    expect(warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast'))).toBeTrue();
+  });
+
 
 
 

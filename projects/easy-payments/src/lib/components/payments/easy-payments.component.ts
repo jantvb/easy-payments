@@ -36,6 +36,10 @@ import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { ThemeService } from '../../themes/theme.service';
 import { resolveVisualStyleCssVars } from '../../themes/resolve-visual-style';
+import {
+  evaluateVisualStyleContrast,
+  VisualStyleContrastWarningTracker,
+} from '../../themes/visual-style-contrast';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
 import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
@@ -120,6 +124,8 @@ export class EasyPaymentsComponent {
   /** True while this component owns the availability ECE mount (Minimal-style host). */
   private applePayBootstrapOwned = false;
   private applePayBootstrapGeneration = 0;
+  /** Per-instance contrast warning dedupe (dev console only; never buyer-facing). */
+  private readonly contrastWarnings = new VisualStyleContrastWarningTracker();
 
   private readonly applePayBootstrapHost =
     viewChild<ElementRef<HTMLElement>>('applePayBootstrapHost');
@@ -444,6 +450,19 @@ export class EasyPaymentsComponent {
 
     effect(() => {
       this.themeService.setTheme(this.theme());
+    });
+
+    // Developer-only contrast diagnostics for EP-owned colors. Never mutates
+    // colors, never blocks checkout, never touches provider SDK chrome.
+    effect(() => {
+      const style = this.visualStyle();
+      const appearance = this.appearance();
+      const theme = this.resolvedTheme();
+      untracked(() => {
+        this.contrastWarnings.report(
+          evaluateVisualStyleContrast({ theme, appearance, style }),
+        );
+      });
     });
 
     effect(() => {

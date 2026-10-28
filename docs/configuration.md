@@ -123,6 +123,36 @@ Theme-managed (override with care): `--ep-surface-muted`, `--ep-surface-hover`, 
 - Success / error colors stay on `--ep-success` / `--ep-danger`.
 - Invalid values are ignored; checkout is not blocked.
 
+### Developer-only contrast warnings
+
+In **Angular development mode**, Easy Payments evaluates a small set of Easy Payments–owned text/surface/accent/focus pairs and may `console.warn` when contrast is below WCAG AA reference thresholds:
+
+| Pair type | Threshold |
+|-----------|-----------|
+| Normal text (titles, body, secondary copy, accent-as-text) | **4.5:1** |
+| Non-text UI (focus ring vs surface/host backdrop) | **3:1** |
+
+Warnings include the property pair, colors, calculated ratio, and recommended minimum. They:
+
+- Appear in the **developer console only** (never in buyer checkout UI)
+- **Never** auto-correct or mutate merchant colors
+- **Never** block initialization, provider readiness, or payments
+- Are **not** a full WCAG audit or compliance certificate
+- Do **not** inspect provider SDK chrome
+
+**Transparent / unknown backgrounds:** Easy Payments does **not** guess the underlying page color. If `appearance="transparent"` and the host `backgroundColor` is transparent (or a color cannot be parsed), that text/background pair is **skipped**, with a one-time `console.info` explaining why.
+
+Deliberately low-contrast example (expect a console warning in dev):
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  appearance="default"
+  [visualStyle]="{ textColor: '#cccccc', surfaceColor: '#ffffff' }"
+/>
+```
+
 ---
 
 

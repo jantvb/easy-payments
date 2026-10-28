@@ -343,6 +343,17 @@ interface EasyPaymentsVisualStyle {
 - Does **not** change Stripe Elements, PayPal Buttons, wallet sheets, or official marks.
 - Does **not** recreate payment provider sessions (session keys exclude visual style).
 
+#### Contrast warnings (development only)
+
+When Angular `isDevMode()` is true, `<easy-payments>` may log:
+
+- `console.warn` — EP-owned pair below WCAG AA reference (**4.5:1** normal text, **3:1** focus/non-text UI)
+- `console.info` — pair skipped because the backdrop is transparent/unknown (no invented host color)
+
+These diagnostics never appear in buyer UI, never change colors, and never block checkout. They are not a WCAG compliance guarantee. Transparent shells without an opaque `backgroundColor` are skipped by design.
+
+See [configuration.md](./configuration.md#developer-only-contrast-warnings) for examples and limitations.
+
 See [configuration.md](./configuration.md) for the full public `--ep-*` token table.
 
 Public layout constants:
