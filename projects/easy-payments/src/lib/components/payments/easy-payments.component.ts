@@ -110,7 +110,12 @@ import {
     role: 'region',
     '[attr.aria-label]': 'checkoutAriaLabel()',
   },
-  providers: [EasyPaymentsI18nService],
+  /**
+   * Per-checkout ThemeService so concurrent <easy-payments> instances can use
+   * independent light/dark/system themes. PaymentOrchestratorService stays root
+   * and receives the resolved theme explicitly from refreshAvailability calls.
+   */
+  providers: [EasyPaymentsI18nService, ThemeService],
 })
 export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
@@ -429,9 +434,11 @@ export class EasyPaymentsComponent {
         const product = untracked(() => this.product());
         const methods = untracked(() => this.methods());
         const checkout = untracked(() => this.checkout());
-        void this.orchestrator.refreshAvailability(methods, product, checkout).catch(() => {
-          // Availability refresh errors are non-fatal for checkout UI.
-        });
+        void this.orchestrator
+          .refreshAvailability(methods, product, checkout, this.resolvedTheme())
+          .catch(() => {
+            // Availability refresh errors are non-fatal for checkout UI.
+          });
       });
     });
 
@@ -483,11 +490,14 @@ export class EasyPaymentsComponent {
       const methods = this.methods();
       const checkout = this.checkout();
 
+      const theme = this.resolvedTheme();
       untracked(() => {
-        void this.orchestrator.refreshAvailability(methods, product, checkout).catch((err: unknown) => {
-          // Config/availability errors emit only — do not take over the checkout UI.
-          this.error.emit(normalizeError(err));
-        });
+        void this.orchestrator
+          .refreshAvailability(methods, product, checkout, theme)
+          .catch((err: unknown) => {
+            // Config/availability errors emit only — do not take over the checkout UI.
+            this.error.emit(normalizeError(err));
+          });
       });
     });
 

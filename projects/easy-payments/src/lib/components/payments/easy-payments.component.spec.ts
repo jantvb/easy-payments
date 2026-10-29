@@ -836,6 +836,56 @@ describe('EasyPaymentsComponent', () => {
     expect(warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast'))).toBeTrue();
   });
 
+  it('keeps independent themes for concurrent checkout instances', async () => {
+    const fixtureB = TestBed.createComponent(EasyPaymentsComponent);
+    fixtureB.componentRef.setInput('product', { ...SAMPLE_PRODUCT, id: 'other-plan' });
+    fixture.componentRef.setInput('methods', ['card']);
+    fixtureB.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixtureB.componentRef.setInput('theme', 'dark');
+    fixture.componentRef.setInput('visualStyle', { accentColor: '#1111aa' });
+    fixtureB.componentRef.setInput('visualStyle', { accentColor: '#11aa11' });
+    await render(fixture);
+    await render(fixtureB);
+
+    const hostA = fixture.nativeElement as HTMLElement;
+    const hostB = fixtureB.nativeElement as HTMLElement;
+    expect(hostA.classList.contains('ep-theme-light')).toBeTrue();
+    expect(hostB.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(hostA.getAttribute('data-theme')).toBe('light');
+    expect(hostB.getAttribute('data-theme')).toBe('dark');
+    expect(fixture.componentInstance.resolvedTheme()).toBe('light');
+    expect(fixtureB.componentInstance.resolvedTheme()).toBe('dark');
+    expect(hostA.style.getPropertyValue('--ep-accent').trim()).toBe('#1111aa');
+    expect(hostB.style.getPropertyValue('--ep-accent').trim()).toBe('#11aa11');
+  });
+
+  it('preserves transparent shell painting rules with optional background/surface overrides', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    let shell = host.querySelector('.ep-checkout') as HTMLElement;
+    let shellBg = getComputedStyle(shell).backgroundColor;
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#e2e8f0',
+      surfaceColor: 'transparent',
+    });
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('#e2e8f0');
+    expect(rgbCloseTo(getComputedStyle(host).backgroundColor, 226, 232, 240)).toBeTrue();
+    shell = host.querySelector('.ep-checkout') as HTMLElement;
+    shellBg = getComputedStyle(shell).backgroundColor;
+    // Transparent appearance still clears the shell fill even when surface token is set.
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('transparent');
+  });
+
+
 
 
 

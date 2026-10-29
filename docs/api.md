@@ -321,7 +321,7 @@ interface EasyPaymentsVisualStyle {
 | `borderRadius` | `--ep-radius` | `--ep-radius-md = calc(var(--ep-radius) * 0.625)`. |
 | `spacing` | `--ep-spacing` | `--ep-padding = calc(var(--ep-spacing) * 1.25)`; `--ep-spacing-sm = calc(var(--ep-spacing) * 0.625)`. |
 
-**Precedence:** theme defaults → valid `[visualStyle]` inline tokens → `appearance="transparent"` forces shell chrome/background off (host `--ep-background` and tile `--ep-surface` still apply).
+**Precedence:** theme stylesheet defaults → optional consumer CSS on `easy-payments` → valid `[visualStyle]` **inline** tokens (win over stylesheets for the same property) → `appearance="transparent"` forces the shell element transparent without clearing `--ep-surface` / `--ep-background` tokens. Competing inline `style` and `[visualStyle]` on the same token are order-dependent; use one mechanism.
 
 ```html
 <easy-payments
@@ -350,7 +350,7 @@ When Angular `isDevMode()` is true, `<easy-payments>` may log:
 - `console.warn` — EP-owned pair below WCAG AA reference (**4.5:1** normal text, **3:1** focus/non-text UI)
 - `console.info` — pair skipped because the backdrop is transparent/unknown (no invented host color)
 
-These diagnostics never appear in buyer UI, never change colors, and never block checkout. They are not a WCAG compliance guarantee. Transparent shells without an opaque `backgroundColor` are skipped by design.
+These diagnostics never appear in buyer UI, never change colors, and never block checkout. They are not a WCAG compliance guarantee. Transparent shells without an opaque `backgroundColor` skip chrome-vs-host checks; opaque `--ep-surface` tile pairs are still evaluated when determinable. Unresolved `var()` / exotic color functions are skipped rather than guessed.
 
 See [configuration.md](./configuration.md#developer-only-contrast-warnings) for examples and limitations.
 

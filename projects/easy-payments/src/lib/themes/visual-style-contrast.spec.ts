@@ -50,6 +50,7 @@ describe('visual-style-contrast', () => {
         backgroundColor: 'transparent',
       },
     });
+    expect(report.failures.some((f) => f.id === 'text-on-host')).toBeFalse();
     expect(report.failures.some((f) => f.id === 'text-on-shell')).toBeFalse();
     expect(
       report.skips.some(
@@ -67,8 +68,50 @@ describe('visual-style-contrast', () => {
         backgroundColor: '#ffffff',
       },
     });
-    expect(report.failures.some((f) => f.id === 'text-on-shell')).toBeTrue();
-    expect(report.skips.some((s) => s.reason === 'transparent-background')).toBeFalse();
+    expect(report.failures.some((f) => f.id === 'text-on-host')).toBeTrue();
+    expect(
+      report.skips.some(
+        (s) => s.reason === 'transparent-background' && s.propertyPair.includes('backgroundColor'),
+      ),
+    ).toBeFalse();
+  });
+
+  it('with transparent shell, still checks tile text against an opaque surfaceColor', () => {
+    const report = evaluateVisualStyleContrast({
+      theme: 'light',
+      appearance: 'transparent',
+      style: {
+        backgroundColor: 'transparent',
+        surfaceColor: '#ffffff',
+        textColor: '#dddddd',
+        textSecondaryColor: '#eeeeee',
+      },
+    });
+    // Chrome text vs unknown host is skipped — not evaluated as if the shell were painted.
+    expect(report.failures.some((f) => f.id === 'text-on-host')).toBeFalse();
+    expect(
+      report.skips.some((s) => s.id.startsWith('host-background') && s.reason === 'transparent-background'),
+    ).toBeTrue();
+    // Tiles still use the opaque surface.
+    expect(report.failures.some((f) => f.id === 'text-on-tile-surface')).toBeTrue();
+    expect(report.failures.some((f) => f.id === 'text-secondary-on-tile-surface')).toBeTrue();
+  });
+
+  it('skips shell text when surfaceColor is transparent under default appearance', () => {
+    const report = evaluateVisualStyleContrast({
+      theme: 'light',
+      appearance: 'default',
+      style: {
+        surfaceColor: 'transparent',
+        textColor: '#000000',
+      },
+    });
+    expect(report.failures.some((f) => f.id === 'text-on-shell')).toBeFalse();
+    expect(
+      report.skips.some(
+        (s) => s.reason === 'transparent-background' && s.propertyPair.includes('surfaceColor'),
+      ),
+    ).toBeTrue();
   });
 
   it('uses the 3:1 threshold for focus / non-text UI checks', () => {

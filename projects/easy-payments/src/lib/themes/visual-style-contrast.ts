@@ -132,16 +132,13 @@ function pushFailure(
   });
 }
 
-function resolveBackdrop(
-  appearance: EasyPaymentsAppearance,
-  colors: EffectiveVisualColors,
+function resolveOpaqueColor(
+  css: string,
   skips: ContrastSkip[],
   checkId: string,
   propertyPair: string,
+  transparentDetail: string,
 ): { css: string; rgb: RgbColor } | null {
-  // Default shell paints text on --ep-surface.
-  // Transparent shell paints text on the host --ep-background (often transparent).
-  const css = appearance === 'transparent' ? colors.background : colors.surface;
   const parsed = parseCssColor(css);
   if (!parsed) {
     skips.push({
@@ -157,10 +154,7 @@ function resolveBackdrop(
       id: `${checkId}:transparent`,
       propertyPair,
       reason: 'transparent-background',
-      detail:
-        appearance === 'transparent'
-          ? 'appearance="transparent" (or a transparent host background) leaves the underlying page color unknown. Contrast was not estimated.'
-          : `Background "${css}" is transparent or translucent; the underlying page color is unknown. Contrast was not estimated.`,
+      detail: transparentDetail,
     });
     return null;
   }
@@ -188,9 +182,95 @@ export function resolveAccentSoftAgainstSurface(
   };
 }
 
+function checkTextPairsOnBackdrop(
+  failures: ContrastFailure[],
+  skips: ContrastSkip[],
+  colors: EffectiveVisualColors,
+  backdrop: { css: string; rgb: RgbColor },
+  options: {
+    textId: string;
+    secondaryId: string;
+    textPair: string;
+    secondaryPair: string;
+    includeAccentText: boolean;
+    includeFocus: boolean;
+    focusPair: string;
+  },
+): void {
+  const text = parseCssColor(colors.text);
+  const textSecondary = parseCssColor(colors.textSecondary);
+  const accent = parseCssColor(colors.accent);
+  const focus = parseCssColor(colors.focus);
+
+  if (text) {
+    pushFailure(
+      failures,
+      options.textId,
+      'normal-text',
+      options.textPair,
+      colors.text,
+      backdrop.css,
+      text,
+      backdrop.rgb,
+    );
+  } else {
+    skips.push({
+      id: `${options.textId}:unresolved-fg`,
+      propertyPair: 'textColor',
+      reason: 'unresolved-color',
+      detail: `Could not parse text color "${colors.text}".`,
+    });
+  }
+
+  if (textSecondary) {
+    pushFailure(
+      failures,
+      options.secondaryId,
+      'normal-text',
+      options.secondaryPair,
+      colors.textSecondary,
+      backdrop.css,
+      textSecondary,
+      backdrop.rgb,
+    );
+  }
+
+  if (options.includeAccentText && accent) {
+    pushFailure(
+      failures,
+      'accent-text-on-surface',
+      'normal-text',
+      'visualStyle.accentColor (as text) vs surface',
+      colors.accent,
+      backdrop.css,
+      accent,
+      backdrop.rgb,
+    );
+  }
+
+  if (options.includeFocus && focus) {
+    pushFailure(
+      failures,
+      'focus-on-shell',
+      'ui-non-text',
+      options.focusPair,
+      colors.focus,
+      backdrop.css,
+      focus,
+      backdrop.rgb,
+    );
+  }
+}
+
 /**
  * Evaluate Easy Payments–owned text / surface / accent / focus pairs.
  * Does not inspect provider SDK chrome. Never mutates colors.
+ *
+ * Backdrop rules:
+ * - `appearance="default"`: checkout chrome text sits on `--ep-surface`.
+ * - `appearance="transparent"`: chrome text sits on host `--ep-background`
+ *   (often unknown/transparent → skip). Tile/panel text still uses `--ep-surface`
+ *   when that surface is opaque — never treat an invisible shell as painted.
  */
 export function evaluateVisualStyleContrast(options: {
   theme: ResolvedPaymentTheme;
@@ -201,85 +281,59 @@ export function evaluateVisualStyleContrast(options: {
   const failures: ContrastFailure[] = [];
   const skips: ContrastSkip[] = [];
 
-  const shellBackdrop = resolveBackdrop(
-    options.appearance,
-    colors,
+  const opaqueSurface = resolveOpaqueColor(
+    colors.surface,
     skips,
-    'shell-backdrop',
-    options.appearance === 'transparent'
-      ? 'textColor / backgroundColor'
-      : 'textColor / surfaceColor',
+    'surface',
+    'textColor / surfaceColor',
+    `Surface "${colors.surface}" is transparent or translucent; tile/panel contrast against an unknown underlay was not estimated.`,
   );
 
-  if (shellBackdrop) {
-    const text = parseCssColor(colors.text);
-    const textSecondary = parseCssColor(colors.textSecondary);
-    const accent = parseCssColor(colors.accent);
-    const focus = parseCssColor(colors.focus);
-
-    if (text) {
-      pushFailure(
-        failures,
-        'text-on-shell',
-        'normal-text',
-        options.appearance === 'transparent'
-          ? 'visualStyle.textColor vs host background'
-          : 'visualStyle.textColor vs surface',
-        colors.text,
-        shellBackdrop.css,
-        text,
-        shellBackdrop.rgb,
-      );
-    } else {
-      skips.push({
-        id: 'text:unresolved',
-        propertyPair: 'textColor',
-        reason: 'unresolved-color',
-        detail: `Could not parse text color "${colors.text}".`,
+  if (options.appearance === 'default') {
+    // Shell and tiles share --ep-surface when the default chrome is painted.
+    if (opaqueSurface) {
+      checkTextPairsOnBackdrop(failures, skips, colors, opaqueSurface, {
+        textId: 'text-on-shell',
+        secondaryId: 'text-secondary-on-shell',
+        textPair: 'visualStyle.textColor vs surface',
+        secondaryPair: 'visualStyle.textSecondaryColor vs surface',
+        includeAccentText: true,
+        includeFocus: true,
+        focusPair: 'visualStyle.accentColor / focus vs surface',
+      });
+    }
+  } else {
+    // Transparent shell: do not evaluate chrome text against surface (shell is not painted).
+    const hostBackdrop = resolveOpaqueColor(
+      colors.background,
+      skips,
+      'host-background',
+      'textColor / backgroundColor',
+      'appearance="transparent" with a transparent/unknown host background leaves the underlying page color unknown. Chrome text contrast was not estimated.',
+    );
+    if (hostBackdrop) {
+      checkTextPairsOnBackdrop(failures, skips, colors, hostBackdrop, {
+        textId: 'text-on-host',
+        secondaryId: 'text-secondary-on-host',
+        textPair: 'visualStyle.textColor vs host background',
+        secondaryPair: 'visualStyle.textSecondaryColor vs host background',
+        includeAccentText: false,
+        includeFocus: true,
+        focusPair: 'visualStyle.accentColor / focus vs host background',
       });
     }
 
-    if (textSecondary) {
-      pushFailure(
-        failures,
-        'text-secondary-on-shell',
-        'normal-text',
-        options.appearance === 'transparent'
-          ? 'visualStyle.textSecondaryColor vs host background'
-          : 'visualStyle.textSecondaryColor vs surface',
-        colors.textSecondary,
-        shellBackdrop.css,
-        textSecondary,
-        shellBackdrop.rgb,
-      );
-    }
-
-    // Accent used as link / emphasis text on the shell surface.
-    if (accent && options.appearance === 'default') {
-      pushFailure(
-        failures,
-        'accent-text-on-surface',
-        'normal-text',
-        'visualStyle.accentColor (as text) vs surface',
-        colors.accent,
-        shellBackdrop.css,
-        accent,
-        shellBackdrop.rgb,
-      );
-    }
-
-    // Focus ring against the shell surface (non-text UI → 3:1).
-    if (focus) {
-      pushFailure(
-        failures,
-        'focus-on-shell',
-        'ui-non-text',
-        'visualStyle.accentColor / focus vs surface or host background',
-        colors.focus,
-        shellBackdrop.css,
-        focus,
-        shellBackdrop.rgb,
-      );
+    // Tiles/panels still use --ep-surface when it is opaque.
+    if (opaqueSurface) {
+      checkTextPairsOnBackdrop(failures, skips, colors, opaqueSurface, {
+        textId: 'text-on-tile-surface',
+        secondaryId: 'text-secondary-on-tile-surface',
+        textPair: 'visualStyle.textColor vs tile surface',
+        secondaryPair: 'visualStyle.textSecondaryColor vs tile surface',
+        includeAccentText: true,
+        includeFocus: false,
+        focusPair: '',
+      });
     }
   }
 

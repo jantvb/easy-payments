@@ -82,12 +82,14 @@ visualStyle = {
 | `borderRadius` | `--ep-radius` | Outer radius. `--ep-radius-md` stays `calc(var(--ep-radius) * 0.625)`. |
 | `spacing` | `--ep-spacing` | Stack gap. Shell padding uses `--ep-padding` (`calc(var(--ep-spacing) * 1.25)`). |
 
-### Precedence
+### Precedence (actual cascade)
 
-1. **Theme** (`light` / `dark` / `system`) sets default `--ep-*` tokens on the host.
-2. **`[visualStyle]`** sets matching tokens as inline custom properties (only for valid fields).
-3. **`appearance="transparent"`** removes outer shell chrome and forces the shell background to transparent. It does **not** clear `--ep-surface` for tiles/panels, and does **not** clear `--ep-background` on the host.
-4. Host CSS on `<easy-payments>` can also set `--ep-*` variables; avoid fighting the same properties you pass via `[visualStyle]`.
+1. **Theme** (`light` / `dark` / `system`) sets default `--ep-*` values in the component stylesheet (`:host` / `:host(.ep-theme-dark)`).
+2. **Consumer stylesheet** rules targeting `easy-payments { --ep-*: … }` can override those stylesheet defaults (same element; source order / specificity apply).
+3. **`[visualStyle]`** writes matching tokens as **inline** custom properties on the host. Inline values override stylesheet rules for the same token.
+4. **`appearance="transparent"`** does not clear tokens; it forces the **`.ep-checkout` shell** to `background: transparent` (and removes chrome). Tiles/panels still use `--ep-surface`. Host fill still uses `--ep-background`.
+
+If the same token is set by both `[visualStyle]` and an inline `style` / `[style.--ep-*]` on the host, prefer a single mechanism — competing inline declarations are order-dependent.
 
 Transparent shell + custom surface example (parent shows through; tiles stay readable):
 
@@ -100,9 +102,11 @@ Transparent shell + custom surface example (parent shows through; tiles stay rea
 />
 ```
 
+Each `<easy-payments>` instance resolves its own `theme` (component-scoped theme service). `[visualStyle]` overrides are always instance-local.
+
 ### Public CSS token contract (EP-owned)
 
-Stable customization points (set via `[visualStyle]` or CSS on `<easy-payments>`):
+**Supported customization points** (via `[visualStyle]` and/or CSS on `<easy-payments>`):
 
 | Token | Purpose |
 |-------|---------|
@@ -115,7 +119,7 @@ Stable customization points (set via `[visualStyle]` or CSS on `<easy-payments>`
 | `--ep-spacing` | Vertical stack gap (`--ep-padding` / `--ep-spacing-sm` derived) |
 | `--ep-checkout-max-width` | From `[maxWidth]` |
 
-Theme-managed (override with care): `--ep-surface-muted`, `--ep-surface-hover`, `--ep-border*`, `--ep-shadow*`, `--ep-cta-*`, `--ep-success`, `--ep-danger`, `--ep-demo-*`.
+**Internal / theme-managed** (override with care; not first-class `visualStyle` fields): `--ep-surface-muted`, `--ep-surface-hover`, `--ep-border*`, `--ep-shadow*`, `--ep-cta-*`, `--ep-success`, `--ep-danger`, `--ep-demo-*`, legacy aliases (`--ep-bg`, `--ep-focus-color`, …).
 
 **Limits**
 
@@ -140,7 +144,11 @@ Warnings include the property pair, colors, calculated ratio, and recommended mi
 - Are **not** a full WCAG audit or compliance certificate
 - Do **not** inspect provider SDK chrome
 
-**Transparent / unknown backgrounds:** Easy Payments does **not** guess the underlying page color. If `appearance="transparent"` and the host `backgroundColor` is transparent (or a color cannot be parsed), that text/background pair is **skipped**, with a one-time `console.info` explaining why.
+**Transparent / unknown backgrounds:** Easy Payments does **not** guess the underlying page color.
+
+- `appearance="transparent"` + transparent/unknown host `backgroundColor` → **skip** chrome text-vs-host checks (`console.info`).
+- Opaque `surfaceColor` is still evaluated for **tile/panel** text (the shell is not treated as painted).
+- `surfaceColor: 'transparent'` under `appearance="default"` → skip shell text-vs-surface (underlay unknown).
 
 Deliberately low-contrast example (expect a console warning in dev):
 

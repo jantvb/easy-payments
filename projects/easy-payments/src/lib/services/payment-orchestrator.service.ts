@@ -7,6 +7,7 @@ import {
   PaymentProduct,
   PaymentResult,
   PaymentTheme,
+  ResolvedPaymentTheme,
   normalizePaymentResult,
 } from '../models';
 import { PaymentError, normalizeError } from '../errors/payment-error';
@@ -96,11 +97,14 @@ export class PaymentOrchestratorService {
   private buildContext(
     product: PaymentProduct,
     checkout?: CheckoutOptions,
+    theme?: ResolvedPaymentTheme,
   ): PaymentContext {
     return {
       product,
       checkout,
-      theme: this.themeService.resolvedTheme(),
+      // Prefer the caller-supplied theme so concurrent <easy-payments> instances
+      // do not share a single root ThemeService resolution for availability.
+      theme: theme ?? this.themeService.resolvedTheme(),
     };
   }
 
@@ -108,11 +112,12 @@ export class PaymentOrchestratorService {
     methods: PaymentMethod[],
     product: PaymentProduct,
     checkout?: CheckoutOptions,
+    theme?: ResolvedPaymentTheme,
   ): Promise<AvailablePaymentMethod[]> {
     await this.initialize();
     this.validateProduct(product);
 
-    const context = this.buildContext(product, checkout);
+    const context = this.buildContext(product, checkout, theme);
     const stripeFailure = this.adapterFactory.getInitializationFailure('stripe');
     const results: AvailablePaymentMethod[] = [];
 
