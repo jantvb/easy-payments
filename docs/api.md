@@ -587,7 +587,7 @@ From `@easy-payments/angular` (see `public-api.ts`):
 
 - `EasyPaymentsComponent`
 - `provideEasyPayments`, `EasyPaymentsConfigService`
-- Models / types above
+- Models / types above (including `EasyPaymentsAppearance`, `EasyPaymentsVisualStyle`)
 - `PaymentError`, `normalizeError`
 - `PaymentStartedEvent`, `PaymentMethodChangeEvent`
 - `EasyPaymentsDiagnosticsService`, `EASY_PAYMENTS_DIAGNOSTIC_CODES`
