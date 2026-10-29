@@ -20,6 +20,7 @@ Standalone component. Selector: `easy-payments`.
 | `checkout` | `CheckoutOptions` | `undefined` | No | see below | Optional checkout hints (`successUrl`, `cancelUrl`, `successBehavior`, customer, shipping). |
 | `theme` | `PaymentTheme` | `'system'` | No | `light`, `dark`, `system` | Color theme. `system` follows `prefers-color-scheme` and updates when the preference changes. |
 | `appearance` | `EasyPaymentsAppearance` | `'default'` | No | `default`, `transparent` | Outer shell. Independent of `theme`. `transparent` removes built-in card chrome. |
+| `visualStyle` | `EasyPaymentsVisualStyle \| null` | `null` | No | see [Visual style](#visual-style) | Optional EP-owned font / color / token overrides. Invalid fields ignored. Does not restyle provider SDK chrome. |
 | `maxWidth` | `number \| string \| null \| undefined` | `640` | No | clamped to **320–1200** px | Max checkout width. Component stays `width: 100%` up to this cap. Invalid values fall back to `640`. |
 | `successBehavior` | `CheckoutSuccessBehavior` | `'confirmation'` | No | `confirmation`, `event-only` | Built-in success UI vs emit-only. Overridden by `checkout.successBehavior` when set. |
 | `locale` | `EasyPaymentsLocale` | `'auto'` | No | `auto`, `en`, `es`, `pt` | UI locale. `auto` detects from the browser (`es-*`→es, `pt-*`→pt, `en-*`→en, else English). See [localization.md](./localization.md). |
@@ -294,6 +295,67 @@ type EasyPaymentsAppearance = 'default' | 'transparent';
 - `theme` and `appearance` are **independent**.
 - Layout reflows from the **component container width** (not only the viewport), via `[maxWidth]` (320–1200, default 640).
 
+### Visual style
+
+```ts
+interface EasyPaymentsVisualStyle {
+  fontFamily?: string;
+  textColor?: string;
+  textSecondaryColor?: string;
+  backgroundColor?: string;
+  surfaceColor?: string;
+  accentColor?: string;
+  borderRadius?: string;
+  spacing?: string;
+}
+```
+
+| Field | CSS variable(s) | Notes |
+|-------|-----------------|--------|
+| `fontFamily` | `--ep-font-family` | Stack, `'inherit'`, or `var(--token)`. Host loads fonts. |
+| `textColor` | `--ep-text` | Primary EP-owned text. |
+| `textSecondaryColor` | `--ep-text-secondary` | Secondary EP-owned text. |
+| `backgroundColor` | `--ep-background` | Host backdrop. `'transparent'` supported. |
+| `surfaceColor` | `--ep-surface` | Default shell + tiles/panels. With `appearance="transparent"`, shell stays clear; tiles still use surface. |
+| `accentColor` | `--ep-accent`, `--ep-focus`, derived `--ep-accent-soft` | Selection / focus. Not provider logos/SDK. |
+| `borderRadius` | `--ep-radius` | `--ep-radius-md = calc(var(--ep-radius) * 0.625)`. |
+| `spacing` | `--ep-spacing` | `--ep-padding = calc(var(--ep-spacing) * 1.25)`; `--ep-spacing-sm = calc(var(--ep-spacing) * 0.625)`. |
+
+**Precedence:** theme stylesheet defaults → optional consumer CSS on `easy-payments` → valid `[visualStyle]` **inline** tokens (win over stylesheets for the same property) → `appearance="transparent"` forces the shell element transparent without clearing `--ep-surface` / `--ep-background` tokens. Competing inline `style` and `[visualStyle]` on the same token are order-dependent; use one mechanism.
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  appearance="default"
+  [visualStyle]="{
+    backgroundColor: 'transparent',
+    surfaceColor: '#ffffff',
+    accentColor: '#0b6e4f',
+    borderRadius: '12px',
+    spacing: '16px'
+  }"
+/>
+```
+
+- Independent of `theme` / `appearance`. Explicit overrides stay applied when switching light/dark/system.
+- Removing a field (or setting `visualStyle` to `null`) restores the active theme’s default token.
+- Does **not** change Stripe Elements, PayPal Buttons, wallet sheets, or official marks.
+- Does **not** recreate payment provider sessions (session keys exclude visual style).
+
+#### Contrast warnings (development only)
+
+When Angular `isDevMode()` is true, `<easy-payments>` may log:
+
+- `console.warn` — EP-owned pair below WCAG AA reference (**4.5:1** normal text, **3:1** focus/non-text UI)
+- `console.info` — pair skipped because the backdrop is transparent/unknown (no invented host color)
+
+These diagnostics never appear in buyer UI, never change colors, and never block checkout. They are not a WCAG compliance guarantee. Transparent shells without an opaque `backgroundColor` skip chrome-vs-host checks; opaque `--ep-surface` tile pairs are still evaluated when determinable. Unresolved `var()` / exotic color functions are skipped rather than guessed.
+
+See [configuration.md](./configuration.md#developer-only-contrast-warnings) for examples and limitations.
+
+See [configuration.md](./configuration.md) for the full public `--ep-*` token table.
+
 Public layout constants:
 
 | Constant | Value |
@@ -525,7 +587,7 @@ From `@easy-payments/angular` (see `public-api.ts`):
 
 - `EasyPaymentsComponent`
 - `provideEasyPayments`, `EasyPaymentsConfigService`
-- Models / types above
+- Models / types above (including `EasyPaymentsAppearance`, `EasyPaymentsVisualStyle`)
 - `PaymentError`, `normalizeError`
 - `PaymentStartedEvent`, `PaymentMethodChangeEvent`
 - `EasyPaymentsDiagnosticsService`, `EASY_PAYMENTS_DIAGNOSTIC_CODES`

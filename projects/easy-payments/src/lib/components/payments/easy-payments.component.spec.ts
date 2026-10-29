@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { signal } from '@angular/core';
+import { isDevMode, signal } from '@angular/core';
 import { provideEasyPayments } from '../../config/provide-easy-payments';
 import { MockPaymentController } from '../../adapters/mock/mock-payment.controller';
 import { StripeRedirectRecoveryService } from '../../adapters/stripe/stripe-redirect-recovery.service';
@@ -33,6 +33,19 @@ function payCta(fixture: ComponentFixture<EasyPaymentsComponent>): HTMLButtonEle
   return fixture.nativeElement.querySelector(
     'button.ep-mock-panel__cta, button.ep-stripe-card__pay',
   ) as HTMLButtonElement | null;
+}
+
+/** Compare computed `rgb()` / `rgba()` colors to expected 8-bit channels. */
+function rgbCloseTo(cssColor: string, r: number, g: number, b: number, tolerance = 2): boolean {
+  const match = cssColor.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (!match) {
+    return false;
+  }
+  return (
+    Math.abs(Number(match[1]) - r) <= tolerance &&
+    Math.abs(Number(match[2]) - g) <= tolerance &&
+    Math.abs(Number(match[3]) - b) <= tolerance
+  );
 }
 
 describe('EasyPaymentsComponent', () => {
@@ -411,6 +424,471 @@ describe('EasyPaymentsComponent', () => {
     expect(fixture.nativeElement.getAttribute('data-theme')).toBe('dark');
     expect(fixture.nativeElement.getAttribute('data-appearance')).toBe('transparent');
   });
+
+  it('defaults visualStyle to null and does not set override CSS variables', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    await render(fixture);
+
+    expect(fixture.componentInstance.visualStyle()).toBeNull();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text')).toBe('');
+    expect(host.style.getPropertyValue('--ep-accent')).toBe('');
+    expect(host.style.getPropertyValue('--ep-radius')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-font-family').trim()).toContain('Segoe UI');
+  });
+
+  it('applies valid visualStyle overrides as host CSS variables', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'inherit',
+      textColor: '#112233',
+      textSecondaryColor: '#445566',
+      backgroundColor: 'transparent',
+      surfaceColor: '#fefefe',
+      accentColor: '#0b6e4f',
+      borderRadius: '12px',
+      spacing: '20px',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe('inherit');
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#112233');
+    expect(host.style.getPropertyValue('--ep-text-secondary').trim()).toBe('#445566');
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('transparent');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fefefe');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-focus').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toContain('color-mix');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toContain('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-radius').trim()).toBe('12px');
+    // md radius stays derived in SCSS (not flattened to the same inline value).
+    expect(host.style.getPropertyValue('--ep-radius-md')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-radius-md').trim()).toMatch(
+      /calc\(\s*12px\s*\*\s*0\.625\s*\)/,
+    );
+    expect(host.style.getPropertyValue('--ep-spacing').trim()).toBe('20px');
+  });
+
+  it('ignores invalid visualStyle values without disrupting checkout', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'Arial; } * { color: red',
+      textColor: 'not-a-color!!!',
+      borderRadius: '12',
+      spacing: 'calc(1px)',
+      accentColor: 'url(https://evil.example)',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text')).toBe('');
+    expect(host.style.getPropertyValue('--ep-accent')).toBe('');
+    expect(host.style.getPropertyValue('--ep-radius')).toBe('');
+    expect(host.style.getPropertyValue('--ep-spacing')).toBe('');
+    expect(tileLabels(fixture).map((label) => label.replace(/,.*/, ''))).toEqual(['Card', 'PayPal']);
+    expect(fixture.nativeElement.classList.contains('ep-appearance-transparent')).toBeFalse();
+  });
+
+  it('keeps visualStyle independent of theme and transparent appearance', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'dark');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#f8fafc',
+      accentColor: '#60a5fa',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(host.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#f8fafc');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#60a5fa');
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    const shellStyle = getComputedStyle(shell);
+    expect(
+      shellStyle.backgroundColor === 'rgba(0, 0, 0, 0)' || shellStyle.backgroundColor === 'transparent',
+    ).toBeTrue();
+  });
+
+  it('applies font and text colors to EP-owned UI and updates them dynamically', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Courier New', monospace",
+      textColor: '#112233',
+      textSecondaryColor: '#445566',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Courier New', monospace");
+    expect(getComputedStyle(host).fontFamily.toLowerCase()).toContain('courier new');
+
+    const title = host.querySelector('.ep-checkout__title') as HTMLElement;
+    const subtitle = host.querySelector('.ep-checkout__subtitle') as HTMLElement;
+    expect(title).toBeTruthy();
+    expect(subtitle).toBeTruthy();
+    expect(rgbCloseTo(getComputedStyle(title).color, 17, 34, 51)).toBeTrue();
+    expect(rgbCloseTo(getComputedStyle(subtitle).color, 68, 85, 102)).toBeTrue();
+
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'inherit',
+      textColor: '#010203',
+      textSecondaryColor: '#040506',
+    });
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe('inherit');
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#010203');
+    expect(host.style.getPropertyValue('--ep-text-secondary').trim()).toBe('#040506');
+  });
+
+  it('restores theme defaults when visualStyle font/text overrides are removed', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: 'Georgia, serif',
+      textColor: '#123456',
+      textSecondaryColor: '#654321',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe('Georgia, serif');
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#123456');
+
+    fixture.componentRef.setInput('visualStyle', null);
+    await render(fixture);
+
+    expect(host.style.getPropertyValue('--ep-font-family')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text')).toBe('');
+    expect(host.style.getPropertyValue('--ep-text-secondary')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-font-family').trim()).toContain('Segoe UI');
+    expect(getComputedStyle(host).getPropertyValue('--ep-text').trim().toLowerCase()).toBe('#0f172a');
+  });
+
+  it('keeps explicit font/text overrides when switching light and dark themes', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Roboto', sans-serif",
+      textColor: '#0a0a0a',
+      textSecondaryColor: '#4a4a4a',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('ep-theme-light')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Roboto', sans-serif");
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#0a0a0a');
+
+    fixture.componentRef.setInput('theme', 'dark');
+    await render(fixture);
+
+    expect(host.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Roboto', sans-serif");
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#0a0a0a');
+    expect(host.style.getPropertyValue('--ep-text-secondary').trim()).toBe('#4a4a4a');
+  });
+
+  it('does not restyle provider-branded mock Google Pay mark font via visualStyle', async () => {
+    fixture.componentRef.setInput('methods', ['google-pay']);
+    fixture.componentRef.setInput('visualStyle', {
+      fontFamily: "'Courier New', monospace",
+      textColor: '#ff0000',
+    });
+    await render(fixture);
+
+    const gPayLabel = fixture.nativeElement.querySelector(
+      'easy-google-pay-button span',
+    ) as HTMLElement | null;
+    // Mock mode may show the mock panel CTA instead of the branded button for some flows;
+    // when the branded span is present it must keep Google's font, not the EP override.
+    if (gPayLabel) {
+      expect(gPayLabel.getAttribute('style') ?? '').toContain('Google Sans');
+      expect(getComputedStyle(gPayLabel).fontFamily.toLowerCase()).not.toContain('courier new');
+    }
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-font-family').trim()).toBe("'Courier New', monospace");
+  });
+
+  it('applies backgroundColor to the host and surfaceColor to the default shell', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#e2e8f0',
+      surfaceColor: '#fff7ed',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('#e2e8f0');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fff7ed');
+    expect(rgbCloseTo(getComputedStyle(host).backgroundColor, 226, 232, 240)).toBeTrue();
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    expect(rgbCloseTo(getComputedStyle(shell).backgroundColor, 255, 247, 237)).toBeTrue();
+  });
+
+  it('keeps transparent shell clear while surfaceColor still styles tiles', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: 'transparent',
+      surfaceColor: '#fef3c7',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('transparent');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fef3c7');
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    const shellBg = getComputedStyle(shell).backgroundColor;
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+
+    // Unselected tiles use --ep-surface; the selected tile uses accent-soft.
+    const tile = host.querySelector('button.ep-tile[aria-checked="false"]') as HTMLElement;
+    expect(tile).toBeTruthy();
+    expect(rgbCloseTo(getComputedStyle(tile).backgroundColor, 254, 243, 199)).toBeTrue();
+  });
+
+  it('applies accentColor to accent, focus, and soft tokens used by selected tiles', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', { accentColor: '#0b6e4f' });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-focus').trim()).toBe('#0b6e4f');
+    expect(host.style.getPropertyValue('--ep-accent-soft').trim()).toBe(
+      'color-mix(in srgb, #0b6e4f 14%, transparent)',
+    );
+
+    const selected = host.querySelector('button.ep-tile[aria-checked="true"]') as HTMLElement;
+    expect(selected).toBeTruthy();
+    expect(getComputedStyle(selected).borderColor.toLowerCase()).toContain('11, 110, 79');
+  });
+
+  it('applies borderRadius and spacing to the default shell without flattening md radius', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      borderRadius: '20px',
+      spacing: '24px',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-radius').trim()).toBe('20px');
+    expect(host.style.getPropertyValue('--ep-spacing').trim()).toBe('24px');
+    expect(host.style.getPropertyValue('--ep-radius-md')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-radius-md').trim()).toMatch(
+      /calc\(\s*20px\s*\*\s*0\.625\s*\)/,
+    );
+    expect(getComputedStyle(host).getPropertyValue('--ep-padding').trim()).toMatch(
+      /calc\(\s*24px\s*\*\s*1\.25\s*\)/,
+    );
+
+    const shell = host.querySelector('.ep-checkout') as HTMLElement;
+    const shellStyle = getComputedStyle(shell);
+    expect(shellStyle.borderRadius).toBe('20px');
+    expect(shellStyle.paddingTop).toBe('30px');
+    expect(shellStyle.rowGap || shellStyle.gap).toBe('24px');
+
+    const tile = host.querySelector('button.ep-tile') as HTMLElement;
+    expect(tile).toBeTruthy();
+    // 20px * 0.625 = 12.5px derived md radius on tiles.
+    expect(getComputedStyle(tile).borderRadius).toBe('12.5px');
+  });
+
+  it('updates and clears background/accent/radius/spacing dynamically', async () => {
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#ddeeff',
+      surfaceColor: '#ccddee',
+      accentColor: '#1122aa',
+      borderRadius: '8px',
+      spacing: '12px',
+    });
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ccddee');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#1122aa');
+
+    fixture.componentRef.setInput('theme', 'dark');
+    await render(fixture);
+    expect(host.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ccddee');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#1122aa');
+
+    fixture.componentRef.setInput('visualStyle', null);
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-background')).toBe('');
+    expect(host.style.getPropertyValue('--ep-surface')).toBe('');
+    expect(host.style.getPropertyValue('--ep-accent')).toBe('');
+    expect(host.style.getPropertyValue('--ep-radius')).toBe('');
+    expect(host.style.getPropertyValue('--ep-spacing')).toBe('');
+    expect(getComputedStyle(host).getPropertyValue('--ep-surface').trim().toLowerCase()).toBe(
+      '#111827',
+    );
+  });
+
+  it('does not leak visualStyle CSS variables between checkout instances', async () => {
+    const fixtureB = TestBed.createComponent(EasyPaymentsComponent);
+    fixtureB.componentRef.setInput('product', { ...SAMPLE_PRODUCT, id: 'other-plan' });
+    fixture.componentRef.setInput('methods', ['card']);
+    fixtureB.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('visualStyle', {
+      surfaceColor: '#ffeeee',
+      accentColor: '#aa0000',
+      borderRadius: '4px',
+    });
+    fixtureB.componentRef.setInput('visualStyle', {
+      surfaceColor: '#eeffee',
+      accentColor: '#00aa00',
+      borderRadius: '24px',
+    });
+    await render(fixture);
+    await render(fixtureB);
+
+    const hostA = fixture.nativeElement as HTMLElement;
+    const hostB = fixtureB.nativeElement as HTMLElement;
+    expect(hostA.style.getPropertyValue('--ep-surface').trim()).toBe('#ffeeee');
+    expect(hostB.style.getPropertyValue('--ep-surface').trim()).toBe('#eeffee');
+    expect(hostA.style.getPropertyValue('--ep-accent').trim()).toBe('#aa0000');
+    expect(hostB.style.getPropertyValue('--ep-accent').trim()).toBe('#00aa00');
+    expect(hostA.style.getPropertyValue('--ep-radius').trim()).toBe('4px');
+    expect(hostB.style.getPropertyValue('--ep-radius').trim()).toBe('24px');
+  });
+
+  it('emits developer-only contrast warnings without changing colors or buyer UI', async () => {
+    if (!isDevMode()) {
+      pending('development diagnostics are disabled outside dev mode');
+      return;
+    }
+
+    const warn = spyOn(console, 'warn');
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#dddddd',
+      surfaceColor: '#ffffff',
+    });
+    await render(fixture);
+
+    expect(warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast'))).toBeTrue();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-text').trim()).toBe('#dddddd');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ffffff');
+    expect(host.textContent).not.toContain('Low contrast');
+    expect(host.textContent).not.toContain('WCAG');
+    expect(host.textContent).not.toContain('Recommended minimum');
+
+    warn.calls.reset();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(
+      warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast')),
+    ).toBeFalse();
+  });
+
+  it('re-checks contrast when theme or visualStyle changes and skips unknown transparent hosts', async () => {
+    if (!isDevMode()) {
+      pending('development diagnostics are disabled outside dev mode');
+      return;
+    }
+
+    const warn = spyOn(console, 'warn');
+    const info = spyOn(console, 'info');
+    fixture.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#000000',
+      backgroundColor: 'transparent',
+    });
+    await render(fixture);
+
+    expect(
+      info.calls.allArgs().some((args) => String(args[0]).includes('Contrast check skipped')),
+    ).toBeTrue();
+
+    fixture.componentRef.setInput('appearance', 'default');
+    fixture.componentRef.setInput('visualStyle', {
+      textColor: '#eeeeee',
+      surfaceColor: '#ffffff',
+    });
+    await render(fixture);
+    expect(warn.calls.allArgs().some((args) => String(args[0]).includes('Low contrast'))).toBeTrue();
+  });
+
+  it('keeps independent themes for concurrent checkout instances', async () => {
+    const fixtureB = TestBed.createComponent(EasyPaymentsComponent);
+    fixtureB.componentRef.setInput('product', { ...SAMPLE_PRODUCT, id: 'other-plan' });
+    fixture.componentRef.setInput('methods', ['card']);
+    fixtureB.componentRef.setInput('methods', ['card']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixtureB.componentRef.setInput('theme', 'dark');
+    fixture.componentRef.setInput('visualStyle', { accentColor: '#1111aa' });
+    fixtureB.componentRef.setInput('visualStyle', { accentColor: '#11aa11' });
+    await render(fixture);
+    await render(fixtureB);
+
+    const hostA = fixture.nativeElement as HTMLElement;
+    const hostB = fixtureB.nativeElement as HTMLElement;
+    expect(hostA.classList.contains('ep-theme-light')).toBeTrue();
+    expect(hostB.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(hostA.getAttribute('data-theme')).toBe('light');
+    expect(hostB.getAttribute('data-theme')).toBe('dark');
+    expect(fixture.componentInstance.resolvedTheme()).toBe('light');
+    expect(fixtureB.componentInstance.resolvedTheme()).toBe('dark');
+    expect(hostA.style.getPropertyValue('--ep-accent').trim()).toBe('#1111aa');
+    expect(hostB.style.getPropertyValue('--ep-accent').trim()).toBe('#11aa11');
+  });
+
+  it('preserves transparent shell painting rules with optional background/surface overrides', async () => {
+    fixture.componentRef.setInput('methods', ['card', 'paypal']);
+    fixture.componentRef.setInput('theme', 'light');
+    fixture.componentRef.setInput('appearance', 'transparent');
+    await render(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    let shell = host.querySelector('.ep-checkout') as HTMLElement;
+    let shellBg = getComputedStyle(shell).backgroundColor;
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+
+    fixture.componentRef.setInput('visualStyle', {
+      backgroundColor: '#e2e8f0',
+      surfaceColor: 'transparent',
+    });
+    await render(fixture);
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('#e2e8f0');
+    expect(rgbCloseTo(getComputedStyle(host).backgroundColor, 226, 232, 240)).toBeTrue();
+    shell = host.querySelector('.ep-checkout') as HTMLElement;
+    shellBg = getComputedStyle(shell).backgroundColor;
+    // Transparent appearance still clears the shell fill even when surface token is set.
+    expect(shellBg === 'rgba(0, 0, 0, 0)' || shellBg === 'transparent').toBeTrue();
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('transparent');
+  });
+
+
+
+
+
 
   it('keeps selected and unselected tiles the same size', async () => {
     fixture.componentRef.setInput('methods', ['card', 'paypal']);

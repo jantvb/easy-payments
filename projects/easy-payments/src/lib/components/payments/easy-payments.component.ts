@@ -26,6 +26,7 @@ import {
   ResolvedPaymentTheme,
 } from '../../models';
 import type { EasyPaymentsAppearance } from '../../models/easy-payments-appearance.model';
+import type { EasyPaymentsVisualStyle } from '../../models/easy-payments-visual-style.model';
 import { PaymentError, normalizeError } from '../../errors/payment-error';
 import {
   isIsolatedProviderFailure,
@@ -34,6 +35,11 @@ import {
 import { appendMetadataSessionPart } from '../../metadata/merchant-metadata';
 import { PaymentOrchestratorService } from '../../services/payment-orchestrator.service';
 import { ThemeService } from '../../themes/theme.service';
+import { resolveVisualStyleCssVars } from '../../themes/resolve-visual-style';
+import {
+  evaluateVisualStyleContrast,
+  VisualStyleContrastWarningTracker,
+} from '../../themes/visual-style-contrast';
 import { StripeCardPaymentComponent } from '../payment-methods/stripe-card-payment.component';
 import { PayPalPaymentComponent } from '../payment-methods/paypal-payment.component';
 import { GooglePayPaymentComponent } from '../payment-methods/google-pay-payment.component';
@@ -90,11 +96,26 @@ import {
     '[attr.data-locale]': 'effectiveLocale()',
     '[attr.lang]': 'effectiveLocale()',
     '[style.--ep-checkout-max-width]': 'checkoutMaxWidthCss()',
+    '[style.--ep-font-family]': 'visualStyleCssVars().fontFamily',
+    '[style.--ep-text]': 'visualStyleCssVars().textColor',
+    '[style.--ep-text-secondary]': 'visualStyleCssVars().textSecondaryColor',
+    '[style.--ep-background]': 'visualStyleCssVars().backgroundColor',
+    '[style.--ep-surface]': 'visualStyleCssVars().surfaceColor',
+    '[style.--ep-accent]': 'visualStyleCssVars().accentColor',
+    '[style.--ep-accent-soft]': 'visualStyleCssVars().accentSoft',
+    '[style.--ep-focus]': 'visualStyleCssVars().accentColor',
+    '[style.--ep-radius]': 'visualStyleCssVars().borderRadius',
+    '[style.--ep-spacing]': 'visualStyleCssVars().spacing',
     '[style.max-width.px]': 'effectiveMaxWidth()',
     role: 'region',
     '[attr.aria-label]': 'checkoutAriaLabel()',
   },
-  providers: [EasyPaymentsI18nService],
+  /**
+   * Per-checkout ThemeService so concurrent <easy-payments> instances can use
+   * independent light/dark/system themes. PaymentOrchestratorService stays root
+   * and receives the resolved theme explicitly from refreshAvailability calls.
+   */
+  providers: [EasyPaymentsI18nService, ThemeService],
 })
 export class EasyPaymentsComponent {
   private readonly orchestrator = inject(PaymentOrchestratorService);
@@ -108,6 +129,8 @@ export class EasyPaymentsComponent {
   /** True while this component owns the availability ECE mount (Minimal-style host). */
   private applePayBootstrapOwned = false;
   private applePayBootstrapGeneration = 0;
+  /** Per-instance contrast warning dedupe (dev console only; never buyer-facing). */
+  private readonly contrastWarnings = new VisualStyleContrastWarningTracker();
 
   private readonly applePayBootstrapHost =
     viewChild<ElementRef<HTMLElement>>('applePayBootstrapHost');
@@ -121,6 +144,13 @@ export class EasyPaymentsComponent {
    * `transparent` removes it so a merchant parent background shows through.
    */
   readonly appearance = input<EasyPaymentsAppearance>('default');
+  /**
+   * Optional Easy Payments–owned visual overrides (font, text/surface colors,
+   * accent, radius, spacing). Independent of `theme` and `appearance`.
+   * Invalid or omitted fields leave built-in tokens unchanged. Does not restyle
+   * official provider SDK buttons or marks.
+   */
+  readonly visualStyle = input<EasyPaymentsVisualStyle | null>(null);
   /**
    * Maximum checkout width in pixels. The component stays fluid (`width: 100%`)
    * up to this cap. Values are clamped to library-safe limits (320–1200).
@@ -176,6 +206,9 @@ export class EasyPaymentsComponent {
   /** Clamped max-width applied to the host (and used by container queries). */
   readonly effectiveMaxWidth = computed(() => resolveCheckoutMaxWidth(this.maxWidth()));
   readonly checkoutMaxWidthCss = computed(() => `${this.effectiveMaxWidth()}px`);
+
+  /** Sanitized host CSS variable overrides from `[visualStyle]` (null = use SCSS defaults). */
+  readonly visualStyleCssVars = computed(() => resolveVisualStyleCssVars(this.visualStyle()));
 
   readonly selectedMethod = signal<PaymentMethod | null>(null);
   private readonly processingMethod = signal<PaymentMethod | null>(null);
@@ -401,9 +434,11 @@ export class EasyPaymentsComponent {
         const product = untracked(() => this.product());
         const methods = untracked(() => this.methods());
         const checkout = untracked(() => this.checkout());
-        void this.orchestrator.refreshAvailability(methods, product, checkout).catch(() => {
-          // Availability refresh errors are non-fatal for checkout UI.
-        });
+        void this.orchestrator
+          .refreshAvailability(methods, product, checkout, this.resolvedTheme())
+          .catch(() => {
+            // Availability refresh errors are non-fatal for checkout UI.
+          });
       });
     });
 
@@ -424,6 +459,19 @@ export class EasyPaymentsComponent {
       this.themeService.setTheme(this.theme());
     });
 
+    // Developer-only contrast diagnostics for EP-owned colors. Never mutates
+    // colors, never blocks checkout, never touches provider SDK chrome.
+    effect(() => {
+      const style = this.visualStyle();
+      const appearance = this.appearance();
+      const theme = this.resolvedTheme();
+      untracked(() => {
+        this.contrastWarnings.report(
+          evaluateVisualStyleContrast({ theme, appearance, style }),
+        );
+      });
+    });
+
     effect(() => {
       this.i18n.setRequestedLocale(this.locale());
       this.i18n.setOverrides(this.translations());
@@ -442,11 +490,14 @@ export class EasyPaymentsComponent {
       const methods = this.methods();
       const checkout = this.checkout();
 
+      const theme = this.resolvedTheme();
       untracked(() => {
-        void this.orchestrator.refreshAvailability(methods, product, checkout).catch((err: unknown) => {
-          // Config/availability errors emit only — do not take over the checkout UI.
-          this.error.emit(normalizeError(err));
-        });
+        void this.orchestrator
+          .refreshAvailability(methods, product, checkout, theme)
+          .catch((err: unknown) => {
+            // Config/availability errors emit only — do not take over the checkout UI.
+            this.error.emit(normalizeError(err));
+          });
       });
     });
 

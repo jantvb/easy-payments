@@ -41,6 +41,129 @@ Use `transparent` to embed checkout inside a merchant modal or branded section.
 
 ---
 
+## Visual style
+
+Optional `[visualStyle]` overrides Easy Payments–**owned** look (font, text, backgrounds, accent, radius, spacing).
+Independent of `theme` and `appearance`. Omitted or invalid fields leave the built-in light/dark tokens unchanged.
+
+```ts
+visualStyle = {
+  fontFamily: 'inherit', // or "'Inter', system-ui, sans-serif" (host must load Inter)
+  textColor: '#0f172a',
+  textSecondaryColor: '#64748b',
+  backgroundColor: 'transparent',
+  surfaceColor: '#ffffff',
+  accentColor: '#0b6e4f',
+  borderRadius: '12px',
+  spacing: '16px',
+};
+```
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  theme="system"
+  appearance="default"
+  [visualStyle]="visualStyle"
+/>
+```
+
+### Fields → CSS variables
+
+| Field | Maps to | Notes |
+|-------|---------|--------|
+| `fontFamily` | `--ep-font-family` | Stack, `'inherit'`, or `var(--token)`. **Load custom fonts in the host app.** |
+| `textColor` | `--ep-text` | Primary EP-owned copy. |
+| `textSecondaryColor` | `--ep-text-secondary` | Muted EP-owned copy. |
+| `backgroundColor` | `--ep-background` | Host backdrop (`:host`). `'transparent'` is supported. |
+| `surfaceColor` | `--ep-surface` | Default shell card + tiles / solid EP panels. |
+| `accentColor` | `--ep-accent`, `--ep-focus`, derived `--ep-accent-soft` | Selection / focus. Not logos or provider SDKs. |
+| `borderRadius` | `--ep-radius` | Outer radius. `--ep-radius-md` stays `calc(var(--ep-radius) * 0.625)`. |
+| `spacing` | `--ep-spacing` | Stack gap. Shell padding uses `--ep-padding` (`calc(var(--ep-spacing) * 1.25)`). |
+
+### Precedence (actual cascade)
+
+1. **Theme** (`light` / `dark` / `system`) sets default `--ep-*` values in the component stylesheet (`:host` / `:host(.ep-theme-dark)`).
+2. **Consumer stylesheet** rules targeting `easy-payments { --ep-*: … }` can override those stylesheet defaults (same element; source order / specificity apply).
+3. **`[visualStyle]`** writes matching tokens as **inline** custom properties on the host. Inline values override stylesheet rules for the same token.
+4. **`appearance="transparent"`** does not clear tokens; it forces the **`.ep-checkout` shell** to `background: transparent` (and removes chrome). Tiles/panels still use `--ep-surface`. Host fill still uses `--ep-background`.
+
+If the same token is set by both `[visualStyle]` and an inline `style` / `[style.--ep-*]` on the host, prefer a single mechanism — competing inline declarations are order-dependent.
+
+Transparent shell + custom surface example (parent shows through; tiles stay readable):
+
+```html
+<easy-payments
+  appearance="transparent"
+  [visualStyle]="{ surfaceColor: '#f8fafc', accentColor: '#2563eb' }"
+  [product]="product"
+  [methods]="methods"
+/>
+```
+
+Each `<easy-payments>` instance resolves its own `theme` (component-scoped theme service). `[visualStyle]` overrides are always instance-local.
+
+### Public CSS token contract (EP-owned)
+
+**Supported customization points** (via `[visualStyle]` and/or CSS on `<easy-payments>`):
+
+| Token | Purpose |
+|-------|---------|
+| `--ep-font-family` | EP-owned typography |
+| `--ep-text` / `--ep-text-secondary` | Primary / muted text |
+| `--ep-background` | Host backdrop |
+| `--ep-surface` | Solid surfaces (shell when `appearance=default`, tiles, panels) |
+| `--ep-accent` / `--ep-focus` / `--ep-accent-soft` | Interactive accent |
+| `--ep-radius` | Outer radius (`--ep-radius-md` derived) |
+| `--ep-spacing` | Vertical stack gap (`--ep-padding` / `--ep-spacing-sm` derived) |
+| `--ep-checkout-max-width` | From `[maxWidth]` |
+
+**Internal / theme-managed** (override with care; not first-class `visualStyle` fields): `--ep-surface-muted`, `--ep-surface-hover`, `--ep-border*`, `--ep-shadow*`, `--ep-cta-*`, `--ep-success`, `--ep-danger`, `--ep-demo-*`, legacy aliases (`--ep-bg`, `--ep-focus-color`, …).
+
+**Limits**
+
+- Does **not** restyle Stripe Payment Element / iframes, PayPal Buttons, Apple Pay / Google Pay sheets, or provider logos/marks.
+- Success / error colors stay on `--ep-success` / `--ep-danger`.
+- Invalid values are ignored; checkout is not blocked.
+
+### Developer-only contrast warnings
+
+In **Angular development mode**, Easy Payments evaluates a small set of Easy Payments–owned text/surface/accent/focus pairs and may `console.warn` when contrast is below WCAG AA reference thresholds:
+
+| Pair type | Threshold |
+|-----------|-----------|
+| Normal text (titles, body, secondary copy, accent-as-text) | **4.5:1** |
+| Non-text UI (focus ring vs surface/host backdrop) | **3:1** |
+
+Warnings include the property pair, colors, calculated ratio, and recommended minimum. They:
+
+- Appear in the **developer console only** (never in buyer checkout UI)
+- **Never** auto-correct or mutate merchant colors
+- **Never** block initialization, provider readiness, or payments
+- Are **not** a full WCAG audit or compliance certificate
+- Do **not** inspect provider SDK chrome
+
+**Transparent / unknown backgrounds:** Easy Payments does **not** guess the underlying page color.
+
+- `appearance="transparent"` + transparent/unknown host `backgroundColor` → **skip** chrome text-vs-host checks (`console.info`).
+- Opaque `surfaceColor` is still evaluated for **tile/panel** text (the shell is not treated as painted).
+- `surfaceColor: 'transparent'` under `appearance="default"` → skip shell text-vs-surface (underlay unknown).
+
+Deliberately low-contrast example (expect a console warning in dev):
+
+```html
+<easy-payments
+  [product]="product"
+  [methods]="methods"
+  appearance="default"
+  [visualStyle]="{ textColor: '#cccccc', surfaceColor: '#ffffff' }"
+/>
+```
+
+---
+
+
 ## Max width
 
 ```html

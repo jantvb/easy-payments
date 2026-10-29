@@ -4,6 +4,7 @@ export * from './checkout-options.model';
 export * from './payment-result.model';
 export * from './payment-theme.model';
 export * from './easy-payments-appearance.model';
+export * from './easy-payments-visual-style.model';
 export * from './payment-context.model';
 export * from './payment-request.model';
 export * from './create-payment.model';

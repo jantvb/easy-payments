@@ -107,6 +107,7 @@ import { CheckoutViewState, formatTransactionReference } from './checkout-view-s
     `
       :host {
         display: block;
+        font-family: var(--ep-font-family, inherit);
       }
 
       .ep-outcome {

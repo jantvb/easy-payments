@@ -1,6 +1,7 @@
 :host {
   display: block;
   width: 100%;
+  font-family: var(--ep-font-family, inherit);
 }
 
 .ep-button {
@@ -12,7 +13,7 @@
   padding: 0 16px;
   border: none;
   border-radius: 8px;
-  font-family: inherit;
+  font-family: var(--ep-font-family, inherit);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;

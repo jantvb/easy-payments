@@ -304,6 +304,88 @@
         }
       </section>
 
+      <section data-testid="phase3-visual-qa" aria-label="Phase 3 visual customization QA">
+        <h2>Visual style (Phase 3 QA)</h2>
+        <p class="hint">
+          Demo-only harness for <code>[visualStyle]</code>. Live-updates the checkout on the right.
+          See <code>docs/phase-3-visual-qa.md</code> for the manual checklist.
+        </p>
+
+        <h3 class="subheading">Presets</h3>
+        <fieldset class="choice-group choice-group--stack">
+          <legend class="visually-hidden">Visual style presets</legend>
+          @for (preset of visualQaPresets; track preset.id) {
+            <label class="choice">
+              <input
+                type="radio"
+                name="visual-qa-preset"
+                [value]="preset.id"
+                [checked]="visualQaPresetId() === preset.id"
+                (change)="applyVisualQaPreset(preset.id)"
+              />
+              <span>
+                {{ preset.label }}
+                <span class="choice-note">{{ preset.description }}</span>
+              </span>
+            </label>
+          }
+        </fieldset>
+        @if (visualQaPresetId() === 'custom') {
+          <p class="hint">Custom edits — preset selection cleared.</p>
+        }
+        @if (visualQaPresetId() === 'low-contrast') {
+          <p class="mode-warning" role="status">
+            Low-contrast preset: open DevTools → Console. Expect developer-only
+            <code>[Easy Payments] Low contrast…</code> warnings in <code>ng serve</code>
+            (Angular dev mode). Nothing is shown inside the buyer checkout UI.
+          </p>
+        }
+
+        <h3 class="subheading">Fields</h3>
+        @for (field of visualStyleFields; track field.key) {
+          <label class="field">
+            <span>{{ field.label }}</span>
+            <input
+              type="text"
+              [attr.data-testid]="'visual-style-' + field.key"
+              [placeholder]="field.placeholder"
+              [value]="visualStyleFieldValue(field.key)"
+              (input)="updateVisualStyleField(field.key, $any($event.target).value)"
+            />
+          </label>
+        }
+        <div class="action-row">
+          <button
+            type="button"
+            class="demo-action"
+            data-testid="visual-style-reset"
+            (click)="resetVisualStyle()"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+        <p class="hint">
+          Active style:
+          <code data-testid="visual-style-active">{{ visualStyleSummary() }}</code>
+        </p>
+
+        <h3 class="subheading">Multi-instance theme check</h3>
+        <p class="hint">
+          Off by default. When enabled, mounts a second pair of checkouts (light + dark) below
+          the primary preview. Themes should stay independent; payment sessions share one
+          orchestrator — use Demo Mode only for this check.
+        </p>
+        <label class="choice">
+          <input
+            type="checkbox"
+            data-testid="multi-instance-qa-toggle"
+            [checked]="showMultiInstanceQa()"
+            (change)="setShowMultiInstanceQa($any($event.target).checked)"
+          />
+          <span>Show dual-instance theme QA</span>
+        </label>
+      </section>
+
       <section>
         <h2>Checkout width</h2>
         <p class="hint">
@@ -446,6 +528,7 @@
               [methods]="methods()"
               [theme]="theme()"
               [appearance]="appearance()"
+              [visualStyle]="visualStyle()"
               [maxWidth]="checkoutMaxWidth()"
               [locale]="locale()"
               [translations]="customTranslations()"
@@ -455,9 +538,56 @@
               (error)="onPaymentError($event)"
               (methodChange)="onPaymentMethodChange($event)"
               (successContinue)="onSuccessContinue($event)"
-            />          }
+            />
+          }
         </div>
       </div>
+
+      @if (showMultiInstanceQa() && checkoutReady()) {
+        <section
+          class="multi-instance-qa"
+          data-testid="multi-instance-qa"
+          aria-label="Dual-instance theme QA"
+        >
+          <div class="preview-meta">
+            <div>
+              <p class="preview-kicker">Phase 3 QA</p>
+              <h2>Dual-instance themes</h2>
+            </div>
+            <p class="preview-chip preview-chip--demo">Demo Mode recommended</p>
+          </div>
+          <p class="hint">
+            Instance A = light, Instance B = dark. Confirm host classes and surfaces stay
+            independent. Prefer Demo Mode; avoid starting Real payments here.
+          </p>
+          <div class="multi-instance-qa__grid">
+            <div class="multi-instance-qa__pane">
+              <p class="multi-instance-qa__label">Instance A · light</p>
+              <easy-payments
+                [product]="product()"
+                [methods]="methods()"
+                theme="light"
+                appearance="default"
+                [visualStyle]="multiInstanceStyleA"
+                [maxWidth]="480"
+                [locale]="locale()"
+              />
+            </div>
+            <div class="multi-instance-qa__pane">
+              <p class="multi-instance-qa__label">Instance B · dark</p>
+              <easy-payments
+                [product]="product()"
+                [methods]="methods()"
+                theme="dark"
+                appearance="default"
+                [visualStyle]="multiInstanceStyleB"
+                [maxWidth]="480"
+                [locale]="locale()"
+              />
+            </div>
+          </div>
+        </section>
+      }
 
       <section class="event-log" aria-live="polite">
         <h2>Last event</h2>

@@ -43,6 +43,7 @@ import { getPaymentMethodPresentation } from '../../branding/payment-method-pres
         justify-content: center;
         width: 100%;
         color: inherit;
+        font-family: var(--ep-font-family, inherit);
       }
 
       /*

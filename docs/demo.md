@@ -15,6 +15,7 @@ Source: [`projects/demo`](../projects/demo)
 - Method enable/disable and **reorder**
 - Theme: light / dark / system
 - Appearance: default / transparent (+ preview backdrops)
+- Phase 3 **Visual style QA** (`[visualStyle]` fields, presets, dual-instance theme check) — see [phase-3-visual-qa.md](./phase-3-visual-qa.md)
 - `maxWidth` presets and slider (320–1200)
 - Success / cancel / error event log
 - **Demo Mode** (mocks) vs **Real / Test Providers**

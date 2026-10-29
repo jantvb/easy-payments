@@ -240,6 +240,112 @@ describe('App', () => {
     expect(host.style.maxWidth).toBe('1100px');
   });
 
+  it('exposes Phase 3 visualStyle QA controls and applies presets live', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    await settle(fixture);
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="phase3-visual-qa"]',
+    );
+    expect(panel).toBeTruthy();
+    expect(app.visualStyle()).toBeNull();
+    expect(app.showMultiInstanceQa()).toBeFalse();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="multi-instance-qa"]'),
+    ).toBeNull();
+
+    app.applyVisualQaPreset('custom-light');
+    fixture.detectChanges();
+
+    expect(app.theme()).toBe('light');
+    expect(app.appearance()).toBe('default');
+    expect(app.visualStyle()?.accentColor).toBe('#c2410c');
+    expect(app.visualStyleSummary()).toContain('#c2410c');
+
+    const host = fixture.nativeElement.querySelector('easy-payments') as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#c2410c');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#fff7ed');
+
+    app.applyVisualQaPreset('low-contrast');
+    fixture.detectChanges();
+    expect(app.visualQaPresetId()).toBe('low-contrast');
+    expect(app.visualStyle()?.textColor).toBe('#cccccc');
+    expect(panel?.textContent).toContain('DevTools');
+
+    app.resetVisualStyle();
+    fixture.detectChanges();
+    expect(app.visualStyle()).toBeNull();
+    expect(app.visualQaPresetId()).toBe('default');
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('');
+  });
+
+  it('applies transparent visual QA preset without clearing tile surface token', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    await settle(fixture);
+
+    app.applyVisualQaPreset('transparent');
+    fixture.detectChanges();
+
+    expect(app.appearance()).toBe('transparent');
+    expect(app.transparentPreviewBackdrop()).toBe('dark');
+    expect(app.visualStyle()?.backgroundColor).toBe('transparent');
+    expect(app.visualStyle()?.surfaceColor).toBe('#ffffff');
+
+    const host = fixture.nativeElement.querySelector('easy-payments') as HTMLElement;
+    expect(host.classList.contains('ep-appearance-transparent')).toBeTrue();
+    expect(host.style.getPropertyValue('--ep-background').trim()).toBe('transparent');
+    expect(host.style.getPropertyValue('--ep-surface').trim()).toBe('#ffffff');
+  });
+
+  it('mounts dual-instance theme QA only when enabled', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    await settle(fixture);
+
+    expect(fixture.nativeElement.querySelectorAll('easy-payments').length).toBe(1);
+
+    app.setShowMultiInstanceQa(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const section = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="multi-instance-qa"]',
+    );
+    expect(section).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('easy-payments').length).toBe(3);
+
+    const [primary, instanceA, instanceB] = Array.from(
+      fixture.nativeElement.querySelectorAll('easy-payments') as NodeListOf<HTMLElement>,
+    );
+    expect(instanceA.classList.contains('ep-theme-dark')).toBeFalse();
+    expect(instanceB.classList.contains('ep-theme-dark')).toBeTrue();
+    expect(instanceA.style.getPropertyValue('--ep-accent').trim()).toBe('#2563eb');
+    expect(instanceB.style.getPropertyValue('--ep-accent').trim()).toBe('#34d399');
+    expect(primary).toBeTruthy();
+
+    app.setShowMultiInstanceQa(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('easy-payments').length).toBe(1);
+  });
+
+  it('marks field edits as a custom visual QA preset', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    await settle(fixture);
+
+    app.updateVisualStyleField('accentColor', '#1111aa');
+    fixture.detectChanges();
+
+    expect(app.visualQaPresetId()).toBe('custom');
+    expect(app.visualStyle()).toEqual({ accentColor: '#1111aa' });
+
+    const host = fixture.nativeElement.querySelector('easy-payments') as HTMLElement;
+    expect(host.style.getPropertyValue('--ep-accent').trim()).toBe('#1111aa');
+  });
+
   it('keeps product pricing editable in Real mode', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;

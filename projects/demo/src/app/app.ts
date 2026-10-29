@@ -20,6 +20,7 @@ import {
   type EasyPaymentsAppearance,
   type EasyPaymentsLocale,
   type EasyPaymentsTranslationOverrides,
+  type EasyPaymentsVisualStyle,
   resolveEffectiveLocale,
 } from '@easy-payments/angular';
 import { environment } from '../environments/environment';
@@ -73,6 +74,112 @@ const DEFAULT_METHODS: MethodRow[] = [
   { method: 'affirm', enabled: true },
 ];
 
+/** Phase 3 visual QA — demo-only presets (not production merchant UI). */
+type VisualQaPresetId =
+  | 'default'
+  | 'custom-dark'
+  | 'custom-light'
+  | 'transparent'
+  | 'low-contrast';
+
+interface VisualQaPreset {
+  readonly id: VisualQaPresetId;
+  readonly label: string;
+  readonly description: string;
+  readonly theme: PaymentTheme;
+  readonly appearance: EasyPaymentsAppearance;
+  readonly transparentPreviewBackdrop?: TransparentPreviewBackdrop;
+  readonly visualStyle: EasyPaymentsVisualStyle | null;
+}
+
+const VISUAL_QA_PRESETS: readonly VisualQaPreset[] = [
+  {
+    id: 'default',
+    label: 'Default checkout',
+    description: 'Library defaults — visualStyle null.',
+    theme: 'system',
+    appearance: 'default',
+    visualStyle: null,
+  },
+  {
+    id: 'custom-dark',
+    label: 'Custom dark checkout',
+    description: 'Dark theme + branded surface/accent.',
+    theme: 'dark',
+    appearance: 'default',
+    visualStyle: {
+      fontFamily: 'Georgia, "Times New Roman", serif',
+      textColor: '#f8fafc',
+      textSecondaryColor: '#94a3b8',
+      backgroundColor: 'transparent',
+      surfaceColor: '#0b1220',
+      accentColor: '#34d399',
+      borderRadius: '18px',
+      spacing: '14px',
+    },
+  },
+  {
+    id: 'custom-light',
+    label: 'Custom light checkout',
+    description: 'Light theme + warm brand tokens.',
+    theme: 'light',
+    appearance: 'default',
+    visualStyle: {
+      fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+      textColor: '#1c1917',
+      textSecondaryColor: '#78716c',
+      backgroundColor: 'transparent',
+      surfaceColor: '#fff7ed',
+      accentColor: '#c2410c',
+      borderRadius: '8px',
+      spacing: '10px',
+    },
+  },
+  {
+    id: 'transparent',
+    label: 'Transparent checkout',
+    description: 'Shell clear; tiles keep a solid surface.',
+    theme: 'light',
+    appearance: 'transparent',
+    transparentPreviewBackdrop: 'dark',
+    visualStyle: {
+      backgroundColor: 'transparent',
+      surfaceColor: '#ffffff',
+      accentColor: '#2563eb',
+      borderRadius: '12px',
+      spacing: '12px',
+    },
+  },
+  {
+    id: 'low-contrast',
+    label: 'Low-contrast (diagnostics)',
+    description: 'DevTools console should warn in ng serve (dev mode).',
+    theme: 'light',
+    appearance: 'default',
+    visualStyle: {
+      textColor: '#cccccc',
+      textSecondaryColor: '#dddddd',
+      surfaceColor: '#ffffff',
+      accentColor: '#e2e8f0',
+    },
+  },
+];
+
+const VISUAL_STYLE_FIELDS: readonly {
+  readonly key: keyof EasyPaymentsVisualStyle;
+  readonly label: string;
+  readonly placeholder: string;
+}[] = [
+  { key: 'fontFamily', label: 'fontFamily', placeholder: 'e.g. Georgia, serif' },
+  { key: 'textColor', label: 'textColor', placeholder: '#0f172a' },
+  { key: 'textSecondaryColor', label: 'textSecondaryColor', placeholder: '#64748b' },
+  { key: 'backgroundColor', label: 'backgroundColor', placeholder: 'transparent' },
+  { key: 'surfaceColor', label: 'surfaceColor', placeholder: '#ffffff' },
+  { key: 'accentColor', label: 'accentColor', placeholder: '#2563eb' },
+  { key: 'borderRadius', label: 'borderRadius', placeholder: '12px' },
+  { key: 'spacing', label: 'spacing', placeholder: '12px' },
+];
+
 @Component({
   selector: 'app-root',
   imports: [EasyPaymentsComponent],
@@ -103,6 +210,27 @@ export class App {
   readonly customTranslations = signal<EasyPaymentsTranslationOverrides>({});
   /** Demo-only: parent backdrop so transparent appearance is visible. */
   readonly transparentPreviewBackdrop = signal<TransparentPreviewBackdrop>('light');
+  /**
+   * Phase 3 visual QA: live `[visualStyle]` bound to the primary checkout.
+   * `null` restores library theme defaults.
+   */
+  readonly visualStyle = signal<EasyPaymentsVisualStyle | null>(null);
+  readonly visualQaPresetId = signal<VisualQaPresetId | 'custom'>('default');
+  readonly visualStyleFields = VISUAL_STYLE_FIELDS;
+  readonly visualQaPresets = VISUAL_QA_PRESETS;
+  readonly visualStyleSummary = computed(() => {
+    const style = this.visualStyle();
+    return style === null ? 'null (theme defaults)' : JSON.stringify(style);
+  });
+  /**
+   * Optional dual-instance theme independence check. Off by default — a second
+   * mounted checkout shares the root orchestrator and can interfere with primary
+   * payment-session QA.
+   */
+  readonly showMultiInstanceQa = signal(false);
+  /** Stable visualStyle objects for dual-instance QA (avoid per-CD object literals). */
+  readonly multiInstanceStyleA: EasyPaymentsVisualStyle = { accentColor: '#2563eb' };
+  readonly multiInstanceStyleB: EasyPaymentsVisualStyle = { accentColor: '#34d399' };
   /** Demo-only control for <easy-payments [maxWidth]>. */
   readonly checkoutMaxWidth = signal(640);
   readonly methodRows = signal<MethodRow[]>(DEFAULT_METHODS.map((row) => ({ ...row })));
@@ -252,6 +380,50 @@ export class App {
 
   setTransparentPreviewBackdrop(backdrop: TransparentPreviewBackdrop): void {
     this.transparentPreviewBackdrop.set(backdrop);
+  }
+
+  visualStyleFieldValue(key: keyof EasyPaymentsVisualStyle): string {
+    return this.visualStyle()?.[key] ?? '';
+  }
+
+  updateVisualStyleField(key: keyof EasyPaymentsVisualStyle, raw: string): void {
+    const value = raw.trim();
+    this.visualQaPresetId.set('custom');
+    this.visualStyle.update((current) => {
+      const next: EasyPaymentsVisualStyle = { ...(current ?? {}) };
+      if (!value) {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return Object.keys(next).length === 0 ? null : next;
+    });
+  }
+
+  resetVisualStyle(): void {
+    this.visualStyle.set(null);
+    this.visualQaPresetId.set('default');
+    this.theme.set('system');
+    this.appearance.set('default');
+    this.transparentPreviewBackdrop.set('light');
+  }
+
+  applyVisualQaPreset(presetId: VisualQaPresetId): void {
+    const preset = VISUAL_QA_PRESETS.find((entry) => entry.id === presetId);
+    if (!preset) {
+      return;
+    }
+    this.visualQaPresetId.set(preset.id);
+    this.theme.set(preset.theme);
+    this.appearance.set(preset.appearance);
+    this.visualStyle.set(preset.visualStyle ? { ...preset.visualStyle } : null);
+    if (preset.transparentPreviewBackdrop) {
+      this.transparentPreviewBackdrop.set(preset.transparentPreviewBackdrop);
+    }
+  }
+
+  setShowMultiInstanceQa(enabled: boolean): void {
+    this.showMultiInstanceQa.set(enabled);
   }
 
   setCheckoutMaxWidth(value: number | string): void {

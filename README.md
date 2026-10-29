@@ -31,6 +31,8 @@ npm install @easy-payments/angular @stripe/stripe-js
   <a href="docs/api.md">API</a> ·
   <a href="docs/payment-flow.md">Payment flow</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
+  <a href="#visual-customization">Visual style</a> ·
+  <a href="#provider-isolation--diagnostics">Diagnostics</a> ·
   <a href="projects/demo">Demo source</a> ·
   <a href="https://github.com/jantvb/easy-payments/issues">Issues</a>
 </p>
@@ -155,9 +157,9 @@ Full states (redirects, `successBehavior`, events): **[docs/payment-flow.md](doc
 
 ## What Easy Payments is / is not
 
-**Is:** Angular payment integration library · unified checkout UI · provider abstraction · normalized events/errors · built-in UI localization  
+**Is:** Angular payment integration library · unified checkout UI · per-method provider abstraction · normalized payment events/errors · developer readiness diagnostics · built-in UI localization (`en` / `es` / `pt`) · Easy Payments–owned visual customization (`theme`, `appearance`, `[visualStyle]`)
 
-**Is not:** a payment processor · bank · merchant of record · Stripe/PayPal replacement · trusted pricing backend · a currency converter  
+**Is not:** a payment processor · bank · merchant of record · Stripe/PayPal replacement · trusted pricing backend · a currency converter · a headless-only checkout API · ACH or other unfinished roadmap methods
 
 Money settles to **your** Stripe / PayPal (and related) merchant accounts.
 
@@ -327,9 +329,11 @@ import { Component } from '@angular/core';
 import {
   EasyPaymentsComponent,
   PaymentError,
-  PaymentMethod,
-  PaymentProduct,
-  PaymentResult,
+  type PaymentMethod,
+  type PaymentMethodChangeEvent,
+  type PaymentProduct,
+  type PaymentResult,
+  type PaymentStartedEvent,
 } from '@easy-payments/angular';
 
 @Component({
@@ -345,6 +349,11 @@ export class AppComponent {
     amount: 99, // major units: 99 = $99.00 USD (not cents)
     currency: 'USD',
     quantity: 1,
+    // Optional merchant reference data (not secrets / PII). See docs/api.md#merchant-metadata
+    metadata: {
+      orderId: 'ORDER-12345',
+      customerReference: 'CUSTOMER-789',
+    },
   };
 
   readonly methods: PaymentMethod[] = [
@@ -355,6 +364,14 @@ export class AppComponent {
     'klarna',
     'affirm',
   ];
+
+  onStarted(event: PaymentStartedEvent): void {
+    console.log('started', event.method, event.provider);
+  }
+
+  onMethodChange(event: PaymentMethodChangeEvent): void {
+    console.log('methodChange', event.previousMethod, '→', event.method);
+  }
 
   onSuccess(result: PaymentResult): void {
     console.log('paid', result);
@@ -390,6 +407,8 @@ export class AppComponent {
   appearance="default"
   [maxWidth]="640"
   locale="auto"
+  (started)="onStarted($event)"
+  (methodChange)="onMethodChange($event)"
   (success)="onSuccess($event)"
   (cancel)="onCancel($event)"
   (error)="onError($event)"
@@ -397,7 +416,7 @@ export class AppComponent {
 />
 ```
 
-Outputs are **`success`**, **`cancel`**, **`error`**, and **`successContinue`**. There is no `cancelled` output — use `(cancel)`.
+Lifecycle outputs: **`started`**, **`methodChange`**, **`success`**, **`cancel`**, **`error`**, **`successContinue`**. There is no `cancelled` output — use `(cancel)`.
 
 The `methods` array is both the allow-list and the visual order. No separate `order` input.
 
@@ -453,10 +472,12 @@ Locale changes **how** amounts are displayed (`Intl` number/currency formatting)
 | Symptom | Fix |
 |---------|-----|
 | `'easy-payments' is not a known element` | Import `EasyPaymentsComponent` in the host component's `imports` array (standalone). Ensure `provideEasyPayments(...)` is in `app.config.ts`. |
-| No payment methods appear | Configure the matching `providers` + backend URLs, and include those methods in `[methods]`. |
-| Stripe / wallets fail in production | Use live publishable keys server-side secrets, HTTPS, and Stripe Payment Method Domains for wallets. |
+| No payment methods appear | Configure the matching `providers` + backend URLs, and include those methods in `[methods]`. Inspect `EasyPaymentsDiagnosticsService` readiness. |
+| Only some methods missing | Expected under provider isolation — fix that provider’s config, then `reinitialize()` + refresh availability. |
+| Stripe / wallets fail in production | Use live publishable keys, server-side secrets, HTTPS, and Stripe Payment Method Domains for wallets. |
 | Wrong language | Set `locale` explicitly (`en` / `es` / `pt`) instead of `auto`, or check the browser language list. |
 | Amount looks like cents | Amounts are **major units** (`99` = $99.00), not Stripe-style cents. |
+| `visualStyle` did not change Stripe/PayPal UI | Expected — provider SDK chrome is out of scope. |
 
 Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
@@ -468,11 +489,12 @@ Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
 | Input | Type | Default | Notes |
 |-------|------|---------|-------|
-| `product` | `PaymentProduct` | — | **Required** (`id`, `name`, `amount`, `currency`; amount in major units) |
+| `product` | `PaymentProduct` | — | **Required** (`id`, `name`, `amount`, `currency`; amount in major units; optional `metadata`) |
 | `methods` | `PaymentMethod[]` | `['apple-pay','google-pay','paypal','card']` | Allow-list + order |
 | `checkout` | `CheckoutOptions` | — | Optional URLs / successBehavior / customer |
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | System follows OS and updates live |
 | `appearance` | `'default' \| 'transparent'` | `'default'` | Independent of theme |
+| `visualStyle` | `EasyPaymentsVisualStyle \| null` | `null` | Optional EP-owned font/color/token overrides |
 | `maxWidth` | `number \| string \| null` | `640` | Clamped **320–1200** |
 | `successBehavior` | `'confirmation' \| 'event-only'` | `'confirmation'` | Overridable via `checkout` |
 | `locale` | `'auto' \| 'en' \| 'es' \| 'pt'` | `'auto'` | UI locale |
@@ -480,6 +502,8 @@ Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
 | Output | Payload |
 |--------|---------|
+| `started` | `PaymentStartedEvent` |
+| `methodChange` | `PaymentMethodChangeEvent` |
 | `success` | `PaymentResult` |
 | `cancel` | `PaymentResult` |
 | `error` | `PaymentError` |
@@ -489,59 +513,114 @@ Complete reference: **[docs/api.md](docs/api.md)** · Localization: **[docs/loca
 
 ---
 
-## Diagnostics
+## Provider isolation & diagnostics
 
-Inject `EasyPaymentsDiagnosticsService` to read provider readiness. The checkout component already refreshes availability; this service projects that result.
+Availability is evaluated **per payment method**. A failure for one provider does not automatically disable unrelated methods.
+
+### Verified example: bad Stripe, good PayPal
+
+With a secret key (or otherwise invalid Stripe setup) and a valid PayPal Client ID + create/capture URLs:
+
+| Method | Typical readiness | Notes |
+|--------|-------------------|--------|
+| `card` | `misconfigured` | Stripe-owned |
+| `apple-pay` / `google-pay` / `klarna` / `affirm` | not `ready` | Stripe-dependent (`STRIPE_INITIALIZATION_FAILED` when Stripe init fails) |
+| `paypal` | `ready` | Independent of Stripe |
+
+The reverse is also true: a misconfigured PayPal method does not mark a correctly configured Stripe `card` method unavailable. Invalid or unsafe backend URLs for one provider stay off the diagnostics snapshot; the affected method reports `PROVIDER_MISCONFIGURED` (or related fixed codes). Development console may also emit `BACKEND_BASE_URL_INVALID` / `BACKEND_ENDPOINT_INVALID` without printing the raw URL.
+
+### How checkout communicates state
+
+| Layer | What buyers see | What developers inspect |
+|-------|-----------------|-------------------------|
+| Method tiles | Only methods that pass availability are usable | `EasyPaymentsDiagnosticsService` readiness per method |
+| Payment attempt | In-checkout processing / error / cancel UI | `(started)`, `(success)`, `(cancel)`, `(error)` |
+| Config / init | Not shown as diagnostics banners in the buyer UI | Dev console warnings + diagnostics snapshot |
+
+**Config/readiness failure** ≠ **payment failure**. Readiness comes from `refreshAvailability()` / diagnostics. A declined card or cancelled PayPal sheet is a payment outcome on `(error)` / `(cancel)` and does **not** rewrite diagnostics readiness by itself.
+
+### Recovery
+
+There is **no** background loop that auto-heals a misconfigured provider. After you fix config:
+
+1. `EasyPaymentsConfigService.replace(...)`
+2. `await PaymentOrchestratorService.reinitialize()`
+3. Let `<easy-payments>` refresh on its next input change, or call `refreshAvailability(...)` yourself (the demo does this after mode switches)
+
+Unavailable / misconfigured methods stay unavailable until a successful refresh. Buyers can continue with any method that is still `ready` (for example PayPal while Stripe is broken).
+
+### Public diagnostics API
+
+Inject `EasyPaymentsDiagnosticsService` anywhere `provideEasyPayments()` is registered. The checkout component already refreshes availability; this service projects that result.
 
 ```ts
 import { Component, inject } from '@angular/core';
-import { EasyPaymentsDiagnosticsService } from '@easy-payments/angular';
+import {
+  EasyPaymentsDiagnosticsService,
+  type EasyPaymentsDiagnosticsSnapshot,
+  type PaymentMethodDiagnostic,
+} from '@easy-payments/angular';
 
-@Component({ /* ... */ })
+@Component({
+  selector: 'app-checkout-status',
+  template: `
+    @if (!diagnostics().published) {
+      <p>Waiting for checkout availability.</p>
+    } @else {
+      @for (entry of diagnostics().methods; track entry.method) {
+        <p>{{ entry.method }} · {{ entry.provider }} · {{ entry.readiness }}</p>
+      }
+    }
+  `,
+})
 export class CheckoutStatusComponent {
   private readonly diagnosticsService = inject(EasyPaymentsDiagnosticsService);
+
+  /** Signal. Updates when availability is published or cleared. */
   readonly diagnostics = this.diagnosticsService.diagnostics;
 
-  logCard(): void {
-    const snapshot = this.diagnosticsService.snapshot();
+  logStatus(): void {
+    const snapshot: EasyPaymentsDiagnosticsSnapshot = this.diagnosticsService.snapshot();
+    const paypal: PaymentMethodDiagnostic | undefined = this.diagnosticsService.method('paypal');
     const card = this.diagnosticsService.method('card');
+
     if (card?.readiness === 'unavailable' || card?.readiness === 'misconfigured') {
-      console.info(card.code, card.message);
+      // Fixed developer text — safe to log. Prefer code over free-form messages elsewhere.
+      console.info('card', card.code, card.message);
+    }
+    if (paypal?.readiness === 'ready') {
+      console.info('PayPal remains available while other methods may be misconfigured.');
     }
     console.info(snapshot.published, snapshot.methods);
   }
 }
 ```
 
-`diagnostics` is a signal. `snapshot()` returns a frozen `EasyPaymentsDiagnosticsSnapshot`. `method()` returns one `PaymentMethodDiagnostic`.
-
 | `readiness` | Meaning |
 |-------------|---------|
 | `loading` | Still checking. Not ready. |
-| `ready` | Availability passed. |
-| `unavailable` | Not usable in this environment. |
+| `ready` | Availability passed (does not mean the browser SDK is already loaded). |
+| `unavailable` | Not usable in this environment / device. |
 | `misconfigured` | Configuration or initialization failed for that method. |
 
-`published` is `false` until the first `refreshAvailability()`, and again after `reinitialize()` until the next refresh. An empty list in that state is not a ready checkout. `code` is a stable `EasyPaymentsDiagnosticCode` from `EASY_PAYMENTS_DIAGNOSTIC_CODES` and is omitted when the method is ready. `message` is fixed developer text.
-
-A misconfigured Stripe method does not mark a configured PayPal method unavailable, and the reverse is also true. Invalid backend URLs stay off the snapshot; the affected method uses `PROVIDER_MISCONFIGURED`. `BACKEND_BASE_URL_INVALID` and `BACKEND_ENDPOINT_INVALID` are development-console codes.
+`published` is `false` until the first `refreshAvailability()`, and again after `reinitialize()` until the next refresh. An empty unpublished list is **not** a ready checkout. `code` is a stable `EasyPaymentsDiagnosticCode` from `EASY_PAYMENTS_DIAGNOSTIC_CODES` (omitted when ready). `message` is fixed developer text.
 
 Snapshots omit secret keys, client secrets, PaymentIntent secrets, authorization headers, tokens, and raw provider errors. The service does not read `window`, `document`, `navigator`, or `localStorage`. Apple Pay and Google Pay are not `ready` during server rendering.
 
-Calling `EasyPaymentsConfigService.replace()` does not refresh diagnostics by itself. Call `PaymentOrchestratorService.reinitialize()`, then let `<easy-payments>` refresh or call `refreshAvailability()` yourself.
-
-Full reference: **[docs/api.md](docs/api.md#diagnostics)**.
+Full reference: **[docs/api.md](docs/api.md#diagnostics)** · Security notes: **[docs/security.md](docs/security.md)**
 
 ---
 
 ## Payment events
 
-`<easy-payments>` keeps `success`, `cancel`, `error`, and `successContinue`. Two outputs are added:
-
 | Output | Payload | When |
 |--------|---------|------|
 | `started` | `PaymentStartedEvent` | A payment attempt begins. Not fired by selecting a tile. |
 | `methodChange` | `PaymentMethodChangeEvent` | The selected method changes. |
+| `success` | `PaymentResult` | Payment succeeded (PayPal after capture). |
+| `cancel` | `PaymentResult` | Customer cancelled. |
+| `error` | `PaymentError` | Payment or configuration failure during an attempt. |
+| `successContinue` | `PaymentResult` | Buyer continued after the confirmation view. |
 
 ```html
 <easy-payments
@@ -555,13 +634,91 @@ Full reference: **[docs/api.md](docs/api.md#diagnostics)**.
 />
 ```
 
-`PaymentStartedEvent` is `{ method, provider, amount, currency }`. Amount and currency are the checkout product input. `PaymentMethodChangeEvent` is `{ method, previousMethod, provider }`. `method` is null when no method remains selected.
+`PaymentStartedEvent` is `{ method, provider, amount, currency }` (checkout product amount/currency). `PaymentMethodChangeEvent` is `{ method, previousMethod, provider }` (`method` may be `null`).
 
 PayPal `success` is emitted after capture. Apple Pay `started` is emitted on wallet confirm. Klarna and Affirm do not emit `started` again when the browser returns from a redirect. A repeated click or duplicate callback does not emit a second `started` for the same attempt. Configuration failures use `error` and do not emit `cancel`.
 
-These events omit client secrets, secret keys, tokens, and raw provider responses. Log `PaymentError.code` rather than `message`. Diagnostics readiness is a separate API.
+These events omit client secrets, secret keys, tokens, and raw provider responses. Log `PaymentError.code` rather than `message`. Diagnostics readiness is a separate API. Frontend events are **not** fulfillment — use verified webhooks (or server retrieval) before shipping goods.
 
 Full reference: **[docs/api.md](docs/api.md#outputs)**.
+
+---
+
+## Visual customization
+
+Optional `[visualStyle]` customizes **Easy Payments–owned** UI only (shell, tiles, EP copy, accent/focus). It does **not** restyle Stripe Elements / iframes, PayPal Buttons, Apple Pay / Google Pay sheets, or provider logos.
+
+```ts
+import { Component } from '@angular/core';
+import {
+  EasyPaymentsComponent,
+  PaymentError,
+  type EasyPaymentsVisualStyle,
+  type PaymentMethod,
+  type PaymentProduct,
+  type PaymentResult,
+} from '@easy-payments/angular';
+
+@Component({
+  selector: 'app-branded-checkout',
+  imports: [EasyPaymentsComponent],
+  template: `
+    <easy-payments
+      [product]="product"
+      [methods]="methods"
+      theme="system"
+      appearance="default"
+      [visualStyle]="visualStyle"
+      (success)="onSuccess($event)"
+      (cancel)="onCancel($event)"
+      (error)="onError($event)"
+    />
+  `,
+})
+export class BrandedCheckoutComponent {
+  readonly product: PaymentProduct = {
+    id: 'premium-plan',
+    name: 'Premium Plan',
+    amount: 99,
+    currency: 'USD',
+  };
+
+  readonly methods: PaymentMethod[] = ['card', 'paypal'];
+
+  readonly visualStyle: EasyPaymentsVisualStyle = {
+    fontFamily: 'Georgia, "Times New Roman", serif', // load custom fonts in the host app
+    textColor: '#0f172a',
+    textSecondaryColor: '#64748b',
+    backgroundColor: 'transparent',
+    surfaceColor: '#ffffff',
+    accentColor: '#0b6e4f',
+    borderRadius: '12px',
+    spacing: '16px',
+  };
+
+  onSuccess(result: PaymentResult): void {
+    console.log(result);
+  }
+
+  onCancel(result: PaymentResult): void {
+    console.log(result);
+  }
+
+  onError(error: PaymentError): void {
+    console.error(error.code, error.message);
+  }
+}
+```
+
+| Concern | Behavior |
+|---------|----------|
+| `theme` | `light` / `dark` / `system` set built-in EP color tokens (`system` follows OS live). |
+| `appearance` | `default` paints the outer shell; `transparent` clears shell chrome so a merchant parent background shows through. Tiles still use `--ep-surface`. |
+| CSS tokens | `[visualStyle]` writes supported `--ep-*` values as **inline** host custom properties (they override stylesheet rules for the same token). Theme stylesheet → consumer CSS on `easy-payments` → `[visualStyle]` inline. Competing inline `style` vs `[visualStyle]` is order-dependent — use one mechanism. |
+| Contrast | In Angular **development** mode only, low-contrast EP-owned pairs may `console.warn`. Never shown in buyer UI, never mutates colors, never blocks payments. Not a full WCAG audit. Transparent/unknown backdrops are skipped rather than guessed. |
+| Reset | Set `[visualStyle]="null"` (or omit) to restore the active theme defaults. |
+
+Interactive playground controls (presets, field editors, dual-instance theme check): run the demo and open **Visual style (Phase 3 QA)**. Checklist: **[docs/phase-3-visual-qa.md](docs/phase-3-visual-qa.md)**. Full token contract: **[docs/configuration.md](docs/configuration.md#visual-style)** · **[docs/api.md](docs/api.md#visual-style)**.
 
 ---
 
@@ -594,7 +751,9 @@ A backend is required for secrets, trusted pricing, and captures.
 
 Any language works (NestJS, Express, .NET, Java, PHP, Python, Go, …) if it implements the [HTTP contract](docs/backend.md).
 
-This repo’s [`server/`](server) NestJS app is a **reference example**, not a production mandate.
+Optional `backend.baseUrl` prefixes relative endpoint paths (see Quick Start). Absolute `https://...` endpoints are left unchanged. One invalid endpoint does not disable an unrelated provider.
+
+This repo’s [`server/`](server) NestJS app is a **reference example**, not a production mandate. It also includes optional verified webhook receivers (`POST /api/webhooks/stripe`, `POST /api/webhooks/paypal`) for settlement experiments — see **[docs/backend.md — Webhooks](docs/backend.md#webhooks-reference)**. Angular `success` / `started` events are UX signals only; do not fulfill from them alone.
 
 ---
 
@@ -627,18 +786,19 @@ npm install
 npm run start:dev
 ```
 
-API: http://localhost:3000  
+API: http://localhost:3000
 
-More: [docs/demo.md](docs/demo.md)
+More: [docs/demo.md](docs/demo.md) · Phase 3 visual QA checklist: [docs/phase-3-visual-qa.md](docs/phase-3-visual-qa.md)
 
 ---
 
 ## Testing Payments
 
-- Stripe **Test** mode + test cards  
-- PayPal **Sandbox**  
-- Google Pay `environment: 'TEST'`  
-- Demo Mode in the playground (mocks — no real charges)  
+- Stripe **Test** mode + test cards
+- PayPal **Sandbox**
+- Google Pay `environment: 'TEST'`
+- Demo Mode in the playground (mocks — no real charges)
+- Visual customization presets / dual-instance theme check in the demo **Visual style (Phase 3 QA)** panel
 
 Do not use live credentials for basic integration testing.
 
@@ -646,44 +806,48 @@ Do not use live credentials for basic integration testing.
 
 ## Going to Production
 
-- Live publishable / secret credentials (backend secrets stay server-side)  
-- Trusted server pricing  
-- HTTPS  
-- Stripe Payment Method Domains (wallets)  
-- PayPal Live + Google Pay PRODUCTION merchant ID when applicable  
-- Klarna / Affirm eligibility & approvals  
-- Webhooks / reconciliation  
-- Auth, rate limits, logging, CSP review  
+- Live publishable / secret credentials (backend secrets stay server-side)
+- Trusted server pricing
+- HTTPS
+- Stripe Payment Method Domains (wallets)
+- PayPal Live + Google Pay PRODUCTION merchant ID when applicable
+- Klarna / Affirm eligibility & approvals
+- Webhooks / reconciliation
+- Auth, rate limits, logging, CSP review
 
 ---
 
 ## FAQ
 
-**What Angular versions are supported?** 20.3+, 21, and 22 (`>=20.3.0 <23.0.0`).  
+**What Angular versions are supported?** 20.3+, 21, and 22 (`>=20.3.0 <23.0.0`).
 
-**Is Easy Payments a payment processor?** No — it integrates your Stripe/PayPal accounts.  
+**Is Easy Payments a payment processor?** No — it integrates your Stripe/PayPal accounts.
 
-**Where does the money go?** To your merchant accounts with those providers.  
+**Where does the money go?** To your merchant accounts with those providers.
 
-**Do I need Stripe / PayPal?** Only for the methods you enable.  
+**Do I need Stripe / PayPal?** Only for the methods you enable.
 
-**Do I need a backend?** Yes for real payments.  
+**Do I need a backend?** Yes for real payments.
 
-**Can I use my own backend language?** Yes — implement the contract.  
+**Can I use my own backend language?** Yes — implement the contract.
 
-**Can I choose method order?** Yes — `methods` array order. No separate `order` property.  
+**Can I choose method order?** Yes — `methods` array order. No separate `order` property.
 
-**How do I localize the UI?** `[locale]` (`auto` / `en` / `es` / `pt`) and optional `[translations]`. See [localization](docs/localization.md).  
+**How do I localize the UI?** `[locale]` (`auto` / `en` / `es` / `pt`) and optional `[translations]`. See [localization](docs/localization.md).
 
-**Does locale convert currency?** No — display formatting only.  
+**Does locale convert currency?** No — display formatting only.
 
-**Dark / light / system / transparent / width?** Yes — see [configuration](docs/configuration.md).  
+**Dark / light / system / transparent / width?** Yes — see [configuration](docs/configuration.md).
 
-**Does Apple Pay / Google Pay always appear?** No — capability and configuration dependent.  
+**Can I brand fonts and colors?** Yes — optional `[visualStyle]` for Easy Payments–owned UI. Provider SDK chrome stays provider-owned. See [Visual customization](#visual-customization).
 
-**How do I report a bug or suggest a feature?** [GitHub Issues](https://github.com/jantvb/easy-payments/issues).  
+**If Stripe is misconfigured, does PayPal still work?** Yes, when PayPal is correctly configured. Stripe-dependent methods (card, wallets, Klarna, Affirm) stay unavailable until Stripe is fixed. See [Provider isolation & diagnostics](#provider-isolation--diagnostics).
 
-**Can I inspect the source / demo / backend?** Yes — links above.  
+**Does Apple Pay / Google Pay always appear?** No — capability and configuration dependent.
+
+**How do I report a bug or suggest a feature?** [GitHub Issues](https://github.com/jantvb/easy-payments/issues).
+
+**Can I inspect the source / demo / backend?** Yes — links above.
 
 **How can I support the project?** Optional contributions via [PayPal](https://paypal.me/JoseVicente07) — not required to use the library.
 
